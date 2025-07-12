@@ -104,6 +104,7 @@ def ha_mapping(
     get_distance_matrix: ty.Callable[
         [IBMQHardwareArchitecture], numpy.ndarray
     ] = get_distance_matrix_swap_number_and_error,
+    trajectory: list = None,
 ) -> ty.Tuple[QuantumCircuit, ty.Dict[Qubit, int]]:
     """Map the given quantum circuit to the hardware topology provided.
 
@@ -129,6 +130,8 @@ def ha_mapping(
     resulting_dag_quantum_circuit = _create_empty_dagcircuit_from_existing(dag_circuit)
     current_mapping = initial_mapping
     explored_mappings: ty.Set[str] = set()
+    if trajectory is None:  # We still collect the trajectory. But caller cannot see it.
+        trajectory = []
     # Sorting all the quantum operations in topological order once for all.
     # May require significant memory on large circuits...
     topological_nodes: ty.List[DAGNode] = list(dag_circuit.topological_op_nodes())
@@ -139,6 +142,9 @@ def ha_mapping(
         front_layer, topological_nodes, current_node_index
     )
     trans_mapping = initial_mapping.copy()
+
+    for logical, physical in initial_mapping.items():
+        trajectory.append(dict(action='MAP', logical=logical._index, physical=physical))
 
     # Start of the iterative algorithm
     while not front_layer.is_empty():
@@ -183,6 +189,14 @@ def ha_mapping(
                 if cost < best_cost:
                     best_cost = cost
                     best_swap_qubits = potential_swap
+
+            ### Before the action is applied to the state!!
+            action = dict(left=best_swap_qubits.left._index, right=best_swap_qubits.right._index,
+                          action='SWAP' if isinstance(best_swap_qubits, SwapTwoQubitGate) else 'BRIDGE')
+            if isinstance(best_swap_qubits, BridgeTwoQubitGate):
+                action['middle'] = best_swap_qubits.middle._index
+            trajectory.append(action)
+
             # We now have our best SWAP/Bridge, let's perform it!
             current_mapping = best_swap_qubits.update_mapping(current_mapping)
             if isinstance(best_swap_qubits, SwapTwoQubitGate):
