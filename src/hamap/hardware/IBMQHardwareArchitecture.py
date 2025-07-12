@@ -269,7 +269,8 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
 
     def get_link_error_rate(self, source: int, sink: int) -> float:
         """Returns the error rate of the CNOT gate between source and sink."""
-        return self.edges[source, sink]["gate_error"]
+        # err = self.edges[source, sink]["gate_error"]
+        return 0.01
 
     def get_qubit_execution_time(self, qubit_index: int, operation: str) -> float:
         """Returns the execution time of operation on the given qubit.
