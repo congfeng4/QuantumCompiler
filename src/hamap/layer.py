@@ -102,7 +102,7 @@ class QuantumLayer:
             ]
             #print(new_physical_qubits)
             dag_circuit.apply_operation_back(
-                op.op, new_physical_qubits, op.cargs, op.condition
+                op.op, new_physical_qubits, op.cargs,
             )
 
     def __len__(self) -> int:

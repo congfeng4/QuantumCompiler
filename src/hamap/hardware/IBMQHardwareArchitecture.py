@@ -38,6 +38,8 @@ from pathlib import Path
 import networkx as nx
 from qiskit.circuit.quantumregister import Qubit
 from qiskit.dagcircuit.dagcircuit import DAGNode
+from qiskit.providers.fake_provider import GenericBackendV2
+from qiskit.providers.models import BackendConfiguration, GateConfig
 
 from hamap.hardware.HardwareArchitecture import HardwareArchitecture
 
@@ -58,7 +60,7 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
     @staticmethod
     def _get_value(value: float, unit: str):
         # We want time in nanoseconds
-        if unit == "us":
+        if unit == "µs":
             return value * 10 ** 3
         elif unit == "ns":
             return value
@@ -144,6 +146,27 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
         backend = matching_backends[0]
         return backend
 
+    @staticmethod
+    def _get_backend_fake(backend_name: str):
+        from qiskit.providers.fake_provider import FakeBackend
+        from qiskit.providers.models import BackendConfiguration
+        from lib.graph_utils import graph_from_name
+
+        graph = graph_from_name(backend_name)
+        # CouplingMap of qiskit requires directed graph but qknob's graphs are undirected.
+        coupling_map = []
+        for e in graph.edges:
+            edge = [node.val for node in e]
+            coupling_map.append(edge)
+            coupling_map.append(list(reversed(edge)))
+        configuration = BackendConfiguration(backend_name=backend_name, n_qubits=graph.num_nodes,
+                                             coupling_map=coupling_map, local=True, backend_version="0.0.0",
+                                             simulator=True, conditional=True,
+                                             open_pulse=False, gates=[],
+                                             memory=False, max_shots=999, basis_gates=['h', 'cx'])
+        backend = FakeBackend(configuration)
+        return backend
+
     def __init__(
         self,
         backend_name: str,
@@ -172,7 +195,7 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
 
         self._weight_func = weight_func
 
-        backend = IBMQHardwareArchitecture._get_backend(backend_name)
+        backend = IBMQHardwareArchitecture._get_backend_fake(backend_name)
 
         # Get the configuration data
         backend_configuration = backend.configuration()
@@ -241,7 +264,8 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
     def get_link_execution_time(self, source: int, sink: int) -> float:
         """Returns the execution time of the CNOT gate between source and sink in \
         nano-seconds."""
-        return self.edges[source, sink]["gate_length"]
+        # return self.edges[source, sink]["gate_length"]
+        return 758
 
     def get_link_error_rate(self, source: int, sink: int) -> float:
         """Returns the error rate of the CNOT gate between source and sink."""
