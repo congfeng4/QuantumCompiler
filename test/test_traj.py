@@ -12,7 +12,7 @@ from hamap import (
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate
 from hamap.layer import QuantumLayer, update_layer
 from hamap.mapping import _create_empty_dagcircuit_from_existing, _adapt_quantum_circuit_and_mapping_arity
-from contrib.common import get_all_qknob_circuit_paths
+from contrib.common import get_all_qknob_circuit_paths, get_hardware_name
 from pathlib import Path
 
 import pytest
@@ -132,7 +132,7 @@ ALL_QKNOB_CIRCUIT_PATHS = get_all_qknob_circuit_paths(DATA_ROOT)
 @pytest.mark.parametrize('data', ALL_QKNOB_CIRCUIT_PATHS.keys())
 def test_traj(data: str):
     for circuit_path in ALL_QKNOB_CIRCUIT_PATHS[data]:
-        hardware_name = data.split('_')[-1].lower()
+        hardware_name = get_hardware_name(data)
         result = run_ha(str(circuit_path), hardware_name, InitialMappingStrategy.RANDOM)
         trajectory = result['trajectory']
         circuit = QuantumCircuit.from_qasm_file(str(circuit_path))

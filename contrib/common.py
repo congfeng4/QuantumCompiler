@@ -1,6 +1,8 @@
 from qiskit.circuit import Qubit, QuantumCircuit
 from pathlib import Path
 
+RESULT_DIR = Path(__file__).parent.parent / 'result'
+
 
 def get_cnot_num(cirt: QuantumCircuit):
     count = cirt.count_ops()
@@ -15,12 +17,15 @@ def qknob_metrics(in_cirt: QuantumCircuit, out_cirt: QuantumCircuit):
     return dict(depth_ratio=depth_ratio, cx_ratio=cx_ratio)
 
 
-
 def show_mapping(mapping: dict[Qubit, int]):
     return {bit._index:int(idx) for bit, idx in mapping.items()}
 
 
-def get_all_qknob_circuit_paths(data_root: Path | None) -> dict[str, list[Path]]:
+def get_hardware_name(data_name: str):
+    return data_name.split('_')[-1].lower()
+
+
+def get_all_qknob_circuit_paths(data_root: Path = None) -> dict[str, list[Path]]:
     if data_root is None:
         data_root = Path(__file__).parent.parent / 'data'
 

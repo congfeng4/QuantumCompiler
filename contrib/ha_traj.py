@@ -53,8 +53,9 @@ def run_ha(circ_path: str, hardware_name: str,
     print(f'Initial mapping {readable_initial_mapping}')
     mapped_circuit, final_mapping = ha_mapping(circuit, initial_mapping, hardware, trajectory=trajectory)
     metrics = qknob_metrics(circuit, mapped_circuit)
+
     return dict(metrics=metrics, initial_mapping=readable_initial_mapping, input_circuit=circ_path,
-                initial_mapping_strategy=initial_mapping_strategy.value, trajectory=trajectory)
+                init=initial_mapping_strategy.value, trajectory=trajectory)
 
 
 if __name__ == '__main__':
