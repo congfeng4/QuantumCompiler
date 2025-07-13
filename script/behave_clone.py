@@ -16,10 +16,10 @@ from imitation.util import logger as imit_logger
 
 
 if __name__ == '__main__':
-    bs = 128
+    bs = 10
     l2_weight = 0
     ent_weight = 0
-    n_trajs = -1
+    n_trajs = 10
     # 1. 配置 logger：同时写 stdout / csv / tensorboard
     log_dir = f"../log-bc/tokyo_bigger_net_int_bs={bs}_nt={n_trajs}_l2={l2_weight}_en={ent_weight}"
     logger = imit_logger.configure(log_dir,  # 会自动创建子文件夹

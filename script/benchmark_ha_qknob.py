@@ -38,6 +38,8 @@ def get_tasks():
 
     for data_name, circuit_paths in sorted(get_all_qknob_circuit_paths().items(),
                                            key=lambda x: x[0], reverse=True):
+        if 'rochester' not in data_name.lower():
+            continue
         for path in circuit_paths:
             for init in initial_mapping_strategies:
                 yield path, init, data_name
@@ -46,7 +48,4 @@ def get_tasks():
 if __name__ == '__main__':
 
     with ProcessPoolExecutor(1) as executor:
-        records = list(executor.map(_func, tqdm(get_tasks())))
-        records = list(filter(None, records))
-        df = pd.DataFrame.from_records(records)
-        df.to_excel(HA_RESULT_DIR / 'result.xlsx')
+        list(executor.map(_func, tqdm(get_tasks())))
