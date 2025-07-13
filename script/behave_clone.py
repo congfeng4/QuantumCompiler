@@ -14,10 +14,14 @@ from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
 from script.expert_trajectory import EXPERT_WITH_INIT_DIR
 from imitation.util import logger as imit_logger
 
+
 if __name__ == '__main__':
     bs = 128
+    l2_weight = 0
+    ent_weight = 0
+    n_trajs = -1
     # 1. 配置 logger：同时写 stdout / csv / tensorboard
-    log_dir = f"../log-bc/tokyo_bigger_net_int_bs={bs}"  # TensorBoard 日志根目录
+    log_dir = f"../log-bc/tokyo_bigger_net_int_bs={bs}_nt={n_trajs}_l2={l2_weight}_en={ent_weight}"
     logger = imit_logger.configure(log_dir,  # 会自动创建子文件夹
                                    format_strs=["stdout", "csv", "tensorboard"])
 
@@ -30,7 +34,8 @@ if __name__ == '__main__':
     )
 
     with (EXPERT_WITH_INIT_DIR / 'tokyo.trans').open('rb') as f:
-        transitions = pickle.load(f)
+        transitions = pickle.load(f)[:n_trajs]
+
     print(f'load transitions {len(transitions)}')
 
     policy = ActorCriticPolicy(
@@ -38,7 +43,7 @@ if __name__ == '__main__':
         action_space=env.action_space,
         # lr_schedule=lambda x: 1e-5,
         lr_schedule=lambda _: th.finfo(th.float32).max,
-        activation_fn=torch.nn.ReLU,
+        activation_fn=torch.nn.LeakyReLU,
         net_arch=dict(
             vf=[512, 256, 128],
             pi=[512, 256, 128],
@@ -54,11 +59,15 @@ if __name__ == '__main__':
         custom_logger=logger,
         policy=policy,
         batch_size=bs,
+        l2_weight=l2_weight,
+        ent_weight=ent_weight,
     )
     bc_trainer.train(
-        n_epochs=10000, reset_tensorboard=True
+        n_epochs=10000,
+        reset_tensorboard=True,
+        progress_bar=False,
     )
 
     print('Eval policy')
-    reward, _ = evaluate_policy(bc_trainer.policy, env, 10)
+    reward, _ = evaluate_policy(bc_trainer.policy, env, 10, deterministic=False)
     print("Reward:", reward)

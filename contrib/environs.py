@@ -63,6 +63,7 @@ class CircuitEnvWithInitialMapping(gym.Env):
         return self.action_as_policy.action_space(self.num_qubits)
 
     def reset(self, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:
+        self.invalid_actions = 0
         self.front_layer = QuantumLayer()
         self.current_node_index = 0
         self.resulting_dag_quantum_circuit = _create_empty_dagcircuit_from_existing(self.dag_circuit)
@@ -120,8 +121,10 @@ class CircuitEnvWithInitialMapping(gym.Env):
         else:
             # print("brige gate is :", best_swap_qubits.left, best_swap_qubits.middle, best_swap_qubits.right)
             pass
-        best_swap_qubits.apply(self.resulting_dag_quantum_circuit, self.front_layer, self.initial_mapping, trans_mapping)
+        if not best_swap_qubits.apply(self.resulting_dag_quantum_circuit, self.front_layer, self.initial_mapping, trans_mapping):
+            return False
         self.update_front_layer()
+        return True
 
     def update_front_layer(self):
         self.current_node_index = update_layer(
@@ -161,7 +164,14 @@ class CircuitEnvWithInitialMapping(gym.Env):
 
     def step_swap(self, action: ActionType):
         assert action['action'] != 'MAP', action
-        self.apply_swap_action(action)
+        if not self.apply_swap_action(action):
+            # Invalid Actions
+            self.invalid_actions += 1
+            if self.invalid_actions >= 100:
+                return self._get_obs(), -0.1, False, True, {}
+            return self._get_obs(), -0.1, False, False, {}
+
+        self.invalid_actions = 0
         num_executed_cnot = self.update()
         reward = num_executed_cnot - 3 + 0.2 * len(self.front_layer)
         done = not self.front_layer
@@ -169,12 +179,14 @@ class CircuitEnvWithInitialMapping(gym.Env):
         if done:
             metrics = self.finalize_result()
             info['metrics'] = metrics
+            print(f'Game ends {metrics}')
         return self._get_obs(), reward, done, False, info
 
     def step(
         self, policy
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         action = self.action_as_policy.from_policy(policy, self.num_qubits)
+        # print(action)
         return self.step_swap(action)
 
     @classmethod
@@ -230,6 +242,66 @@ class CircuitEnvWithInitialMapping(gym.Env):
         env = Monitor(env)
         return env
 
+    def action_masks(self):
+        return self.swap_masks() + self.bridge_masks()
+
+    def bridge_masks(self):
+        masks = np.zeros((self.num_qubits, self.num_qubits), dtype=bool)
+        trans_mapping = self.trans_mapping
+        initial_mapping = self.initial_mapping
+
+        inverse_trans_mapping = {val: key for key, val in trans_mapping.items()}
+        inverse_mapping = {val: key for key, val in initial_mapping.items()}
+        for op in self.front_layer.ops:
+            if len(op.qargs) < 2:
+                # We just pass 1 qubit gates because they do not participate in the
+                # Bridge operation
+                continue
+            if len(op.qargs) != 2:
+                logger.warning("A 3-qubit or more gate has been found in the circuit.")
+                continue
+
+            control, target = op.qargs
+            control_index = initial_mapping[inverse_trans_mapping[initial_mapping[control]]]
+            target_index = initial_mapping[inverse_trans_mapping[initial_mapping[target]]]
+            # For each qubit q linked with control, check if target is linked with q.
+            for _, potential_middle_index in self.hardware.out_edges(control_index):
+                for _, potential_target_index in self.hardware.out_edges(potential_middle_index):
+                    if potential_target_index == target_index:
+                        two_qubit_gate = BridgeTwoQubitGate(
+                            inverse_trans_mapping[initial_mapping[control]],
+                            inverse_mapping[potential_middle_index],
+                            inverse_trans_mapping[initial_mapping[target]],
+                        )
+                        q1 = two_qubit_gate.left._index
+                        q2 = two_qubit_gate.right._index
+                        masks[q1, q2] = masks[q2, q1] = True
+
+        return masks.reshape(-1).tolist()
+
+    def swap_masks(self):
+        inverse_mapping = {val: key for key, val in self.current_mapping.items()}
+        # First compute all the qubits involved in the given layer
+        masks = np.zeros((self.num_qubits, self.num_qubits), dtype=bool)
+        qubits_involved_in_front_layer = set()
+        for op in self.front_layer.ops:
+            qubits_involved_in_front_layer.update(op.qargs)
+        # inverse_mapping = {val: key for key, val in self.current_mapping.items()}
+        # Then for all the possible links that involve at least one of the qubits used by
+        # the gates in the given layer, add this link as a possible SWAP.
+        # all_swaps = list()
+        for involved_qubit in qubits_involved_in_front_layer:
+            qubit_index = self.current_mapping[involved_qubit]
+            # For all the links that involve the current qubit.
+            for source, sink in self.hardware.out_edges(qubit_index):
+                two_qubit_gate = SwapTwoQubitGate(
+                    inverse_mapping[source], inverse_mapping[sink]
+                )
+                q1 = two_qubit_gate.left._index
+                q2 = two_qubit_gate.right._index
+                masks[q1, q2] = masks[q2, q1] = True
+
+        return masks.reshape(-1).tolist()
 
 def to_imitation_trajectory(traj_env: dict):
     from imitation.data.types import TrajectoryWithRew
@@ -249,6 +321,6 @@ gym.register("CircuitEnv", "contrib.environs:CircuitEnvWithInitialMapping")
 
 if __name__ == '__main__':
     traj_data = json.load(Path('/Users/fengcong/HA/result/ha/53Q_gate_Sycamore_small_2_10_1.5_no.4-init=identity-data=53Q_gate_Sycamore.json').open())
-    traj_full = CircuitEnvWithInitialMapping.apply_trajectory(traj_data)
+    traj_full = CircuitEnvWithInitialMapping.apply_trajectory(traj_data, ActionAsPolicyTuple())
     expert_traj = to_imitation_trajectory(traj_full)
     print(expert_traj)

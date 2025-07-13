@@ -167,6 +167,7 @@ class SwapTwoQubitGate(TwoQubitGate):
               trans_mapping: ty.Dict[Qubit, int]
               ):
         dag_circuit.apply_operation_back(SwapGate(), [self.left, self.right])
+        return True
 
     def implements_operation(self,
                              op,
@@ -233,8 +234,9 @@ class BridgeTwoQubitGate(TwoQubitGate):
                 "Could not find a corresponding CNOT gate to remove with "
                 "Bridge usage. Resulting circuit will likely be wrong."
             )
-        else:
-            front_layer.remove_operation(op_to_remove)
+            return False
+        front_layer.remove_operation(op_to_remove)
+        return True
 
     def implements_operation(self,
                              op,
