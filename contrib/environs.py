@@ -76,25 +76,20 @@ class CircuitEnvWithInitialMapping(gym.Env):
     def _get_obs(self):
         return self.interact_graph
 
-    def apply_map_action(self, action: ActionType):
-        logical, physical = action['logical'], action['physical']
-        qubit = self.input_circuit.qubits[logical]
-        self.current_mapping[qubit] = physical
-
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
         return qknob_metrics(self.input_circuit, self.resulting_circuit)
 
-    def find_middle(self, best_swap_qubits: BridgeTwoQubitGate, trans_mapping, inverse_mapping):
+    def find_middle(self, best_swap_qubits: BridgeTwoQubitGate, trans_mapping, inverse_mapping) -> Qubit:
         inverse_trans_mapping = {val: key for key, val in trans_mapping.items()}
         control, target = best_swap_qubits.left, best_swap_qubits.right
-        control_index = self.trans_mapping[control]
-        target_index = self.trans_mapping[target]
+        control_index = self.initial_mapping[control]
+        target_index = self.initial_mapping[target]
         # For each qubit q linked with control, check if target is linked with q.
         for _, potential_middle_index in self.hardware.out_edges(control_index):
             for _, potential_target_index in self.hardware.out_edges(potential_middle_index):
                 if potential_target_index == target_index:
-                    return inverse_trans_mapping[potential_middle_index]
+                    return inverse_mapping[potential_middle_index]
 
         logger.warning("Cannot find middle qubit for BRIDGE %s. Your circuit is probably wrong",
                        best_swap_qubits)
@@ -104,6 +99,11 @@ class CircuitEnvWithInitialMapping(gym.Env):
         inverse_mapping = {val: key for key, val in self.initial_mapping.items()}
         trans_mapping = self.trans_mapping
         best_swap_qubits = convert_action_to_gate(action, self.input_circuit)
+
+        if isinstance(best_swap_qubits, BridgeTwoQubitGate):
+            # Patch the middle qubit before changing the mapping.
+            best_swap_qubits._middle = self.find_middle(best_swap_qubits, trans_mapping, inverse_mapping)
+
         # We now have our best SWAP/Bridge, let's perform it!
         self.current_mapping = best_swap_qubits.update_mapping(self.current_mapping)
         if isinstance(best_swap_qubits, SwapTwoQubitGate):
@@ -119,7 +119,6 @@ class CircuitEnvWithInitialMapping(gym.Env):
             )
         else:
             # print("brige gate is :", best_swap_qubits.left, best_swap_qubits.middle, best_swap_qubits.right)
-            # best_swap_qubits._middle = self.find_middle(best_swap_qubits, trans_mapping, self.initial_mapping)
             pass
         best_swap_qubits.apply(self.resulting_dag_quantum_circuit, self.front_layer, self.initial_mapping, trans_mapping)
         self.update_front_layer()
@@ -244,7 +243,6 @@ def to_imitation_trajectory(traj_env: dict):
 
 gym.register("CircuitEnv", "contrib.environs:CircuitEnvWithInitialMapping")
 
-# def make_env():
 
 if __name__ == '__main__':
     traj_data = json.load(Path('/Users/fengcong/HA/result/ha/53Q_gate_Sycamore_small_2_10_1.5_no.4-init=identity-data=53Q_gate_Sycamore.json').open())

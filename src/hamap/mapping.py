@@ -39,6 +39,7 @@ from qiskit.converters.circuit_to_dag import circuit_to_dag
 from qiskit.converters.dag_to_circuit import dag_to_circuit
 from qiskit.dagcircuit.dagcircuit import DAGCircuit, DAGNode
 
+from contrib.common import show_mapping
 from hamap.distance_matrix import (
     get_distance_matrix_mixed,
     get_distance_matrix_swap_number,

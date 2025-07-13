@@ -18,6 +18,10 @@ def func(hardware_name: str, traj_paths: list[Path]):
 
     for traj_path in traj_paths:
         traj_data = json.loads(traj_path.read_text())
+        init = traj_data['init']
+        if init != 'IDENTITY':  # Currently only consider this.
+            continue
+
         traj_env = CircuitEnvWithInitialMapping.apply_trajectory(traj_data)
         traj = to_imitation_trajectory(traj_env)
         expert_trajs.append(traj)
@@ -35,11 +39,12 @@ def func(hardware_name: str, traj_paths: list[Path]):
     print(f'Expert trajectory: {hardware_name}')
 
 
-EXPERT_WITH_INIT_DIR = RESULT_DIR / 'expert' / 'with_init'
+EXPERT_WITH_INIT_DIR = RESULT_DIR / 'expert' / 'with_init_identity'
 
 def _func(args): return func(*args)
 
 
 if __name__ == '__main__':
-    with ProcessPoolExecutor(1) as executor:
-        list(executor.map(_func, load_and_group_trajectories().items()))
+    hardware_to_trajs = load_and_group_trajectories()
+    selected_hardware = 'tokyo'
+    func(selected_hardware, hardware_to_trajs[selected_hardware])

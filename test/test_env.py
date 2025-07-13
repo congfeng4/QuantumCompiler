@@ -19,7 +19,7 @@ ALL_QKNOB_CIRCUIT_PATHS = get_all_qknob_circuit_paths()
 def test_env(data: str):
     for circuit_path in ALL_QKNOB_CIRCUIT_PATHS[data]:
         hardware_name = get_hardware_name(data)
-        result = run_ha(str(circuit_path), hardware_name, InitialMappingStrategy.RANDOM)
+        result = run_ha(str(circuit_path), hardware_name, InitialMappingStrategy.IDENTITY)
         traj = result['trajectory']
         circuit = QuantumCircuit.from_qasm_file(str(circuit_path))
         hardware = IBMQHardwareArchitecture(hardware_name)

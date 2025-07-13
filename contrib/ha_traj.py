@@ -79,7 +79,7 @@ def run_ha(circ_path: str, hardware_name: str,
                 init=initial_mapping_strategy.value, trajectory=trajectory)
 
 
-def load_and_group_trajectories(traj_root: Path = None) -> dict[str, list[dict[str, Any]]]:
+def load_and_group_trajectories(traj_root: Path = None) -> dict[str, list[Path]]:
     """
     Utility function to load trajectories and group them by hardware_name.
     """

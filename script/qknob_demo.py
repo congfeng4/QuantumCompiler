@@ -20,7 +20,7 @@ from contrib.common import show_mapping, qknob_metrics
 if __name__ == '__main__':
     max_steps = 1000
 
-    circuit = QuantumCircuit.from_qasm_file("./data/")
+    circuit = QuantumCircuit.from_qasm_file("../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_1_10_1.5_no.1.qasm")
     hardware = IBMQHardwareArchitecture("tokyo")
     # initial_mapping, cost, iter_num = get_initial_mapping_from_annealing(get_mapping_cost, circuit, hardware, max_steps=max_steps)
     initial_mapping = initial_mapping_from_sabre(circuit, hardware, wrap_iterative_mapping_algorithm)
