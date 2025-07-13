@@ -1,9 +1,12 @@
 """
 Run HA algorithm and obtain trajectories
 """
+import json
+from collections import defaultdict
 from enum import Enum
-
+from pathlib import Path
 from qiskit import QuantumCircuit
+from typing import Any
 
 from contrib.action import ActionType
 from hamap._cli.compare_initial_mappings import get_mapping_cost, get_initial_mapping_from_annealing, \
@@ -15,10 +18,13 @@ from hamap import (
     # different algorithm than the one described in the paper.
     ha_mapping_paper_compliant,  # Bridge selection using the exact same algorithm
     # described in the paper.
-    IBMQHardwareArchitecture, mapping_to_str,
+    IBMQHardwareArchitecture,
 )
-from contrib.common import show_mapping, qknob_metrics
+from contrib.common import show_mapping, qknob_metrics, RESULT_DIR
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate
+
+
+HA_RESULT_DIR = RESULT_DIR / 'ha'
 
 
 class InitialMappingStrategy(Enum):
@@ -73,7 +79,28 @@ def run_ha(circ_path: str, hardware_name: str,
                 init=initial_mapping_strategy.value, trajectory=trajectory)
 
 
+def load_and_group_trajectories(traj_root: Path = None) -> dict[str, list[dict[str, Any]]]:
+    """
+    Utility function to load trajectories and group them by hardware_name.
+    """
+    if traj_root is None:
+        traj_root = HA_RESULT_DIR
+    result = defaultdict(list)
+    for traj_file in traj_root.glob('*.json'):
+        traj_data = json.loads(traj_file.read_text())
+        try:
+            hardware_name = traj_data['hardware_name']
+        except KeyError:
+            print(f'Discard file {traj_file} due to no hardware_name')
+            continue
+        result[hardware_name].append(traj_file)
+    return result
+
+
 if __name__ == '__main__':
+    print(load_and_group_trajectories())
+    exit()
+
     from pprint import pp
     hardware = IBMQHardwareArchitecture("tokyo")
     result = run_ha("../data/20Q_depth_Tokyo/circuits/20Q_depth_Tokyo_large_None_5_2.55_no.2.qasm",

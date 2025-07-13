@@ -290,3 +290,5 @@ pip-selfcheck.json
 
 /data
 .DS_Store
+/result/expert/
+/log-*

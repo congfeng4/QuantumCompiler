@@ -11,9 +11,10 @@ from qiskit import QuantumCircuit
 from qiskit.circuit import Qubit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGNode
+from stable_baselines3.common.monitor import Monitor
 
 from contrib.common import show_mapping, qknob_metrics
-from contrib.ha_traj import convert_action_to_gate
+from contrib.ha_traj import convert_action_to_gate, get_initial_mapping, InitialMappingStrategy
 from contrib.action import ActionAsTuplePolicy, ActionType
 
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate
@@ -39,15 +40,15 @@ class CircuitEnvWithInitialMapping(gym.Env):
 
     NUM_ACTIONS = 2  # 2 for bridge and swap.
 
-    def __init__(self, input_circuit: QuantumCircuit,
-                 hardware: IBMQHardwareArchitecture,
-                 initial_mapping: dict[Qubit, int]):
+    def __init__(self, *,
+                 input_circuit: QuantumCircuit = None,
+                 hardware: IBMQHardwareArchitecture = None,
+                 initial_mapping: dict[Qubit, int] = None):
         self.input_circuit= input_circuit
         self.hardware = hardware
         self.initial_mapping = initial_mapping
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
-
         self.dag_circuit = circuit_to_dag(input_circuit)
         self.topological_nodes: list[DAGNode] = list(self.dag_circuit.topological_op_nodes())
 
@@ -61,7 +62,7 @@ class CircuitEnvWithInitialMapping(gym.Env):
     def _get_action_space(self):
         return ActionAsTuplePolicy.action_space(self.num_qubits)
 
-    def reset(self) -> tuple[ObsType, dict[str, Any]]:
+    def reset(self, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:
         self.front_layer = QuantumLayer()
         self.current_node_index = 0
         self.resulting_dag_quantum_circuit = _create_empty_dagcircuit_from_existing(self.dag_circuit)
@@ -210,6 +211,23 @@ class CircuitEnvWithInitialMapping(gym.Env):
         return dict(traj_full=traj_full, metrics=metrics, metrics_env=info['metrics'],
                     traj_len=traj_index, terminate=done, hardware_name=hardware_name)
 
+    @classmethod
+    def make(cls, input_circuit_path: str, hardware_name: str, init: InitialMappingStrategy):
+        """
+        Utility to create an env properly.
+        """
+        input_circuit = QuantumCircuit.from_qasm_file(input_circuit_path)
+        hardware = IBMQHardwareArchitecture(hardware_name)
+        initial_mapping = get_initial_mapping(input_circuit, hardware, init)
+        env = gym.make(
+            "CircuitEnv",
+            input_circuit=input_circuit,
+            hardware=hardware,
+            initial_mapping=initial_mapping,
+        )
+        env = Monitor(env)
+        return env
+
 
 def to_imitation_trajectory(traj_env: dict):
     from imitation.data.types import TrajectoryWithRew
@@ -226,6 +244,7 @@ def to_imitation_trajectory(traj_env: dict):
 
 gym.register("CircuitEnv", "contrib.environs:CircuitEnvWithInitialMapping")
 
+# def make_env():
 
 if __name__ == '__main__':
     traj_data = json.load(Path('/Users/fengcong/HA/result/ha/53Q_gate_Sycamore_small_2_10_1.5_no.4-init=identity-data=53Q_gate_Sycamore.json').open())

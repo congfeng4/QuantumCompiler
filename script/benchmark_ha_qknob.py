@@ -3,15 +3,11 @@
 """
 import jsons
 from concurrent.futures import ProcessPoolExecutor
-from itertools import product
-from contrib.common import RESULT_DIR, get_all_qknob_circuit_paths, get_hardware_name
-from contrib.ha_traj import InitialMappingStrategy, run_ha
+from contrib.common import get_all_qknob_circuit_paths, get_hardware_name
+from contrib.ha_traj import InitialMappingStrategy, run_ha, HA_RESULT_DIR
 from pathlib import Path
 import pandas as pd
 from tqdm import tqdm
-
-
-HA_RESULT_DIR = RESULT_DIR / 'ha'
 
 
 def func(path: Path, init: InitialMappingStrategy, data_name: str):
@@ -49,7 +45,7 @@ def get_tasks():
 
 if __name__ == '__main__':
 
-    with ProcessPoolExecutor(4) as executor:
+    with ProcessPoolExecutor(1) as executor:
         records = list(executor.map(_func, tqdm(get_tasks())))
         records = list(filter(None, records))
         df = pd.DataFrame.from_records(records)

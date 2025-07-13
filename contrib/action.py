@@ -90,4 +90,4 @@ class ActionAsTuplePolicy:
 
     @classmethod
     def action_space(self, num_qubits: int):
-        return gym.spaces.MultiDiscrete([2, num_qubits, num_qubits, num_qubits])
+        return gym.spaces.MultiDiscrete([3, num_qubits, num_qubits, num_qubits])

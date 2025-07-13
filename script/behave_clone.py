@@ -1,0 +1,49 @@
+import pickle
+
+import gymnasium as gym
+from stable_baselines3.common.evaluation import evaluate_policy
+
+from imitation.algorithms import bc
+from imitation.data import rollout
+from imitation.data import serialize
+from imitation.util.util import make_vec_env
+
+from contrib.environs import *
+from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
+from script.expert_trajectory import EXPERT_WITH_INIT_DIR
+from imitation.util import logger as imit_logger
+
+
+if __name__ == '__main__':
+
+    # 1. 配置 logger：同时写 stdout / csv / tensorboard
+    log_dir = "../log-bc/tokyo"  # TensorBoard 日志根目录
+    logger = imit_logger.configure(log_dir,  # 会自动创建子文件夹
+                                   format_strs=["stdout", "csv", "tensorboard"])
+
+    rng = np.random.default_rng(0)
+    env = CircuitEnvWithInitialMapping.make(
+        input_circuit_path='../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_1_10_1.5_no.1.qasm',
+        hardware_name='tokyo',
+        init=InitialMappingStrategy.RANDOM,
+    )
+
+    with (EXPERT_WITH_INIT_DIR / 'tokyo.trans').open('rb') as f:
+        transitions = pickle.load(f)
+    print(f'load transitions {len(transitions)}')
+
+    print('Train BC...')
+    bc_trainer = bc.BC(
+        observation_space=env.observation_space,
+        action_space=env.action_space,
+        demonstrations=transitions,
+        rng=rng,
+        custom_logger=logger,
+    )
+    bc_trainer.train(
+        n_epochs=10000,
+    )
+
+    print('Eval policy')
+    reward, _ = evaluate_policy(bc_trainer.policy, env, 10)
+    print("Reward:", reward)
