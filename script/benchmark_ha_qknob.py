@@ -14,15 +14,14 @@ def func(path: Path, init: InitialMappingStrategy, data_name: str):
     file = f'{path.stem}-init={init.value}-data={data_name}.json'
     out_path = HA_RESULT_DIR / file
     if out_path.exists():
-        return {}
+        return
+    print(path, data_name, out_path)
     res = run_ha(
         circ_path=str(path),
         hardware_name=get_hardware_name(data_name),
         initial_mapping_strategy=init,
     )
     out_path.write_text(jsons.dumps(res, jdkwargs=dict(indent=4, ensure_ascii=False)))
-    record = dict(**res['metrics'], data_name=data_name, init=init.value)
-    return record
 
 
 def _func(args): return func(*args)
@@ -40,7 +39,11 @@ def get_tasks():
                                            key=lambda x: x[0], reverse=True):
         if 'rochester' not in data_name.lower():
             continue
+        if 'sycamore' in data_name.lower():
+            continue
+        print(data_name)
         for path in circuit_paths:
+            print(path)
             for init in initial_mapping_strategies:
                 yield path, init, data_name
 
