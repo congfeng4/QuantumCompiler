@@ -14,7 +14,7 @@ from contrib import action
 import json
 
 INIT_STRATEGY = InitialMappingStrategy.IDENTITY.value
-A2P = action.ActionAsPolicyTuple()
+A2P = action.ActionAsPolicyInt()
 EXPERT_WITH_INIT_DIR = RESULT_DIR / 'expert' / f'init={INIT_STRATEGY}-a2p={A2P}'
 
 
