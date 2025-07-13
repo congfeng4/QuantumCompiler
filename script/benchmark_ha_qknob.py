@@ -16,12 +16,14 @@ HA_RESULT_DIR = RESULT_DIR / 'ha'
 
 def func(path: Path, init: InitialMappingStrategy, data_name: str):
     file = f'{path.stem}-init={init.value}-data={data_name}.json'
+    out_path = HA_RESULT_DIR / file
+    if out_path.exists():
+        return {}
     res = run_ha(
         circ_path=str(path),
         hardware_name=get_hardware_name(data_name),
         initial_mapping_strategy=init,
     )
-    out_path = HA_RESULT_DIR / file
     out_path.write_text(jsons.dumps(res, jdkwargs=dict(indent=4, ensure_ascii=False)))
     record = dict(**res['metrics'], data_name=data_name, init=init.value)
     return record
@@ -32,8 +34,8 @@ def _func(args): return func(*args)
 
 def get_tasks():
     initial_mapping_strategies = [
-        # InitialMappingStrategy.RANDOM,
-        # InitialMappingStrategy.IDENTITY,
+        InitialMappingStrategy.RANDOM,
+        InitialMappingStrategy.IDENTITY,
         InitialMappingStrategy.SABRE,
         InitialMappingStrategy.SIMULATE_ANNEALING,
     ]
@@ -47,8 +49,8 @@ def get_tasks():
 
 if __name__ == '__main__':
 
-    with ProcessPoolExecutor(12) as executor:
+    with ProcessPoolExecutor(4) as executor:
         records = list(executor.map(_func, tqdm(get_tasks())))
+        records = list(filter(None, records))
         df = pd.DataFrame.from_records(records)
         df.to_excel(HA_RESULT_DIR / 'result.xlsx')
-

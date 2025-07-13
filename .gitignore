@@ -289,3 +289,4 @@ pip-selfcheck.json
 # End of https://www.toptal.com/developers/gitignore/api/python,emacs,pycharm+all,virtualenv
 
 /data
+.DS_Store

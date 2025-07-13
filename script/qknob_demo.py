@@ -16,21 +16,23 @@ from hamap import (
 )
 from contrib.common import show_mapping, qknob_metrics
 
-max_steps = 1000
 
-circuit = QuantumCircuit.from_qasm_file("./data/20Q_depth_Tokyo/circuits/20Q_depth_Tokyo_large_None_5_2.55_no.2.qasm")
-hardware = IBMQHardwareArchitecture("tokyo")
-# initial_mapping, cost, iter_num = get_initial_mapping_from_annealing(get_mapping_cost, circuit, hardware, max_steps=max_steps)
-initial_mapping = initial_mapping_from_sabre(circuit, hardware, wrap_iterative_mapping_algorithm)
-print(f'Initial mapping {show_mapping(initial_mapping)}')
+if __name__ == '__main__':
+    max_steps = 1000
 
-# Map the circuit with our hardware-aware heuristic and using SWAP & Bridge gates.
-# Replace "ha_mapping" with "ha_mapping_paper_compliant" to use the version 100%
-# compliant with the paper.
-mapped_circuit, final_mapping = ha_mapping(
-    circuit, initial_mapping, hardware
-)
+    circuit = QuantumCircuit.from_qasm_file("./data/")
+    hardware = IBMQHardwareArchitecture("tokyo")
+    # initial_mapping, cost, iter_num = get_initial_mapping_from_annealing(get_mapping_cost, circuit, hardware, max_steps=max_steps)
+    initial_mapping = initial_mapping_from_sabre(circuit, hardware, wrap_iterative_mapping_algorithm)
+    print(f'Initial mapping {show_mapping(initial_mapping)}')
 
-# print(mapped_circuit.draw())
+    # Map the circuit with our hardware-aware heuristic and using SWAP & Bridge gates.
+    # Replace "ha_mapping" with "ha_mapping_paper_compliant" to use the version 100%
+    # compliant with the paper.
+    mapped_circuit, final_mapping = ha_mapping(
+        circuit, initial_mapping, hardware
+    )
 
-print(qknob_metrics(circuit, mapped_circuit))
+    # print(mapped_circuit.draw())
+
+    print(qknob_metrics(circuit, mapped_circuit))

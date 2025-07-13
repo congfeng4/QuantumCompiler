@@ -1,0 +1,513 @@
+{
+  "metrics": {
+    "depth_ratio": 2.55,
+    "cx_ratio": 2.5
+  },
+  "hardware_name": "tokyo",
+  "initial_mapping": {
+    "0": 12,
+    "1": 5,
+    "2": 15,
+    "3": 6,
+    "4": 14,
+    "5": 9,
+    "6": 19,
+    "7": 17,
+    "8": 3,
+    "9": 0,
+    "10": 2,
+    "11": 10,
+    "12": 16,
+    "13": 4,
+    "14": 7,
+    "15": 1,
+    "16": 13,
+    "17": 8,
+    "18": 18,
+    "19": 11
+  },
+  "input_circuit": "/Users/fengcong/HA/data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_1_5_1.5_no.3.qasm",
+  "init": "random",
+  "trajectory": [
+    {
+      "action": "MAP",
+      "logical": 0,
+      "physical": 12
+    },
+    {
+      "action": "MAP",
+      "logical": 1,
+      "physical": 5
+    },
+    {
+      "action": "MAP",
+      "logical": 2,
+      "physical": 15
+    },
+    {
+      "action": "MAP",
+      "logical": 3,
+      "physical": 6
+    },
+    {
+      "action": "MAP",
+      "logical": 4,
+      "physical": 14
+    },
+    {
+      "action": "MAP",
+      "logical": 5,
+      "physical": 9
+    },
+    {
+      "action": "MAP",
+      "logical": 6,
+      "physical": 19
+    },
+    {
+      "action": "MAP",
+      "logical": 7,
+      "physical": 17
+    },
+    {
+      "action": "MAP",
+      "logical": 8,
+      "physical": 3
+    },
+    {
+      "action": "MAP",
+      "logical": 9,
+      "physical": 0
+    },
+    {
+      "action": "MAP",
+      "logical": 10,
+      "physical": 2
+    },
+    {
+      "action": "MAP",
+      "logical": 11,
+      "physical": 10
+    },
+    {
+      "action": "MAP",
+      "logical": 12,
+      "physical": 16
+    },
+    {
+      "action": "MAP",
+      "logical": 13,
+      "physical": 4
+    },
+    {
+      "action": "MAP",
+      "logical": 14,
+      "physical": 7
+    },
+    {
+      "action": "MAP",
+      "logical": 15,
+      "physical": 1
+    },
+    {
+      "action": "MAP",
+      "logical": 16,
+      "physical": 13
+    },
+    {
+      "action": "MAP",
+      "logical": 17,
+      "physical": 8
+    },
+    {
+      "action": "MAP",
+      "logical": 18,
+      "physical": 18
+    },
+    {
+      "action": "MAP",
+      "logical": 19,
+      "physical": 11
+    },
+    {
+      "left": 3,
+      "right": 14,
+      "action": "SWAP"
+    },
+    {
+      "left": 3,
+      "right": 16,
+      "action": "SWAP"
+    },
+    {
+      "left": 15,
+      "right": 10,
+      "action": "SWAP"
+    },
+    {
+      "left": 15,
+      "right": 8,
+      "action": "SWAP"
+    },
+    {
+      "left": 8,
+      "right": 10,
+      "action": "SWAP"
+    },
+    {
+      "left": 11,
+      "right": 14,
+      "action": "SWAP"
+    },
+    {
+      "left": 14,
+      "right": 1,
+      "action": "SWAP"
+    },
+    {
+      "left": 9,
+      "right": 3,
+      "action": "BRIDGE",
+      "middle": 15
+    },
+    {
+      "left": 16,
+      "right": 17,
+      "action": "SWAP"
+    },
+    {
+      "left": 5,
+      "right": 0,
+      "action": "BRIDGE",
+      "middle": 17
+    },
+    {
+      "left": 8,
+      "right": 0,
+      "action": "BRIDGE",
+      "middle": 17
+    },
+    {
+      "left": 14,
+      "right": 19,
+      "action": "SWAP"
+    },
+    {
+      "left": 13,
+      "right": 16,
+      "action": "SWAP"
+    },
+    {
+      "left": 0,
+      "right": 13,
+      "action": "SWAP"
+    },
+    {
+      "left": 18,
+      "right": 3,
+      "action": "SWAP"
+    },
+    {
+      "left": 18,
+      "right": 13,
+      "action": "SWAP"
+    },
+    {
+      "left": 17,
+      "right": 19,
+      "action": "BRIDGE",
+      "middle": 0
+    },
+    {
+      "left": 17,
+      "right": 19,
+      "action": "BRIDGE",
+      "middle": 0
+    },
+    {
+      "left": 11,
+      "right": 10,
+      "action": "SWAP"
+    },
+    {
+      "left": 10,
+      "right": 9,
+      "action": "BRIDGE",
+      "middle": 15
+    },
+    {
+      "left": 14,
+      "right": 10,
+      "action": "SWAP"
+    },
+    {
+      "left": 19,
+      "right": 10,
+      "action": "SWAP"
+    },
+    {
+      "left": 19,
+      "right": 7,
+      "action": "SWAP"
+    },
+    {
+      "left": 17,
+      "right": 13,
+      "action": "SWAP"
+    },
+    {
+      "left": 16,
+      "right": 0,
+      "action": "SWAP"
+    },
+    {
+      "left": 19,
+      "right": 18,
+      "action": "SWAP"
+    },
+    {
+      "left": 18,
+      "right": 19,
+      "action": "SWAP"
+    },
+    {
+      "left": 1,
+      "right": 14,
+      "action": "SWAP"
+    },
+    {
+      "left": 17,
+      "right": 13,
+      "action": "SWAP"
+    },
+    {
+      "left": 17,
+      "right": 13,
+      "action": "SWAP"
+    },
+    {
+      "left": 6,
+      "right": 17,
+      "action": "SWAP"
+    },
+    {
+      "left": 13,
+      "right": 6,
+      "action": "SWAP"
+    },
+    {
+      "left": 0,
+      "right": 1,
+      "action": "BRIDGE",
+      "middle": 19
+    },
+    {
+      "left": 10,
+      "right": 7,
+      "action": "SWAP"
+    },
+    {
+      "left": 7,
+      "right": 2,
+      "action": "BRIDGE",
+      "middle": 12
+    },
+    {
+      "left": 2,
+      "right": 14,
+      "action": "SWAP"
+    },
+    {
+      "left": 14,
+      "right": 12,
+      "action": "BRIDGE",
+      "middle": 0
+    },
+    {
+      "left": 12,
+      "right": 1,
+      "action": "BRIDGE",
+      "middle": 19
+    },
+    {
+      "left": 10,
+      "right": 1,
+      "action": "SWAP"
+    },
+    {
+      "left": 14,
+      "right": 2,
+      "action": "SWAP"
+    },
+    {
+      "left": 1,
+      "right": 18,
+      "action": "SWAP"
+    },
+    {
+      "left": 1,
+      "right": 12,
+      "action": "SWAP"
+    },
+    {
+      "left": 14,
+      "right": 7,
+      "action": "SWAP"
+    },
+    {
+      "left": 16,
+      "right": 19,
+      "action": "BRIDGE",
+      "middle": 0
+    },
+    {
+      "left": 0,
+      "right": 16,
+      "action": "SWAP"
+    },
+    {
+      "left": 18,
+      "right": 12,
+      "action": "SWAP"
+    },
+    {
+      "left": 18,
+      "right": 6,
+      "action": "SWAP"
+    },
+    {
+      "left": 7,
+      "right": 10,
+      "action": "SWAP"
+    },
+    {
+      "left": 17,
+      "right": 3,
+      "action": "SWAP"
+    },
+    {
+      "left": 19,
+      "right": 17,
+      "action": "SWAP"
+    },
+    {
+      "left": 17,
+      "right": 1,
+      "action": "SWAP"
+    },
+    {
+      "left": 10,
+      "right": 7,
+      "action": "SWAP"
+    },
+    {
+      "left": 2,
+      "right": 17,
+      "action": "SWAP"
+    },
+    {
+      "left": 2,
+      "right": 6,
+      "action": "SWAP"
+    },
+    {
+      "left": 16,
+      "right": 12,
+      "action": "BRIDGE",
+      "middle": 0
+    },
+    {
+      "left": 15,
+      "right": 11,
+      "action": "BRIDGE",
+      "middle": 3
+    },
+    {
+      "left": 8,
+      "right": 9,
+      "action": "SWAP"
+    },
+    {
+      "left": 14,
+      "right": 19,
+      "action": "BRIDGE",
+      "middle": 3
+    },
+    {
+      "left": 16,
+      "right": 5,
+      "action": "SWAP"
+    },
+    {
+      "left": 19,
+      "right": 4,
+      "action": "SWAP"
+    },
+    {
+      "left": 14,
+      "right": 10,
+      "action": "SWAP"
+    },
+    {
+      "left": 11,
+      "right": 15,
+      "action": "SWAP"
+    },
+    {
+      "left": 17,
+      "right": 6,
+      "action": "SWAP"
+    },
+    {
+      "left": 3,
+      "right": 4,
+      "action": "SWAP"
+    },
+    {
+      "left": 3,
+      "right": 1,
+      "action": "SWAP"
+    },
+    {
+      "left": 8,
+      "right": 9,
+      "action": "SWAP"
+    },
+    {
+      "left": 6,
+      "right": 7,
+      "action": "BRIDGE",
+      "middle": 18
+    },
+    {
+      "left": 17,
+      "right": 3,
+      "action": "SWAP"
+    },
+    {
+      "left": 19,
+      "right": 1,
+      "action": "SWAP"
+    },
+    {
+      "left": 19,
+      "right": 1,
+      "action": "SWAP"
+    },
+    {
+      "left": 16,
+      "right": 19,
+      "action": "SWAP"
+    },
+    {
+      "left": 17,
+      "right": 3,
+      "action": "SWAP"
+    },
+    {
+      "left": 2,
+      "right": 0,
+      "action": "SWAP"
+    }
+  ]
+}
