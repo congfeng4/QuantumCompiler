@@ -94,6 +94,8 @@ def verify_trajectory(
                 middle = action['middle']
                 best_swap_qubits = BridgeTwoQubitGate(left=quantum_circuit.qubits[left], right=quantum_circuit.qubits[right],
                                                       middle=quantum_circuit.qubits[middle])
+            else:
+                return False
 
             # We now have our best SWAP/Bridge, let's perform it!
             current_mapping = best_swap_qubits.update_mapping(current_mapping)

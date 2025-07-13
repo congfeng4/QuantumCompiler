@@ -17,6 +17,7 @@ from hamap import (
     IBMQHardwareArchitecture, mapping_to_str,
 )
 from contrib.common import show_mapping, qknob_metrics
+from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate
 
 
 class InitialMappingStrategy(Enum):
@@ -24,6 +25,20 @@ class InitialMappingStrategy(Enum):
     SABRE = 'sabre'
     RANDOM = 'random'
     IDENTITY = 'identity'
+
+
+def convert_action_to_gate(action, quantum_circuit: QuantumCircuit):
+    left, right = action['left'], action['right']
+    if action['action'] == 'SWAP':
+        best_swap_qubits = SwapTwoQubitGate(left=quantum_circuit.qubits[left], right=quantum_circuit.qubits[right])
+    elif action['action'] == 'BRIDGE':
+        # middle = action['middle']
+        middle = -1
+        best_swap_qubits = BridgeTwoQubitGate(left=quantum_circuit.qubits[left], right=quantum_circuit.qubits[right],
+                                              middle=quantum_circuit.qubits[middle])
+    else:
+        raise ValueError(action)
+    return best_swap_qubits
 
 
 def get_initial_mapping(circuit: QuantumCircuit, hardware: IBMQHardwareArchitecture,
@@ -42,7 +57,7 @@ def get_initial_mapping(circuit: QuantumCircuit, hardware: IBMQHardwareArchitect
 def run_ha(circ_path: str, hardware_name: str,
            initial_mapping_strategy: InitialMappingStrategy = InitialMappingStrategy.RANDOM):
     """
-    Returns dict(metrics=metrics, initial_mapping=readable_initial_mapping, input_circuit=circ_path,
+    Returns dict(metrics=metrics, init=readable_initial_mapping, input_circuit=circ_path,
                 initial_mapping_strategy=initial_mapping_strategy.value, trajectory=trajectory)
     """
     trajectory = []
@@ -50,11 +65,11 @@ def run_ha(circ_path: str, hardware_name: str,
     hardware = IBMQHardwareArchitecture(hardware_name)
     initial_mapping = get_initial_mapping(circuit, hardware, initial_mapping_strategy)
     readable_initial_mapping = show_mapping(initial_mapping)
-    print(f'Initial mapping {readable_initial_mapping}')
     mapped_circuit, final_mapping = ha_mapping(circuit, initial_mapping, hardware, trajectory=trajectory)
     metrics = qknob_metrics(circuit, mapped_circuit)
 
-    return dict(metrics=metrics, initial_mapping=readable_initial_mapping, input_circuit=circ_path,
+    return dict(metrics=metrics, hardware_name=hardware_name,
+                initial_mapping=readable_initial_mapping, input_circuit=circ_path,
                 init=initial_mapping_strategy.value, trajectory=trajectory)
 
 

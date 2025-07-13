@@ -144,7 +144,7 @@ def ha_mapping(
     trans_mapping = initial_mapping.copy()
 
     for logical, physical in initial_mapping.items():
-        trajectory.append(dict(action='MAP', logical=logical._index, physical=physical))
+        trajectory.append(dict(action='MAP', logical=logical._index, physical=int(physical)))
 
     # Start of the iterative algorithm
     while not front_layer.is_empty():
