@@ -15,12 +15,13 @@ def func(path: Path, init: InitialMappingStrategy, data_name: str):
     out_path = HA_RESULT_DIR / file
     if out_path.exists():
         return
-    print(path, data_name, out_path)
+    # print(path, data_name, out_path)
     res = run_ha(
         circ_path=str(path),
         hardware_name=get_hardware_name(data_name),
         initial_mapping_strategy=init,
     )
+    print(out_path)
     out_path.write_text(jsons.dumps(res, jdkwargs=dict(indent=4, ensure_ascii=False)))
 
 
@@ -49,6 +50,10 @@ def get_tasks():
 
 
 if __name__ == '__main__':
-
-    with ProcessPoolExecutor(1) as executor:
-        list(executor.map(_func, tqdm(get_tasks())))
+    data_name = '53Q_gate_Rochester'
+    data = get_all_qknob_circuit_paths()[data_name]
+    # print(data)
+    for path in data:
+        func(path, InitialMappingStrategy.SABRE, data_name)
+    # with ProcessPoolExecutor(1) as executor:
+    #     list(executor.map(_func, tqdm(get_tasks())))
