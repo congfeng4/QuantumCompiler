@@ -25,7 +25,8 @@ if __name__ == '__main__':
     env = CircuitEnvWithInitialMapping.make(
         input_circuit_path='../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_1_10_1.5_no.1.qasm',
         hardware_name='tokyo',
-        init=InitialMappingStrategy.RANDOM,
+        init=InitialMappingStrategy.IDENTITY,
+        a2p=ActionAsPolicyTuple(),
     )
 
     with (EXPERT_WITH_INIT_DIR / 'tokyo.trans').open('rb') as f:

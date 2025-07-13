@@ -15,7 +15,7 @@ from stable_baselines3.common.monitor import Monitor
 
 from contrib.common import show_mapping, qknob_metrics
 from contrib.ha_traj import convert_action_to_gate, get_initial_mapping, InitialMappingStrategy
-from contrib.action import ActionAsTuplePolicy, ActionType
+from contrib.action import ActionAsPolicyTuple, ActionType, AcionAsPolicy
 
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate
 from hamap.layer import QuantumLayer, update_layer
@@ -38,16 +38,16 @@ def build_interact_graph(topological_nodes: list[DAGNode], num_qubits: int):
 
 class CircuitEnvWithInitialMapping(gym.Env):
 
-    NUM_ACTIONS = 2  # 2 for bridge and swap.
-
     def __init__(self, *,
                  input_circuit: QuantumCircuit = None,
                  hardware: IBMQHardwareArchitecture = None,
-                 initial_mapping: dict[Qubit, int] = None):
+                 initial_mapping: dict[Qubit, int] = None,
+                 action_as_policy: AcionAsPolicy = None):
         self.input_circuit= input_circuit
         self.hardware = hardware
         self.initial_mapping = initial_mapping
-
+        self.action_as_policy = action_as_policy
+        
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
         self.topological_nodes: list[DAGNode] = list(self.dag_circuit.topological_op_nodes())
@@ -60,7 +60,7 @@ class CircuitEnvWithInitialMapping(gym.Env):
         return gym.spaces.Box(low=0, high=float('inf'), shape=(self.num_qubits, self.num_qubits), dtype=np.float32)
 
     def _get_action_space(self):
-        return ActionAsTuplePolicy.action_space(self.num_qubits)
+        return self.action_as_policy.action_space(self.num_qubits)
 
     def reset(self, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:
         self.front_layer = QuantumLayer()
@@ -172,13 +172,13 @@ class CircuitEnvWithInitialMapping(gym.Env):
         return self._get_obs(), reward, done, False, info
 
     def step(
-        self, policy: ActionAsTuplePolicy.PolicyType
+        self, policy
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
-        action = ActionAsTuplePolicy.from_policy(policy, self.num_qubits)
+        action = self.action_as_policy.from_policy(policy, self.num_qubits)
         return self.step_swap(action)
 
     @classmethod
-    def apply_trajectory(cls, traj_data: dict):
+    def apply_trajectory(cls, traj_data: dict, action_as_policy):
         traj_full = defaultdict(list)
         trajectory: list = traj_data['trajectory']
         metrics = traj_data['metrics']
@@ -189,7 +189,8 @@ class CircuitEnvWithInitialMapping(gym.Env):
         initial_mapping = { input_circuit.qubits[int(k)] : v for k, v in initial_mapping.items() }
         env = cls(input_circuit=input_circuit,
                   hardware=IBMQHardwareArchitecture(hardware_name),
-                  initial_mapping=initial_mapping)
+                  initial_mapping=initial_mapping,
+                  action_as_policy=action_as_policy)
         state, _ = env.reset()
         traj_full['obs'].append(state)
         done = False
@@ -199,7 +200,7 @@ class CircuitEnvWithInitialMapping(gym.Env):
             traj_index += 1
             if action['action'] == 'MAP':
                 continue
-            policy = ActionAsTuplePolicy.to_policy(action, env.num_qubits)
+            policy = env.action_as_policy.to_policy(action, env.num_qubits)
             state, reward, done, _, info = env.step(policy)
             traj_full['acts'].append(policy)
             traj_full['rews'].append(reward)
@@ -211,7 +212,8 @@ class CircuitEnvWithInitialMapping(gym.Env):
                     traj_len=traj_index, terminate=done, hardware_name=hardware_name)
 
     @classmethod
-    def make(cls, input_circuit_path: str, hardware_name: str, init: InitialMappingStrategy):
+    def make(cls, input_circuit_path: str, hardware_name: str, init: InitialMappingStrategy,
+             a2p: AcionAsPolicy):
         """
         Utility to create an env properly.
         """
@@ -223,6 +225,7 @@ class CircuitEnvWithInitialMapping(gym.Env):
             input_circuit=input_circuit,
             hardware=hardware,
             initial_mapping=initial_mapping,
+            action_as_policy=a2p,
         )
         env = Monitor(env)
         return env

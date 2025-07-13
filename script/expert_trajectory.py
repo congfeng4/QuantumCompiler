@@ -7,10 +7,15 @@ from imitation.data import serialize, rollout
 
 from contrib.common import RESULT_DIR
 from concurrent.futures import ProcessPoolExecutor
-from contrib.ha_traj import load_and_group_trajectories
+from contrib.ha_traj import load_and_group_trajectories, InitialMappingStrategy
 from contrib.environs import CircuitEnvWithInitialMapping, to_imitation_trajectory
 from pathlib import Path
+from contrib import action
 import json
+
+INIT_STRATEGY = InitialMappingStrategy.IDENTITY.value
+A2P = action.ActionAsPolicyTuple()
+EXPERT_WITH_INIT_DIR = RESULT_DIR / 'expert' / f'init={INIT_STRATEGY}-a2p={A2P}'
 
 
 def func(hardware_name: str, traj_paths: list[Path]):
@@ -19,12 +24,13 @@ def func(hardware_name: str, traj_paths: list[Path]):
     for traj_path in traj_paths:
         traj_data = json.loads(traj_path.read_text())
         init = traj_data['init']
-        if init != 'IDENTITY':  # Currently only consider this.
+        if init !=  INIT_STRATEGY:
             continue
 
-        traj_env = CircuitEnvWithInitialMapping.apply_trajectory(traj_data)
+        traj_env = CircuitEnvWithInitialMapping.apply_trajectory(traj_data, A2P)
         traj = to_imitation_trajectory(traj_env)
         expert_trajs.append(traj)
+        print(f'Traj {traj_path}')
 
     # Save trajectories.
     save_file = EXPERT_WITH_INIT_DIR / f'{hardware_name}.trajs'
@@ -38,8 +44,6 @@ def func(hardware_name: str, traj_paths: list[Path]):
 
     print(f'Expert trajectory: {hardware_name}')
 
-
-EXPERT_WITH_INIT_DIR = RESULT_DIR / 'expert' / 'with_init_identity'
 
 def _func(args): return func(*args)
 
