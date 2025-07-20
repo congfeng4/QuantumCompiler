@@ -1,4 +1,5 @@
 import json
+import random
 from collections import defaultdict
 from typing import Any, SupportsFloat
 from pathlib import Path
@@ -15,14 +16,19 @@ from stable_baselines3.common.monitor import Monitor
 
 from contrib.common import show_mapping, qknob_metrics
 from contrib.ha_traj import convert_action_to_gate, get_initial_mapping, InitialMappingStrategy
-from contrib.action import ActionAsPolicyTuple, ActionType, AcionAsPolicy
+from contrib.action import ActionAsPolicyTuple, ActionType, ActionAsPolicy
+from hamap.distance_matrix import get_distance_matrix_swap_number_and_error
 
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate
+from hamap.heuristics import sabre_heuristic
 from hamap.layer import QuantumLayer, update_layer
 from hamap.mapping import _adapt_quantum_circuit_and_mapping_arity, _create_empty_dagcircuit_from_existing
-from hamap import IBMQHardwareArchitecture
+from hamap import IBMQHardwareArchitecture, mapping_to_str
 
 import logging
+
+from hamap.swap import get_all_swap_bridge_candidates
+
 logger = logging.getLogger("contrib.env")
 
 
@@ -42,11 +48,14 @@ class CircuitEnvWithInitialMapping(gym.Env):
                  input_circuit: QuantumCircuit = None,
                  hardware: IBMQHardwareArchitecture = None,
                  initial_mapping: dict[Qubit, int] = None,
-                 action_as_policy: AcionAsPolicy = None):
+                 action_as_policy: ActionAsPolicy = None):
         self.input_circuit= input_circuit
         self.hardware = hardware
         self.initial_mapping = initial_mapping
         self.action_as_policy = action_as_policy
+
+        self.max_cands = 10
+        self.cand_feat_dim = 5  # (IsValid, GateType, Cost, Left, Right)
         
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
@@ -57,10 +66,10 @@ class CircuitEnvWithInitialMapping(gym.Env):
         self.resulting_circuit = None
 
     def _get_obs_space(self):
-        return gym.spaces.Box(low=0, high=float('inf'), shape=(self.num_qubits, self.num_qubits), dtype=np.float32)
+        return gym.spaces.Box(low=0, high=float('inf'), shape=(self.max_cands, self.cand_feat_dim), dtype=np.float32)
 
     def _get_action_space(self):
-        return self.action_as_policy.action_space(self.num_qubits)
+        return gym.spaces.Discrete(self.max_cands)
 
     def reset(self, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:
         self.invalid_actions = 0
@@ -70,12 +79,45 @@ class CircuitEnvWithInitialMapping(gym.Env):
         self.interact_graph = build_interact_graph(self.topological_nodes, self.num_qubits)
         self.current_mapping = self.initial_mapping.copy()
         self.trans_mapping = self.initial_mapping.copy()
+        self.explored_mappings = set()
+        self.distance_matrix = get_distance_matrix_swap_number_and_error(self.hardware)
+
         self.update_front_layer()
         self.update()
         return self._get_obs(), {}
 
     def _get_obs(self):
-        return self.interact_graph
+        swap_candidates = get_all_swap_bridge_candidates(
+            self.front_layer, self.hardware, self.initial_mapping, self.current_mapping, self.trans_mapping,
+            self.explored_mappings
+        )
+        candidates = []
+        for potential_swap in swap_candidates:
+            cost = sabre_heuristic(
+                self.hardware,
+                self.front_layer,
+                self.topological_nodes,
+                self.current_node_index,
+                self.current_mapping,
+                self.initial_mapping,
+                self.trans_mapping,
+                self.distance_matrix,
+                potential_swap,
+            )
+            cand = (1,  # Is valid
+                    0 if isinstance(potential_swap, SwapTwoQubitGate) else 1,  # Gate type.
+                    cost,
+                    potential_swap.left._index, potential_swap._right._index, )
+            candidates.append(cand)
+
+        candidates.sort(key=lambda x: x[2])  # cost
+        candidates = candidates[:self.max_cands]
+        random.shuffle(candidates)
+        if len(candidates) < self.max_cands:
+            candidates.extend([[0] * self.cand_feat_dim] * (self.max_cands - len(candidates)))
+
+        self.candidates = candidates
+        return np.asarray(candidates, np.float32)
 
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
@@ -121,6 +163,7 @@ class CircuitEnvWithInitialMapping(gym.Env):
         else:
             # print("brige gate is :", best_swap_qubits.left, best_swap_qubits.middle, best_swap_qubits.right)
             pass
+        self.explored_mappings.add(mapping_to_str(self.current_mapping))
         if not best_swap_qubits.apply(self.resulting_dag_quantum_circuit, self.front_layer, self.initial_mapping, trans_mapping):
             return False
         self.update_front_layer()
@@ -152,6 +195,7 @@ class CircuitEnvWithInitialMapping(gym.Env):
                 execute_gate_list.apply_back_to_dag_circuit(
                     self.resulting_dag_quantum_circuit, self.initial_mapping, self.trans_mapping
                 )
+                self.explored_mappings.clear()
                 self.update_front_layer()
             else:
                 break
@@ -162,14 +206,17 @@ class CircuitEnvWithInitialMapping(gym.Env):
     def num_qubits(self):
         return self.input_circuit.num_qubits
 
+    def step_invalid(self):
+        # Invalid Actions
+        self.invalid_actions += 1
+        if self.invalid_actions >= 100:
+            return self._get_obs(), -0.1, False, True, {}
+        return self._get_obs(), -0.1, False, False, {}
+
     def step_swap(self, action: ActionType):
         assert action['action'] != 'MAP', action
         if not self.apply_swap_action(action):
-            # Invalid Actions
-            self.invalid_actions += 1
-            if self.invalid_actions >= 100:
-                return self._get_obs(), -0.1, False, True, {}
-            return self._get_obs(), -0.1, False, False, {}
+            return self.step_invalid()
 
         self.invalid_actions = 0
         num_executed_cnot = self.update()
@@ -185,7 +232,10 @@ class CircuitEnvWithInitialMapping(gym.Env):
     def step(
         self, policy
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
-        action = self.action_as_policy.from_policy(policy, self.num_qubits)
+        try:
+            action = self.action_as_policy.from_policy(policy, self.candidates)
+        except ValueError:
+            return self.step_invalid()
         # print(action)
         return self.step_swap(action)
 
@@ -212,7 +262,7 @@ class CircuitEnvWithInitialMapping(gym.Env):
             traj_index += 1
             if action['action'] == 'MAP':
                 continue
-            policy = env.action_as_policy.to_policy(action, env.num_qubits)
+            policy = env.action_as_policy.to_policy(action, env.candidates)
             state, reward, done, _, info = env.step(policy)
             traj_full['acts'].append(policy)
             traj_full['rews'].append(reward)
@@ -225,7 +275,7 @@ class CircuitEnvWithInitialMapping(gym.Env):
 
     @classmethod
     def make(cls, input_circuit_path: str, hardware_name: str, init: InitialMappingStrategy,
-             a2p: AcionAsPolicy):
+             a2p: ActionAsPolicy):
         """
         Utility to create an env properly.
         """

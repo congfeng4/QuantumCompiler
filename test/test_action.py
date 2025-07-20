@@ -3,7 +3,7 @@ Make sure action decoding and encoding are correct
 """
 import pytest
 
-from contrib.action import ActionAsPolicyInt, ActionAsPolicyTuple, AcionAsPolicy
+from contrib.action import ActionAsPolicyInt, ActionAsPolicyTuple, ActionAsPolicy
 from itertools import product
 
 NUM_QUBITS = 20
@@ -14,7 +14,7 @@ ACTION_LIST = [
 ]
 
 @pytest.mark.parametrize('action, converter', product(ACTION_LIST, [ActionAsPolicyTuple(), ActionAsPolicyInt()]))
-def test_action_as_int_policy(action, converter: AcionAsPolicy):
+def test_action_as_int_policy(action, converter: ActionAsPolicy):
     policy = converter.to_policy(action, NUM_QUBITS)
     print(f'{policy=}')
     print(f'{action=}')

@@ -6,7 +6,7 @@ import json
 import pytest
 from qiskit import QuantumCircuit
 
-from contrib.action import AcionAsPolicy, ActionAsPolicyTuple, ActionAsPolicyInt
+from contrib.action import ActionAsPolicy, ActionAsPolicyTuple, ActionAsPolicyInt
 from contrib.common import get_hardware_name, get_all_qknob_circuit_paths
 from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.ha_traj import run_ha, InitialMappingStrategy

@@ -172,6 +172,7 @@ def ha_mapping(
             swap_candidates = get_candidates(
                 front_layer, hardware, initial_mapping, current_mapping, trans_mapping, explored_mappings
             )
+            # print(f'#Cands {len(swap_candidates)}')
             # Then rank the SWAPs/Bridge and take the best one.
             best_swap_qubits = None
             best_cost = float("inf")

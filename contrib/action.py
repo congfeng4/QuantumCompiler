@@ -5,6 +5,8 @@ from typing import TypeVar
 
 import gymnasium as gym
 
+from hamap.gates import TwoQubitGate
+
 ActionType = dict[str, int | str]
 
 
@@ -14,7 +16,7 @@ ACTION_STR_TO_INT = {
 ACTION_INT_TO_STR = {val: key for key, val in ACTION_STR_TO_INT.items()}
 
 
-class AcionAsPolicy:
+class ActionAsPolicy:
     PolicyType = TypeVar('PolicyType')
 
     def from_policy(cls, policy, num_qubits: int) -> ActionType:
@@ -30,7 +32,7 @@ class AcionAsPolicy:
         return str(self)
 
 
-class ActionAsPolicyInt(AcionAsPolicy):
+class ActionAsPolicyInt(ActionAsPolicy):
     """
     Policy as a single int.
     """
@@ -57,7 +59,7 @@ class ActionAsPolicyInt(AcionAsPolicy):
         return 'int'
 
 
-class ActionAsPolicyTuple(AcionAsPolicy):
+class ActionAsPolicyTuple(ActionAsPolicy):
     """
     Policy as a tuple.
     """
@@ -85,3 +87,24 @@ class ActionAsPolicyTuple(AcionAsPolicy):
 
     def __str__(self):
         return 'tuple'
+
+
+class ActionAsPolicyCandidates(ActionAsPolicy):
+    PolicyType = int
+
+    def from_policy(cls, policy, candidates) -> ActionType:
+        if not (0 < policy < len(candidates)):
+            raise ValueError(policy)
+        valid, type, cost, left, right = candidates[policy]
+        if not valid:
+            raise ValueError(valid)
+        return dict(action=ACTION_INT_TO_STR[type], left=left, right=right)
+
+    def to_policy(cls, action: ActionType, candidates) -> PolicyType:
+        for idx, (valid, type, cost, left, right) in enumerate(candidates):
+            if not valid:
+                continue
+            if (action['action'] == ACTION_INT_TO_STR[type] and action['left'] == left and
+                    action['right'] == right):
+                return idx
+        return -1
