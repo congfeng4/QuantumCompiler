@@ -1,5 +1,7 @@
 import os
 import pickle
+import random
+from pathlib import Path
 
 import numpy as np
 import torch.nn
@@ -9,7 +11,7 @@ from imitation.algorithms import bc
 from stable_baselines3.common.policies import ActorCriticPolicy
 
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
-from contrib.pretrain_env import PretrainEnv
+from contrib.pretrain_env import PretrainEnv, TrajectoryCollector
 import shutil
 from imitation.util import logger as imit_logger
 
@@ -30,18 +32,15 @@ def main():
     rng = np.random.default_rng(0)
     env = PretrainEnv(N=hardware.qubit_number, L=10)
 
-    with open('../result/pretrain/exe_swap/20Q_gate_Tokyo.trans', 'rb') as f:
-        transitions = pickle.load(f)
+    train_trans = TrajectoryCollector(N=hardware.qubit_number, L=10,
+                                          outdir=Path('../result/pretrain/exe_swap'),
+                                          prefix='20Q_gate_Tokyo_train').load()
 
-    print(f'load transitions {len(transitions)}')
+    val_trans = TrajectoryCollector(N=hardware.qubit_number, L=10,
+                                        outdir=Path('../result/pretrain/exe_swap'),
+                                        prefix='20Q_gate_Tokyo_val').load()
 
-    # 1) 划分 train / val
-    train_ratio = 0.8
-    split_idx = int(len(transitions) * train_ratio)
-    train_trans = transitions[:split_idx]
-    val_trans = transitions[split_idx:]
     loss_calc = BehaviorCloningLossCalculator(0, 0)
-
     embed_dim = 64
 
     policy = ActorCriticPolicy(

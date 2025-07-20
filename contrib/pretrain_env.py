@@ -9,7 +9,7 @@ import typing as ty
 
 import numpy
 from imitation.data.rollout import flatten_trajectories
-from imitation.data.types import Trajectory
+from imitation.data.types import Trajectory, Transitions
 from qiskit import QuantumCircuit, QuantumRegister
 from qiskit.circuit.quantumregister import Qubit
 from qiskit.converters.circuit_to_dag import circuit_to_dag
@@ -167,6 +167,14 @@ class TrajectoryCollector:
             print(f'Action {key}: {ratio} %')
 
         print(f'Save {len(self.trajectories)} Trajs ({len(transitions)} Trans) to {save_file}')
+
+    def load(self) -> Transitions:
+        save_file = self.outdir / f'{self.prefix}.trans'
+        with save_file.open('rb') as f:
+            trans = pickle.load(f)
+
+        print(f'Load {len(trans)} Trans from {save_file}')
+        return trans
 
     def __repr__(self):
         total = len(self.trajectories)
@@ -330,8 +338,15 @@ def ha_mapping(
 
 if __name__ == '__main__':
     hardware = IBMQHardwareArchitecture('tokyo')
-    collector = TrajectoryCollector(N=hardware.qubit_number, L=10, outdir=Path('../result/pretrain/exe_swap'),
-                                    prefix='20Q_gate_Tokyo')
+
+    collector_train = TrajectoryCollector(N=hardware.qubit_number, L=10,
+                                    outdir=Path('../result/pretrain/exe_swap'),
+                                    prefix='20Q_gate_Tokyo_train')
+
+    collector_val = TrajectoryCollector(N=hardware.qubit_number, L=10,
+                                    outdir=Path('../result/pretrain/exe_swap'),
+                                    prefix='20Q_gate_Tokyo_val')
+
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
 
     for i in range(1):
@@ -339,11 +354,12 @@ if __name__ == '__main__':
         for j in range(2):
             init = get_initial_mapping(qc, hardware, InitialMappingStrategy.RANDOM)
             ha_mapping(
-                collector=collector,
+                collector=collector_train if j % 2 == 0 else collector_val,
                 quantum_circuit=qc,
                 initial_mapping=init,
                 hardware=hardware,
                 strategy='best',
             )
 
-    collector.save()
+    collector_train.save()
+    collector_val.save()
