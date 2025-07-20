@@ -40,7 +40,7 @@ class ObservationSpace:
     def encode_obs(self, front_layer: QuantumLayer, gates: list[DAGNode], current_mapping: dict[Qubit, int]):
         mapping = np.zeros((self.N,), np.int64)
         for qb, j in current_mapping.items():
-            mapping[qb._index] = j
+            mapping[j] = qb._index  # Phy to logic
 
         gate_seq = np.zeros((self.L, 2), np.int64)
         index = 0
@@ -49,6 +49,6 @@ class ObservationSpace:
                 break
             if op.name != 'cx':
                 continue
-            gate_seq[index] = qubit_index_from_op(op)
+            gate_seq[index] = current_mapping[op.qargs[0]], current_mapping[op.qargs[1]]
             index += 1
         return dict(mapping=mapping, gate_seq=gate_seq, gate_len=index)

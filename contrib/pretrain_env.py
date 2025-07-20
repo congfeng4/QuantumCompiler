@@ -41,7 +41,7 @@ from pathlib import Path
 
 logger = logging.getLogger("hamap.swap")
 
-NUM_ACTIONS = 2
+NUM_ACTIONS = 3
 
 class ActionSpace:
 
@@ -53,13 +53,13 @@ class ActionSpace:
         A, N = self.A, self.N
         return gym.spaces.MultiBinary(A*N*N)
 
-    def encode_execute_list(self, execute_gate_list: list[DAGNode]):
+    def encode_execute_list(self, execute_gate_list: list[DAGNode], current_mapping: dict[Qubit, int]):
         action = self.empty_action()
         num_exe_cx = 0
         for op in execute_gate_list:
             if op.name != 'cx':
                 continue
-            q0, q1 = qubit_index_from_op(op)
+            q0, q1 = current_mapping[op.qargs[0]], current_mapping[op.qargs[1]]
             action[0, q0, q1] = 1
             num_exe_cx += 1
         return action
@@ -73,16 +73,18 @@ class ActionSpace:
         for swap in swap_cands:
             q0, q1 = qubit_index_from_swap(swap)
             if isinstance(swap, SwapTwoQubitGate):
-                action[1, q0, q1] = 1
+                action[0, q0, q1] = 1
             # idx = 1 if isinstance(swap, SwapTwoQubitGate) else 2
             # action[idx, q0, q1] = 1
         return action
 
-    def encode_best_swap(self, swap: TwoQubitGate):
+    def encode_best_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int]):
         action = self.empty_action()
-        q0, q1 = qubit_index_from_swap(swap)
-        idx = 0 if isinstance(swap, SwapTwoQubitGate) else 1
-        action[idx, q0, q1] = 1
+        if isinstance(swap, BridgeTwoQubitGate):  # Already physical
+            action[2, swap.left._index, swap.right._index] = 1
+        else:
+            q0, q1 = current_mapping[swap.left], current_mapping[swap.right]
+            action[1, q0, q1] = 1
         return action
 
 
@@ -138,16 +140,16 @@ class TrajectoryCollector:
         observation = self.obs_space.encode_obs(front_layer, gates, current_mapping)
         self.current_traj['obs'].append(observation)
 
-    def add_execute(self, execute_gate_list: list[DAGNode]):
-        action = self.act_space.encode_execute_list(execute_gate_list)
+    def add_execute(self, execute_gate_list: list[DAGNode], current_mapping: dict[Qubit, int]):
+        action = self.act_space.encode_execute_list(execute_gate_list, current_mapping)
         self.current_traj['acts'].append(action.reshape(-1))
 
     def add_swap_cands(self, swap_cands: list[TwoQubitGate]):
         action = self.act_space.encode_swap_cands(swap_cands)
         self.current_traj['acts'].append(action.reshape(-1))
 
-    def add_best_swap(self, swap: TwoQubitGate):
-        action = self.act_space.encode_best_swap(swap)
+    def add_best_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int]):
+        action = self.act_space.encode_best_swap(swap, current_mapping)
         self.current_traj['acts'].append(action.reshape(-1))
 
     def save(self):
@@ -238,7 +240,8 @@ def ha_mapping(
                 # front_layer.remove_operation(op)
         if not execute_gate_list.is_empty():
             # Add action
-            collector.add_execute(execute_gate_list.ops)
+            collector.add_execute(execute_gate_list.ops, current_mapping)
+            # collector.add_swap_cands([])
             front_layer.remove_operations_from_layer(execute_gate_list)
             execute_gate_list.apply_back_to_dag_circuit(
                 resulting_dag_quantum_circuit, initial_mapping, trans_mapping
@@ -246,6 +249,7 @@ def ha_mapping(
             # Empty the explored mappings because at least one gate has been executed.
             explored_mappings.clear()
         else:
+            # collector.add_state(front_layer, topological_nodes[current_node_index:], current_mapping)
             inverse_mapping = {val: key for key, val in initial_mapping.items()}
             # We cannot execute any gate, that means that we should insert at least
             # one SWAP/Bridge to make some gates executable.
@@ -255,7 +259,7 @@ def ha_mapping(
                 front_layer, hardware, initial_mapping, current_mapping, trans_mapping, explored_mappings
             )
             # Add action
-            collector.add_swap_cands(swap_candidates)
+            # collector.add_swap_cands(swap_candidates)
             # Then rank the SWAPs/Bridge and take the best one.
             if strategy == 'random':
                 best_swap_qubits = random.choice(swap_candidates)
@@ -278,6 +282,7 @@ def ha_mapping(
                         best_cost = cost
                         best_swap_qubits = potential_swap
                         
+            collector.add_best_swap(best_swap_qubits, current_mapping)
             # We now have our best SWAP/Bridge, let's perform it!
             current_mapping = best_swap_qubits.update_mapping(current_mapping)
             if isinstance(best_swap_qubits, SwapTwoQubitGate):
@@ -314,21 +319,20 @@ def ha_mapping(
 
 if __name__ == '__main__':
     hardware = IBMQHardwareArchitecture('tokyo')
-    collector = TrajectoryCollector(N=hardware.qubit_number, L=5, outdir=Path('../result/pretrain/exe_swap'),
+    collector = TrajectoryCollector(N=hardware.qubit_number, L=10, outdir=Path('../result/pretrain/exe_swap'),
                                     prefix='20Q_gate_Tokyo')
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
 
     for i in range(1):
         qc = QuantumCircuit.from_qasm_file(str(circuit_list[i]))
-        for j in range(10):
+        for j in range(5):
             init = get_initial_mapping(qc, hardware, InitialMappingStrategy.RANDOM)
-            for k in range(10):
-                ha_mapping(
-                    collector=collector,
-                    quantum_circuit=qc,
-                    initial_mapping=init,
-                    hardware=hardware,
-                    strategy='random',
-                )
+            ha_mapping(
+                collector=collector,
+                quantum_circuit=qc,
+                initial_mapping=init,
+                hardware=hardware,
+                strategy='best',
+            )
 
     collector.save()

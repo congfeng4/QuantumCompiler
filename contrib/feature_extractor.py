@@ -78,11 +78,11 @@ class HardwareAwareQubitEmbedding(nn.Module):
             hidden_channels=hidden_channels,
         )
 
-    def forward(self, logical2phy: torch.LongTensor):
+    def forward(self, physical2log: torch.LongTensor):
         """
         logical2phy: [B, N]
         """
-        physical2log = inverse_permutation_batched(logical2phy)
+        # physical2log = inverse_permutation_batched(logical2phy)
         # 1. Convert indices to initial embeddings
         init_phy_embed = self.qubit_embedding(physical2log)
         # 2. Go through gnn.
@@ -90,13 +90,13 @@ class HardwareAwareQubitEmbedding(nn.Module):
         # 3. Look up the embeddings of each logical bit.
         # gnn_embeddings: (B, N, d)   —— 物理比特顺序
         # logical2phy   : (B, N)     —— 每行是 0..N-1 的排列
-        B, N, d = ha_phy_embed.shape
-        # 构造索引 (B, N, d) 的最后一个维度广播
-        idx = logical2phy.unsqueeze(-1).expand(-1, -1, d)
-        # 按逻辑比特顺序重排
-        logic_embed = torch.gather(ha_phy_embed, dim=1, index=idx)
-        # 结果 shape 仍为 (B, N, d)
-        return logic_embed
+        # B, N, d = ha_phy_embed.shape
+        # # 构造索引 (B, N, d) 的最后一个维度广播
+        # idx = logical2phy.unsqueeze(-1).expand(-1, -1, d)
+        # # 按逻辑比特顺序重排
+        # logic_embed = torch.gather(ha_phy_embed, dim=1, index=idx)
+        # # 结果 shape 仍为 (B, N, d)
+        return ha_phy_embed
 
 
 class GateSeqEncoder(nn.Module):

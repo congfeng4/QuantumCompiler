@@ -1,3 +1,4 @@
+import os
 import pickle
 
 import torch.nn
@@ -9,19 +10,21 @@ from stable_baselines3.common.policies import ActorCriticPolicy
 from contrib.environs import *
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
 from contrib.pretrain_env import PretrainEnv
-
+import shutil
 from imitation.util import logger as imit_logger
 
 
 if __name__ == '__main__':
     bs = 128
     log_dir = f"../log/pretrain/exe-swap"
+    shutil.rmtree(log_dir, ignore_errors=True)
+
     logger = imit_logger.configure(log_dir,  # 会自动创建子文件夹
                                    format_strs=["stdout", "csv", "tensorboard"])
 
     hardware = IBMQHardwareArchitecture('tokyo')
     rng = np.random.default_rng(0)
-    env = PretrainEnv(N=hardware.qubit_number, L=5)
+    env = PretrainEnv(N=hardware.qubit_number, L=10)
 
     with open('../result/pretrain/exe_swap/20Q_gate_Tokyo.trans', 'rb') as f:
         transitions = pickle.load(f)
@@ -41,8 +44,8 @@ if __name__ == '__main__':
             embed_dim=embed_dim,
         ),
         net_arch=dict(
-            pi=[embed_dim],
-            vf=[embed_dim],
+            pi=[embed_dim * 2],
+            vf=[embed_dim * 2],
         ),
     )
 
