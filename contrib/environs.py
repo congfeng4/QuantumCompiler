@@ -17,8 +17,9 @@ from stable_baselines3.common.monitor import Monitor
 from contrib.common import show_mapping, qknob_metrics
 from contrib.ha_traj import convert_action_to_gate, get_initial_mapping, InitialMappingStrategy
 from contrib.action import ActionAsPolicyTuple, ActionType, ActionAsPolicy
-from hamap.distance_matrix import get_distance_matrix_swap_number_and_error
+from contrib import state
 
+from hamap.distance_matrix import get_distance_matrix_swap_number_and_error
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate
 from hamap.heuristics import sabre_heuristic
 from hamap.layer import QuantumLayer, update_layer
@@ -48,15 +49,14 @@ class CircuitEnvWithInitialMapping(gym.Env):
                  input_circuit: QuantumCircuit = None,
                  hardware: IBMQHardwareArchitecture = None,
                  initial_mapping: dict[Qubit, int] = None,
-                 action_as_policy: ActionAsPolicy = None):
+                 action_as_policy: ActionAsPolicy = None,
+                 L: int = None):
         self.input_circuit= input_circuit
         self.hardware = hardware
         self.initial_mapping = initial_mapping
         self.action_as_policy = action_as_policy
+        self.L = L
 
-        self.max_cands = 10
-        self.cand_feat_dim = 5  # (IsValid, GateType, Cost, Left, Right)
-        
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
         self.topological_nodes: list[DAGNode] = list(self.dag_circuit.topological_op_nodes())
@@ -66,7 +66,7 @@ class CircuitEnvWithInitialMapping(gym.Env):
         self.resulting_circuit = None
 
     def _get_obs_space(self):
-        return gym.spaces.Box(low=0, high=float('inf'), shape=(self.max_cands, self.cand_feat_dim), dtype=np.float32)
+        return state.get_observation_space(self.num_qubits, self.L)
 
     def _get_action_space(self):
         return gym.spaces.Discrete(self.max_cands)

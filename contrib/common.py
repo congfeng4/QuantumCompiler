@@ -1,6 +1,10 @@
 from qiskit.circuit import Qubit, QuantumCircuit
 from pathlib import Path
 
+from qiskit.dagcircuit import DAGNode
+
+from hamap.gates import TwoQubitGate
+
 RESULT_DIR = Path(__file__).parent.parent / 'result'
 
 
@@ -37,3 +41,10 @@ def get_all_qknob_circuit_paths(data_root: Path = None) -> dict[str, list[Path]]
 
     return result
 
+
+def qubit_index_from_op(op: DAGNode):
+    return op.qargs[0]._index, op.qargs[1]._index
+
+
+def qubit_index_from_swap(swap: TwoQubitGate):
+    return swap.left._index, swap.right._index
