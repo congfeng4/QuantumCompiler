@@ -1,6 +1,6 @@
 import pickle
 import random
-from collections import defaultdict
+from collections import defaultdict, Counter
 
 import gymnasium as gym
 import numpy as np
@@ -103,6 +103,7 @@ class TrajectoryCollector:
         self.prefix = prefix
         self.obs_space = ObservationSpace(N, L)
         self.act_space = ActionSpace(N, NUM_ACTIONS)
+        self.action_count = Counter()
 
     def begin_trajectory(self):
         self.current_traj = defaultdict(list)
@@ -142,6 +143,7 @@ class TrajectoryCollector:
     def add_execute(self, execute_gate_list: list[DAGNode], current_mapping: dict[Qubit, int]):
         action = self.act_space.encode_execute_list(execute_gate_list, current_mapping)
         self.current_traj['acts'].append(action.reshape(-1))
+        self.action_count['exe'] += 1
 
     def add_swap_cands(self, swap_cands: list[TwoQubitGate], current_mapping: dict[Qubit, int]):
         action = self.act_space.encode_swap_cands(swap_cands, current_mapping)
@@ -150,12 +152,20 @@ class TrajectoryCollector:
     def add_best_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int]):
         action = self.act_space.encode_best_swap(swap, current_mapping)
         self.current_traj['acts'].append(action.reshape(-1))
+        act_key = 'swap' if isinstance(swap, SwapTwoQubitGate) else 'bridge'
+        self.action_count[act_key] += 1
 
     def save(self):
         transitions = flatten_trajectories(self.trajectories)
         save_file = self.outdir / f'{self.prefix}.trans'
         with save_file.open('wb') as f:
             pickle.dump(transitions, f)
+
+        total = self.action_count.total()
+        for key, count in self.action_count.items():
+            ratio = round(count * 100 / total, 2)
+            print(f'Action {key}: {ratio} %')
+
         print(f'Save {len(self.trajectories)} Trajs ({len(transitions)} Trans) to {save_file}')
 
     def __repr__(self):
@@ -326,13 +336,14 @@ if __name__ == '__main__':
 
     for i in range(1):
         qc = QuantumCircuit.from_qasm_file(str(circuit_list[i]))
-        init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
-        ha_mapping(
-            collector=collector,
-            quantum_circuit=qc,
-            initial_mapping=init,
-            hardware=hardware,
-            strategy='best',
-        )
+        for j in range(2):
+            init = get_initial_mapping(qc, hardware, InitialMappingStrategy.RANDOM)
+            ha_mapping(
+                collector=collector,
+                quantum_circuit=qc,
+                initial_mapping=init,
+                hardware=hardware,
+                strategy='best',
+            )
 
     collector.save()

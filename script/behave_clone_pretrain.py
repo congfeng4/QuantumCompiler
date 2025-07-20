@@ -15,7 +15,10 @@ from imitation.util import logger as imit_logger
 
 from hamap import IBMQHardwareArchitecture
 
-if __name__ == '__main__':
+from imitation.algorithms.bc import BehaviorCloningLossCalculator
+
+
+def main():
     bs = 128
     log_dir = f"../log/pretrain/exe-swap"
     shutil.rmtree(log_dir, ignore_errors=True)
@@ -31,6 +34,13 @@ if __name__ == '__main__':
         transitions = pickle.load(f)
 
     print(f'load transitions {len(transitions)}')
+
+    # 1) 划分 train / val
+    train_ratio = 0.8
+    split_idx = int(len(transitions) * train_ratio)
+    train_trans = transitions[:split_idx]
+    val_trans = transitions[split_idx:]
+    loss_calc = BehaviorCloningLossCalculator(0, 0)
 
     embed_dim = 64
 
@@ -54,15 +64,38 @@ if __name__ == '__main__':
     bc_trainer = bc.BC(
         observation_space=env.observation_space,
         action_space=env.action_space,
-        demonstrations=transitions,
+        demonstrations=train_trans,
         rng=rng,
         custom_logger=logger,
         policy=policy,
         batch_size=bs,
     )
+
+    # 2) epoch-end 回调
+    current_epoch = 0
+    log_interval = 100
+
+    def on_epoch_end():
+        nonlocal current_epoch
+        if current_epoch % log_interval == 0:
+            with torch.no_grad():
+                metrics = loss_calc(bc_trainer.policy, val_trans.obs, val_trans.acts)
+            # 写入 bc_trainer 的 logger，前缀 eval/
+            bc_trainer.logger.record("eval/bce", float(metrics.loss))
+            bc_trainer.logger.record("eval/accuracy", float(metrics.prob_true_act))
+            bc_trainer.logger.dump(current_epoch)
+        current_epoch += 1
+
     bc_trainer.train(
-        n_epochs=10000,
-        log_interval=100,
+        n_epochs=1_0000,
+        log_interval=log_interval,
         reset_tensorboard=True,
-        progress_bar=True,
+        on_epoch_end=on_epoch_end,
+        progress_bar=False,
     )
+
+    policy.save("../log/pretrain/model.zip")
+
+
+if __name__ == '__main__':
+    main()
