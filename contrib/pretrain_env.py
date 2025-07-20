@@ -95,7 +95,7 @@ class TrajectoryCollector:
         })
 
     def add_execute(self, execute_gate_list: list[DAGNode]):
-        action = np.zeros((1, self.N, self.N), bool)
+        action = np.zeros((1, self.N, self.N), np.float32)
         num_exe_cx = 0
         for op in execute_gate_list:
             if op.name != 'cx':
@@ -121,6 +121,34 @@ class TrajectoryCollector:
         maxlen = max(len(traj) for traj in self.trajectories)
         avglen = round(sum(len(traj) for traj in self.trajectories) / total, 2)
         return f'Collected {total}, prefix {self.prefix}, {minlen=}, {maxlen=}, {avglen=}'
+
+
+class PretrainEnv(gym.Env):
+    """
+    An env that lets the model determine the gate state (Executable or not).
+    """
+
+    def __init__(self, N: int, L: int = 100):
+        super().__init__()
+
+        self.action_space = gym.spaces.MultiBinary(N*N)
+
+        self.observation_space = gym.spaces.Dict({
+            # 逻辑 → 物理映射 (permutation)
+            "mapping": gym.spaces.Box(
+                low=0, high=N - 1, shape=(N,), dtype=np.int64
+            ),
+
+            # 门序列：每行是 (q0, q1) 两个逻辑比特编号
+            "gate_seq": gym.spaces.Box(
+                low=0, high=N - 1, shape=(L, 2), dtype=np.int64
+            ),
+
+            # 真实门序列长度
+            "gate_len": gym.spaces.Box(
+                low=0, high=L, shape=(), dtype=np.int64
+            )
+        })
 
 
 def ha_mapping(
@@ -274,34 +302,6 @@ def ha_mapping(
     print(f'maxlen of frontlayer {max(front_layer_len)}')
 
     return resulting_circuit, current_mapping
-
-
-class PretrainEnv(gym.Env):
-    """
-    An env that lets the model determine the gate state (Executable or not).
-    """
-
-    def __init__(self, N: int, L: int = 100):
-        super().__init__()
-
-        self.action_space = gym.spaces.MultiBinary(N*N)
-
-        self.observation_space = gym.spaces.Dict({
-            # 逻辑 → 物理映射 (permutation)
-            "mapping": gym.spaces.Box(
-                low=0, high=N - 1, shape=(N,), dtype=np.int64
-            ),
-
-            # 门序列：每行是 (q0, q1) 两个逻辑比特编号
-            "gate_seq": gym.spaces.Box(
-                low=0, high=N - 1, shape=(L, 2), dtype=np.int64
-            ),
-
-            # 真实门序列长度
-            "gate_len": gym.spaces.Box(
-                low=0, high=L, shape=(), dtype=np.int64
-            )
-        })
 
 
 if __name__ == '__main__':

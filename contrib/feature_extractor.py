@@ -137,7 +137,9 @@ class GateSeqEncoder(nn.Module):
         q1_flat = gate_seq[..., 1].reshape(-1)  # (B*S,)
 
         # 构造 batch 偏移索引
-        batch_offset = torch.arange(B, device=qubit_embed.device).unsqueeze(1) * N  # (B,1)
+        batch_offset = torch.arange(B, device=qubit_embed.device).unsqueeze(1) * N
+        batch_offset = batch_offset.expand(-1, S).reshape(-1)  # (B*S,)
+
         idx0 = q0_flat + batch_offset.reshape(-1)  # (B*S,)
         idx1 = q1_flat + batch_offset.reshape(-1)  # (B*S,)
 
