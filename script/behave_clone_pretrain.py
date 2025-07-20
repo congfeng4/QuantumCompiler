@@ -1,18 +1,19 @@
 import os
 import pickle
 
+import numpy as np
 import torch.nn
 import torch as th
 
 from imitation.algorithms import bc
 from stable_baselines3.common.policies import ActorCriticPolicy
 
-from contrib.environs import *
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
 from contrib.pretrain_env import PretrainEnv
 import shutil
 from imitation.util import logger as imit_logger
 
+from hamap import IBMQHardwareArchitecture
 
 if __name__ == '__main__':
     bs = 128
@@ -61,6 +62,7 @@ if __name__ == '__main__':
     )
     bc_trainer.train(
         n_epochs=10000,
+        log_interval=100,
         reset_tensorboard=True,
-        progress_bar=False,
+        progress_bar=True,
     )

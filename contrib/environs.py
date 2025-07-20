@@ -18,6 +18,7 @@ from contrib.common import show_mapping, qknob_metrics
 from contrib.ha_traj import convert_action_to_gate, get_initial_mapping, InitialMappingStrategy
 from contrib.action import ActionAsPolicyTuple, ActionType, ActionAsPolicy
 from contrib import state
+from contrib.pretrain_env import ActionSpace, NUM_ACTIONS
 
 from hamap.distance_matrix import get_distance_matrix_swap_number_and_error
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate
@@ -56,20 +57,17 @@ class CircuitEnvWithInitialMapping(gym.Env):
         self.initial_mapping = initial_mapping
         self.action_as_policy = action_as_policy
         self.L = L
+        self.state = state.ObservationSpace(self.num_qubits, self.L)
+        self.action = ActionSpace(self.num_qubits, NUM_ACTIONS)
+
+        self.observation_space = self.state.get_space()
+        self.action_space = self.action.get_space()
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
         self.topological_nodes: list[DAGNode] = list(self.dag_circuit.topological_op_nodes())
 
-        self.observation_space = self._get_obs_space()
-        self.action_space = self._get_action_space()
         self.resulting_circuit = None
-
-    def _get_obs_space(self):
-        return state.get_observation_space(self.num_qubits, self.L)
-
-    def _get_action_space(self):
-        return gym.spaces.Discrete(self.max_cands)
 
     def reset(self, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:
         self.invalid_actions = 0
@@ -87,37 +85,8 @@ class CircuitEnvWithInitialMapping(gym.Env):
         return self._get_obs(), {}
 
     def _get_obs(self):
-        swap_candidates = get_all_swap_bridge_candidates(
-            self.front_layer, self.hardware, self.initial_mapping, self.current_mapping, self.trans_mapping,
-            self.explored_mappings
-        )
-        candidates = []
-        for potential_swap in swap_candidates:
-            cost = sabre_heuristic(
-                self.hardware,
-                self.front_layer,
-                self.topological_nodes,
-                self.current_node_index,
-                self.current_mapping,
-                self.initial_mapping,
-                self.trans_mapping,
-                self.distance_matrix,
-                potential_swap,
-            )
-            cand = (1,  # Is valid
-                    0 if isinstance(potential_swap, SwapTwoQubitGate) else 1,  # Gate type.
-                    cost,
-                    potential_swap.left._index, potential_swap._right._index, )
-            candidates.append(cand)
-
-        candidates.sort(key=lambda x: x[2])  # cost
-        candidates = candidates[:self.max_cands]
-        random.shuffle(candidates)
-        if len(candidates) < self.max_cands:
-            candidates.extend([[0] * self.cand_feat_dim] * (self.max_cands - len(candidates)))
-
-        self.candidates = candidates
-        return np.asarray(candidates, np.float32)
+        return self.state.encode_obs(self.front_layer, self.topological_nodes[self.current_node_index:],
+                                     self.current_mapping)
 
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
@@ -233,7 +202,7 @@ class CircuitEnvWithInitialMapping(gym.Env):
         self, policy
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         try:
-            action = self.action_as_policy.from_policy(policy, self.candidates)
+            action =
         except ValueError:
             return self.step_invalid()
         # print(action)

@@ -68,14 +68,14 @@ class ActionSpace:
         action = np.zeros((self.A, self.N, self.N), np.float32)
         return action
 
-    def encode_swap_cands(self, swap_cands: list[TwoQubitGate]):
+    def encode_swap_cands(self, swap_cands: list[TwoQubitGate], current_mapping: dict[Qubit, int]):
         action = self.empty_action()
         for swap in swap_cands:
-            q0, q1 = qubit_index_from_swap(swap)
-            if isinstance(swap, SwapTwoQubitGate):
-                action[0, q0, q1] = 1
-            # idx = 1 if isinstance(swap, SwapTwoQubitGate) else 2
-            # action[idx, q0, q1] = 1
+            if isinstance(swap, BridgeTwoQubitGate):
+                action[2, swap.left._index, swap.right._index] = 1
+            else:
+                q0, q1 = current_mapping[swap.left], current_mapping[swap.right]
+                action[1, q0, q1] = 1
         return action
 
     def encode_best_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int]):
@@ -134,7 +134,6 @@ class TrajectoryCollector:
         obs, acts = current_traj['obs'], current_traj['acts']
         traj = Trajectory(obs=DictObs.from_obs_list(obs), acts=np.asarray(acts), terminal=True, infos=None)
         self.trajectories.append(traj)
-        print('len of traj', len(self.trajectories))
 
     def add_state(self, front_layer: QuantumLayer, gates: list[DAGNode], current_mapping: dict[Qubit, int]):
         observation = self.obs_space.encode_obs(front_layer, gates, current_mapping)
@@ -144,8 +143,8 @@ class TrajectoryCollector:
         action = self.act_space.encode_execute_list(execute_gate_list, current_mapping)
         self.current_traj['acts'].append(action.reshape(-1))
 
-    def add_swap_cands(self, swap_cands: list[TwoQubitGate]):
-        action = self.act_space.encode_swap_cands(swap_cands)
+    def add_swap_cands(self, swap_cands: list[TwoQubitGate], current_mapping: dict[Qubit, int]):
+        action = self.act_space.encode_swap_cands(swap_cands, current_mapping)
         self.current_traj['acts'].append(action.reshape(-1))
 
     def add_best_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int]):
@@ -157,6 +156,7 @@ class TrajectoryCollector:
         save_file = self.outdir / f'{self.prefix}.trans'
         with save_file.open('wb') as f:
             pickle.dump(transitions, f)
+        print(f'Save {len(self.trajectories)} Trajs ({len(transitions)} Trans) to {save_file}')
 
     def __repr__(self):
         total = len(self.trajectories)
@@ -281,7 +281,8 @@ def ha_mapping(
                     if cost < best_cost:
                         best_cost = cost
                         best_swap_qubits = potential_swap
-                        
+
+            # collector.add_swap_cands(swap_candidates, current_mapping)
             collector.add_best_swap(best_swap_qubits, current_mapping)
             # We now have our best SWAP/Bridge, let's perform it!
             current_mapping = best_swap_qubits.update_mapping(current_mapping)
@@ -325,14 +326,13 @@ if __name__ == '__main__':
 
     for i in range(1):
         qc = QuantumCircuit.from_qasm_file(str(circuit_list[i]))
-        for j in range(5):
-            init = get_initial_mapping(qc, hardware, InitialMappingStrategy.RANDOM)
-            ha_mapping(
-                collector=collector,
-                quantum_circuit=qc,
-                initial_mapping=init,
-                hardware=hardware,
-                strategy='best',
-            )
+        init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
+        ha_mapping(
+            collector=collector,
+            quantum_circuit=qc,
+            initial_mapping=init,
+            hardware=hardware,
+            strategy='best',
+        )
 
     collector.save()
