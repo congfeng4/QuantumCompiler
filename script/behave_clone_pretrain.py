@@ -21,7 +21,7 @@ from imitation.algorithms.bc import BehaviorCloningLossCalculator
 
 
 def main():
-    bs = 128
+    bs = 256
     log_dir = f"../log/pretrain/exe-swap"
     shutil.rmtree(log_dir, ignore_errors=True)
 
