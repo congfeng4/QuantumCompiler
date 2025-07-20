@@ -86,7 +86,7 @@ def main():
         current_epoch += 1
 
     bc_trainer.train(
-        n_epochs=1_0000,
+        n_epochs=2_0000,
         log_interval=log_interval,
         reset_tensorboard=True,
         on_epoch_end=on_epoch_end,

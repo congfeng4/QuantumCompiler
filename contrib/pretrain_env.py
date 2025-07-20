@@ -41,7 +41,11 @@ from pathlib import Path
 
 logger = logging.getLogger("hamap.swap")
 
-NUM_ACTIONS = 3
+NUM_ACTIONS = 2
+EXE_INDEX = None
+SWAP_INDEX = 0
+BRIDGE_INDEX = 1
+
 
 class ActionSpace:
 
@@ -60,7 +64,7 @@ class ActionSpace:
             if op.name != 'cx':
                 continue
             q0, q1 = current_mapping[op.qargs[0]], current_mapping[op.qargs[1]]
-            action[0, q0, q1] = 1
+            action[EXE_INDEX, q0, q1] = 1
             num_exe_cx += 1
         return action
 
@@ -72,19 +76,19 @@ class ActionSpace:
         action = self.empty_action()
         for swap in swap_cands:
             if isinstance(swap, BridgeTwoQubitGate):
-                action[2, swap.left._index, swap.right._index] = 1
+                action[BRIDGE_INDEX, swap.left._index, swap.right._index] = 1
             else:
                 q0, q1 = current_mapping[swap.left], current_mapping[swap.right]
-                action[1, q0, q1] = 1
+                action[SWAP_INDEX, q0, q1] = 1
         return action
 
     def encode_best_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int]):
         action = self.empty_action()
         if isinstance(swap, BridgeTwoQubitGate):  # Already physical
-            action[2, swap.left._index, swap.right._index] = 1
+            action[BRIDGE_INDEX, swap.left._index, swap.right._index] = 1
         else:
             q0, q1 = current_mapping[swap.left], current_mapping[swap.right]
-            action[1, q0, q1] = 1
+            action[SWAP_INDEX, q0, q1] = 1
         return action
 
 
@@ -248,7 +252,7 @@ def ha_mapping(
     while not front_layer.is_empty():
         front_layer_len.append(sum(1 for op in front_layer.ops if op.name == 'cx'))
         # Add state
-        collector.add_state(front_layer, topological_nodes[current_node_index:], current_mapping)
+        # collector.add_state(front_layer, topological_nodes[current_node_index:], current_mapping)
         execute_gate_list = QuantumLayer()
         for op in front_layer.ops:
             if hardware.can_natively_execute_operation(op, current_mapping):
@@ -258,7 +262,7 @@ def ha_mapping(
                 # front_layer.remove_operation(op)
         if not execute_gate_list.is_empty():
             # Add action
-            collector.add_execute(execute_gate_list.ops, current_mapping)
+            # collector.add_execute(execute_gate_list.ops, current_mapping)
             # collector.add_swap_cands([])
             front_layer.remove_operations_from_layer(execute_gate_list)
             execute_gate_list.apply_back_to_dag_circuit(
@@ -267,7 +271,7 @@ def ha_mapping(
             # Empty the explored mappings because at least one gate has been executed.
             explored_mappings.clear()
         else:
-            # collector.add_state(front_layer, topological_nodes[current_node_index:], current_mapping)
+            collector.add_state(front_layer, topological_nodes[current_node_index:], current_mapping)
             inverse_mapping = {val: key for key, val in initial_mapping.items()}
             # We cannot execute any gate, that means that we should insert at least
             # one SWAP/Bridge to make some gates executable.
