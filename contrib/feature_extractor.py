@@ -222,7 +222,7 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
         super().__init__(observation_space, features_dim=2 * embed_dim)
         self.qubit_embed = HardwareAwareQubitEmbedding(hardware, qubit_embedding_dim=embed_dim)
         self.gate_seq_encoder = GateSeqEncoder(embed_dim)
-        self.circuit_encoder = CircuitEncoder(2 * embed_dim)
+        self.circuit_encoder = CircuitEncoder(2 * embed_dim, mode='lstm')
 
     def forward(self, obs: dict[str, torch.Tensor]):
         # SB3会把Box无脑转成float32.

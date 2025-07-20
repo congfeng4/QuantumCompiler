@@ -36,7 +36,7 @@ if __name__ == '__main__':
         features_extractor_class=HierarchicalCircuitFeaturesExtractor,
         features_extractor_kwargs=dict(
             hardware=hardware,
-            embed_dim=32,
+            embed_dim=20,
         )
     )
 

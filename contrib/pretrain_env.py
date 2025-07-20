@@ -66,12 +66,21 @@ class TrajectoryCollector:
         self.current_traj = defaultdict(list)
 
     def end_trajectory(self):
-        if self.current_traj:
-            obs, acts = self.current_traj['obs'], self.current_traj['acts']
-            assert len(obs) == len(acts) + 1, (len(obs), len(acts))
-            traj = Trajectory(obs=DictObs.from_obs_list(obs), acts=np.asarray(acts), terminal=True, infos=None)
-            self.trajectories.append(traj)
+        current_traj = self.current_traj
         self.current_traj = None
+        if not current_traj:
+            return
+
+        obs, acts = current_traj['obs'][:-1], current_traj['acts'][:-1]
+        assert len(obs) == len(acts) + 1, (len(obs), len(acts))
+        idx = 0
+        for ob, act in zip(obs, acts):
+            if ob['gate_len'] == 0:
+                print(idx, len(acts))
+            idx += 1
+
+        traj = Trajectory(obs=DictObs.from_obs_list(obs), acts=np.asarray(acts), terminal=True, infos=None)
+        self.trajectories.append(traj)
 
     def add_state(self, gates: list[DAGNode], current_mapping: dict[Qubit, int]):
         mapping = np.zeros((self.N,), np.int64)
@@ -106,8 +115,10 @@ class TrajectoryCollector:
 
         self.current_traj['acts'].append(action.reshape(-1))
 
-    def add_swap_cands(self, swap: list[TwoQubitGate]):
-        pass
+    def add_swap_cands(self, swap_cands: list[TwoQubitGate]):
+        action = np.zeros((3, self.N, self.N), np.float32)
+        for swap in swap_cands:
+            pass
 
     def save(self):
         transitions = flatten_trajectories(self.trajectories)
@@ -196,6 +207,8 @@ def ha_mapping(
     :return: The final circuit along with the mapping obtained at the end of the
         iterative procedure.
     """
+    collector.begin_trajectory()
+
     _adapt_quantum_circuit_and_mapping_arity(quantum_circuit, initial_mapping, hardware)
     # Creating the internal data structures that will be used in this function.
     dag_circuit = circuit_to_dag(quantum_circuit)
@@ -207,20 +220,19 @@ def ha_mapping(
     # May require significant memory on large circuits...
     topological_nodes: ty.List[DAGNode] = list(dag_circuit.topological_op_nodes())
     current_node_index = 0
+    # Add state
+    collector.add_state(topological_nodes[current_node_index:], current_mapping)
     # Creating the initial front layer.
     front_layer = QuantumLayer()
     current_node_index = update_layer(
         front_layer, topological_nodes, current_node_index
     )
     trans_mapping = initial_mapping.copy()
-    collector.begin_trajectory()
     front_layer_len = []
 
     # Start of the iterative algorithm
     while not front_layer.is_empty():
         front_layer_len.append(sum(1 for op in front_layer.ops if op.name == 'cx'))
-        collector.add_state(topological_nodes[current_node_index:], current_mapping)
-
         execute_gate_list = QuantumLayer()
         for op in front_layer.ops:
             if hardware.can_natively_execute_operation(op, current_mapping):
@@ -228,9 +240,8 @@ def ha_mapping(
                 # Delaying the remove operation because we do not want to remove from
                 # a container we are iterating on.
                 # front_layer.remove_operation(op)
-
+        # Add action
         collector.add_execute(execute_gate_list.ops)
-
         if not execute_gate_list.is_empty():
             front_layer.remove_operations_from_layer(execute_gate_list)
             execute_gate_list.apply_back_to_dag_circuit(
@@ -288,6 +299,8 @@ def ha_mapping(
                 pass
             explored_mappings.add(mapping_to_str(current_mapping))
             best_swap_qubits.apply(resulting_dag_quantum_circuit, front_layer, initial_mapping, trans_mapping)
+        # Add state
+        collector.add_state(topological_nodes[current_node_index:], current_mapping)
         # Anyway, update the current front_layer
         current_node_index = update_layer(
             front_layer, topological_nodes, current_node_index
@@ -297,7 +310,6 @@ def ha_mapping(
     # resulting_dag_quantum_circuit.draw(scale=1, filename="qcirc.dot")
     resulting_circuit = dag_to_circuit(resulting_dag_quantum_circuit)
 
-    collector.add_state(topological_nodes[current_node_index:], current_mapping)
     collector.end_trajectory()  # Finish one trajectory.
     print(f'maxlen of frontlayer {max(front_layer_len)}')
 
