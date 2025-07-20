@@ -348,18 +348,19 @@ if __name__ == '__main__':
                                     prefix='20Q_gate_Tokyo_val')
 
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
+    qc = QuantumCircuit.from_qasm_file(str(circuit_list[0]))
+    T = 5
 
-    for i in range(1):
-        qc = QuantumCircuit.from_qasm_file(str(circuit_list[i]))
-        for j in range(2):
-            init = get_initial_mapping(qc, hardware, InitialMappingStrategy.RANDOM)
-            ha_mapping(
-                collector=collector_train if j % 2 == 0 else collector_val,
-                quantum_circuit=qc,
-                initial_mapping=init,
-                hardware=hardware,
-                strategy='best',
-            )
+    for j in range(T):
+        init = get_initial_mapping(qc, hardware, InitialMappingStrategy.RANDOM)
+        ha_mapping(
+            # 2 for train, 1 for val.
+            collector=collector_train if j != T - 1 else collector_val,
+            quantum_circuit=qc,
+            initial_mapping=init,
+            hardware=hardware,
+            strategy='best',
+        )
 
     collector_train.save()
     collector_val.save()
