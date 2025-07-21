@@ -214,14 +214,11 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                             inverse_mapping[potential_middle_index],
                             inverse_trans_mapping[initial_mapping[target]],
                         )
-                        q1 = two_qubit_gate.left._index
-                        q2 = two_qubit_gate.right._index
-                        masks[q1, q2] = True
+                        masks[control_index, target_index] = True
 
         return masks.reshape(-1).tolist()
 
     def swap_masks(self):
-        inverse_mapping = {val: key for key, val in self.current_mapping.items()}
         # First compute all the qubits involved in the given layer
         masks = np.zeros((self.num_qubits, self.num_qubits), dtype=bool)
         qubits_involved_in_front_layer = set()

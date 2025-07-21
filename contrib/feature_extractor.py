@@ -198,8 +198,9 @@ class CircuitEncoder(nn.Module):
         return:   (B, hidden)     定长状态向量
         """
         if self.mode in ['gru', 'lstm']:
+            lengths = lengths.view(-1).long()
             packed = pack_padded_sequence(
-                x, lengths.cpu(), batch_first=True, enforce_sorted=False
+                x, lengths, batch_first=True, enforce_sorted=False
             )
             _, h_last = self.rnn(packed)
             # h_last: (1, B, hidden) for GRU, (h_n, c_n) for LSTM
