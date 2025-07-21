@@ -352,29 +352,32 @@ if __name__ == '__main__':
                                     prefix='20Q_gate_Tokyo_val')
 
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
-    T = 1
+    random.seed(22)
+    random.shuffle(circuit_list)
+    T_train = 16
+    T_val = 2
 
-    for i in range(8):
+    for i in range(T_train):
         qc = QuantumCircuit.from_qasm_file(str(circuit_list[i]))
-        for j in range(T):
-            init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
-            ha_mapping(
-                collector=collector_train,
-                quantum_circuit=qc,
-                initial_mapping=init,
-                hardware=hardware,
-                strategy='best',
-            )
-
-    qc = QuantumCircuit.from_qasm_file(str(circuit_list[-1]))
-    init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
-    ha_mapping(
-        collector=collector_val,
-        quantum_circuit=qc,
-        initial_mapping=init,
-        hardware=hardware,
-        strategy='best',
-    )
-
+        init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
+        ha_mapping(
+            collector=collector_train,
+            quantum_circuit=qc,
+            initial_mapping=init,
+            hardware=hardware,
+            strategy='best',
+        )
     collector_train.save()
+
+    for i in range(T_val):
+        qc = QuantumCircuit.from_qasm_file(str(circuit_list[T_train + i]))
+        init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
+        ha_mapping(
+            collector=collector_val,
+            quantum_circuit=qc,
+            initial_mapping=init,
+            hardware=hardware,
+            strategy='best',
+        )
+
     collector_val.save()

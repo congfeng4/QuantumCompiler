@@ -202,7 +202,8 @@ class CircuitEnvWithInitialMapping(gym.Env):
         self, policy
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         try:
-            action =
+            action = policy.reshape(self.A, self.N, self.N)
+
         except ValueError:
             return self.step_invalid()
         # print(action)
