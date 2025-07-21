@@ -13,15 +13,16 @@ from qiskit.circuit import Qubit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGNode
 from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 
 from contrib.common import show_mapping, qknob_metrics
 from contrib.ha_traj import convert_action_to_gate, get_initial_mapping, InitialMappingStrategy
 from contrib.action import ActionAsPolicyTuple, ActionType, ActionAsPolicy
 from contrib import state
-from contrib.pretrain_env import ActionSpace, NUM_ACTIONS
+from contrib.pretrain_env import ActionSpace, NUM_ACTIONS, PretrainEnv
 
 from hamap.distance_matrix import get_distance_matrix_swap_number_and_error
-from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate
+from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
 from hamap.heuristics import sabre_heuristic
 from hamap.layer import QuantumLayer, update_layer
 from hamap.mapping import _adapt_quantum_circuit_and_mapping_arity, _create_empty_dagcircuit_from_existing
@@ -34,34 +35,17 @@ from hamap.swap import get_all_swap_bridge_candidates
 logger = logging.getLogger("contrib.env")
 
 
-def build_interact_graph(topological_nodes: list[DAGNode], num_qubits: int):
-    graph = np.zeros((num_qubits, num_qubits), dtype=np.float32)
-    for op in topological_nodes:
-        if len(op.qargs) == 2:
-            q1, q2 = op.qargs[0]._index, op.qargs[1]._index
-            graph[q1][q2] += 1
-            graph[q2][q1] += 1
-    return graph
+class CircuitEnvWithInitialMapping(PretrainEnv):
 
-
-class CircuitEnvWithInitialMapping(gym.Env):
-
-    def __init__(self, *,
-                 input_circuit: QuantumCircuit = None,
-                 hardware: IBMQHardwareArchitecture = None,
-                 initial_mapping: dict[Qubit, int] = None,
-                 action_as_policy: ActionAsPolicy = None,
-                 L: int = None):
+    def __init__(self,
+                 input_circuit: QuantumCircuit,
+                 hardware: IBMQHardwareArchitecture,
+                 initial_mapping: dict[Qubit, int],
+                 L: int):
+        super().__init__(N=hardware.qubit_number, L=L)
         self.input_circuit= input_circuit
         self.hardware = hardware
         self.initial_mapping = initial_mapping
-        self.action_as_policy = action_as_policy
-        self.L = L
-        self.state = state.ObservationSpace(self.num_qubits, self.L)
-        self.action = ActionSpace(self.num_qubits, NUM_ACTIONS)
-
-        self.observation_space = self.state.get_space()
-        self.action_space = self.action.get_space()
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
@@ -74,11 +58,12 @@ class CircuitEnvWithInitialMapping(gym.Env):
         self.front_layer = QuantumLayer()
         self.current_node_index = 0
         self.resulting_dag_quantum_circuit = _create_empty_dagcircuit_from_existing(self.dag_circuit)
-        self.interact_graph = build_interact_graph(self.topological_nodes, self.num_qubits)
         self.current_mapping = self.initial_mapping.copy()
         self.trans_mapping = self.initial_mapping.copy()
         self.explored_mappings = set()
         self.distance_matrix = get_distance_matrix_swap_number_and_error(self.hardware)
+        self.metrics = None
+        self.inverse_mapping = {val: key for key, val in self.initial_mapping.items()}
 
         self.update_front_layer()
         self.update()
@@ -90,10 +75,10 @@ class CircuitEnvWithInitialMapping(gym.Env):
 
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
-        return qknob_metrics(self.input_circuit, self.resulting_circuit)
+        self.metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
 
     def find_middle(self, best_swap_qubits: BridgeTwoQubitGate, trans_mapping, inverse_mapping) -> Qubit:
-        inverse_trans_mapping = {val: key for key, val in trans_mapping.items()}
+        # inverse_trans_mapping = {val: key for key, val in trans_mapping.items()}
         control, target = best_swap_qubits.left, best_swap_qubits.right
         control_index = self.initial_mapping[control]
         target_index = self.initial_mapping[target]
@@ -107,14 +92,13 @@ class CircuitEnvWithInitialMapping(gym.Env):
                        best_swap_qubits)
         return self.input_circuit.qubits[0]
 
-    def apply_swap_action(self, action: ActionType):
-        inverse_mapping = {val: key for key, val in self.initial_mapping.items()}
+    def apply_swap_action(self, best_swap_qubits: TwoQubitGate):
         trans_mapping = self.trans_mapping
-        best_swap_qubits = convert_action_to_gate(action, self.input_circuit)
+        inverse_mapping = self.inverse_mapping
 
         if isinstance(best_swap_qubits, BridgeTwoQubitGate):
             # Patch the middle qubit before changing the mapping.
-            best_swap_qubits._middle = self.find_middle(best_swap_qubits, trans_mapping, inverse_mapping)
+            best_swap_qubits._middle = self.find_middle(best_swap_qubits, trans_mapping, self.inverse_mapping)
 
         # We now have our best SWAP/Bridge, let's perform it!
         self.current_mapping = best_swap_qubits.update_mapping(self.current_mapping)
@@ -154,8 +138,6 @@ class CircuitEnvWithInitialMapping(gym.Env):
                     if len(op.qargs) == 2:
                         num_executed_cnot += 1
                         q1, q2 = op.qargs[0]._index, op.qargs[1]._index
-                        self.interact_graph[q1][q2] -= 1
-                        self.interact_graph[q2][q1] -= 1
                     # Delaying the remove operation because we do not want to remove from
                     # a container we are iterating on.
                     # front_layer.remove_operation(op)
@@ -182,9 +164,12 @@ class CircuitEnvWithInitialMapping(gym.Env):
             return self._get_obs(), -0.1, False, True, {}
         return self._get_obs(), -0.1, False, False, {}
 
-    def step_swap(self, action: ActionType):
-        assert action['action'] != 'MAP', action
-        if not self.apply_swap_action(action):
+    def step(
+        self, policy
+    ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
+        inverse_current_mapping = {val: key for key, val in self.current_mapping.items()}
+        swap = self.action.decode_best_swap(policy, inverse_current_mapping, self.inverse_mapping)
+        if not self.apply_swap_action(swap):
             return self.step_invalid()
 
         self.invalid_actions = 0
@@ -193,74 +178,10 @@ class CircuitEnvWithInitialMapping(gym.Env):
         done = not self.front_layer
         info = {}
         if done:
-            metrics = self.finalize_result()
-            info['metrics'] = metrics
-            print(f'Game ends {metrics}')
+            self.finalize_result()
+            info['metrics'] = self.metrics
+            print(f'Game ends {self.metrics}')
         return self._get_obs(), reward, done, False, info
-
-    def step(
-        self, policy
-    ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
-        try:
-            action = policy.reshape(self.A, self.N, self.N)
-
-        except ValueError:
-            return self.step_invalid()
-        # print(action)
-        return self.step_swap(action)
-
-    @classmethod
-    def apply_trajectory(cls, traj_data: dict, action_as_policy):
-        traj_full = defaultdict(list)
-        trajectory: list = traj_data['trajectory']
-        metrics = traj_data['metrics']
-        input_circuit = traj_data['input_circuit']
-        input_circuit = QuantumCircuit.from_qasm_file(input_circuit)
-        hardware_name = traj_data['hardware_name']
-        initial_mapping = traj_data['initial_mapping']
-        initial_mapping = { input_circuit.qubits[int(k)] : v for k, v in initial_mapping.items() }
-        env = cls(input_circuit=input_circuit,
-                  hardware=IBMQHardwareArchitecture(hardware_name),
-                  initial_mapping=initial_mapping,
-                  action_as_policy=action_as_policy)
-        state, _ = env.reset()
-        traj_full['obs'].append(state)
-        done = False
-        traj_index = 0
-        info = {}
-        for action in trajectory:
-            traj_index += 1
-            if action['action'] == 'MAP':
-                continue
-            policy = env.action_as_policy.to_policy(action, env.candidates)
-            state, reward, done, _, info = env.step(policy)
-            traj_full['acts'].append(policy)
-            traj_full['rews'].append(reward)
-            traj_full['obs'].append(state)
-            if done:
-                break
-        assert traj_index == len(trajectory) and done, f'{done=}, {traj_index=}, {len(trajectory)=}'
-        return dict(traj_full=traj_full, metrics=metrics, metrics_env=info['metrics'],
-                    traj_len=traj_index, terminate=done, hardware_name=hardware_name)
-
-    @classmethod
-    def make(cls, input_circuit_path: str, hardware_name: str, init: InitialMappingStrategy,
-             a2p: ActionAsPolicy):
-        """
-        Utility to create an env properly.
-        """
-        input_circuit = QuantumCircuit.from_qasm_file(input_circuit_path)
-        hardware = IBMQHardwareArchitecture(hardware_name)
-        initial_mapping = get_initial_mapping(input_circuit, hardware, init)
-        env = gym.make(
-            "CircuitEnv",
-            input_circuit=input_circuit,
-            hardware=hardware,
-            initial_mapping=initial_mapping,
-            action_as_policy=a2p,
-        )
-        env = Monitor(env)
-        return env
 
     def action_masks(self):
         return self.swap_masks() + self.bridge_masks()
@@ -295,7 +216,7 @@ class CircuitEnvWithInitialMapping(gym.Env):
                         )
                         q1 = two_qubit_gate.left._index
                         q2 = two_qubit_gate.right._index
-                        masks[q1, q2] = masks[q2, q1] = True
+                        masks[q1, q2] = True
 
         return masks.reshape(-1).tolist()
 
@@ -314,33 +235,51 @@ class CircuitEnvWithInitialMapping(gym.Env):
             qubit_index = self.current_mapping[involved_qubit]
             # For all the links that involve the current qubit.
             for source, sink in self.hardware.out_edges(qubit_index):
-                two_qubit_gate = SwapTwoQubitGate(
-                    inverse_mapping[source], inverse_mapping[sink]
-                )
-                q1 = two_qubit_gate.left._index
-                q2 = two_qubit_gate.right._index
-                masks[q1, q2] = masks[q2, q1] = True
+                masks[source, sink] = True
 
         return masks.reshape(-1).tolist()
-
-def to_imitation_trajectory(traj_env: dict):
-    from imitation.data.types import TrajectoryWithRew
-
-    traj_full = traj_env['traj_full']
-    return TrajectoryWithRew(
-        obs=np.asarray(traj_full['obs']),
-        acts=np.asarray(traj_full['acts']),
-        rews=np.asarray(traj_full['rews']),
-        infos=None,
-        terminal=True,
-    )
 
 
 gym.register("CircuitEnv", "contrib.environs:CircuitEnvWithInitialMapping")
 
 
+def make_circuit_env(input_circuit_paths: list[Path], hardware_name: str, init: InitialMappingStrategy, L: int):
+    """
+    Utility to create an env properly.
+    """
+    hardware = IBMQHardwareArchitecture(hardware_name)
+    env = DummyVecEnv([lambda : CircuitEnvWithInitialMapping(
+        input_circuit=(input_circuit := QuantumCircuit.from_qasm_file(str(qc))),
+        hardware=hardware,
+        initial_mapping=get_initial_mapping(input_circuit, hardware, init),
+        L=L,
+    ) for qc in input_circuit_paths])
+    env = VecMonitor(env)
+    return env
+
+
 if __name__ == '__main__':
-    traj_data = json.load(Path('/Users/fengcong/HA/result/ha/53Q_gate_Sycamore_small_2_10_1.5_no.4-init=identity-data=53Q_gate_Sycamore.json').open())
-    traj_full = CircuitEnvWithInitialMapping.apply_trajectory(traj_data, ActionAsPolicyTuple())
-    expert_traj = to_imitation_trajectory(traj_full)
-    print(expert_traj)
+    from contrib.pretrain_env import TrajectoryCollector, ha_mapping, rollout_expert_trajectory
+
+    hardware = IBMQHardwareArchitecture('tokyo')
+
+    collector_train = TrajectoryCollector(N=hardware.qubit_number, L=10,
+                                          outdir=Path('../result/pretrain/ha'),
+                                          prefix='20Q_gate_Tokyo_train')
+
+    circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
+
+    qc = QuantumCircuit.from_qasm_file(str(circuit_list[0]))
+    init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
+    ha_mapping(
+        collector=collector_train,
+        quantum_circuit=qc,
+        initial_mapping=init,
+        hardware=hardware,
+        strategy='best',
+    )
+
+    env = CircuitEnvWithInitialMapping(qc, hardware, init, 10)
+
+    metrics_rollout = rollout_expert_trajectory(env, collector_train.trajectories[0])
+    metrics_expert = collector_train.metrics_list[0]

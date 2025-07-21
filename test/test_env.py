@@ -9,28 +9,30 @@ from qiskit import QuantumCircuit
 from contrib.action import ActionAsPolicy, ActionAsPolicyTuple, ActionAsPolicyInt
 from contrib.common import get_hardware_name, get_all_qknob_circuit_paths
 from contrib.environs import CircuitEnvWithInitialMapping
-from contrib.ha_traj import run_ha, InitialMappingStrategy
+from contrib.ha_traj import run_ha, InitialMappingStrategy, get_initial_mapping
+from contrib.pretrain_env import TrajectoryCollector, ha_mapping, rollout_expert_trajectory
+
 from hamap import IBMQHardwareArchitecture
 from itertools import product
 
 
 ALL_QKNOB_CIRCUIT_PATHS = get_all_qknob_circuit_paths()
 
-@pytest.mark.parametrize('data, a2p', product(ALL_QKNOB_CIRCUIT_PATHS.keys(),
-                                              [ActionAsPolicyTuple(), ActionAsPolicyInt()]
-                                              ))
-def test_env(data: str, a2p):
+
+@pytest.mark.parametrize('data', ALL_QKNOB_CIRCUIT_PATHS.keys())
+def test_env(data: str):
     for circuit_path in ALL_QKNOB_CIRCUIT_PATHS[data]:
         hardware_name = get_hardware_name(data)
-        result = run_ha(str(circuit_path), hardware_name, InitialMappingStrategy.IDENTITY)
-        traj = result['trajectory']
         circuit = QuantumCircuit.from_qasm_file(str(circuit_path))
         hardware = IBMQHardwareArchitecture(hardware_name)
-        result = CircuitEnvWithInitialMapping.apply_trajectory(result, a2p)
-        metrics, metrics_env = result['metrics'], result['metrics_env']
-        terminate, traj_len = result['terminate'], result['traj_len']
+        collector = TrajectoryCollector(N=hardware.qubit_number, L=10)
 
-        assert traj_len == len(traj) and terminate, f"Actual {traj_len=}, Expected {len(traj)=}, {terminate=}"
+        init = get_initial_mapping(circuit, hardware, InitialMappingStrategy.IDENTITY)
+        ha_mapping(collector, circuit, init, hardware, strategy='best')
+        traj = collector.trajectories[0]
+        metrics = collector.metrics_list[0]
+        env = CircuitEnvWithInitialMapping(circuit, hardware, init, L=10)
+        metrics_env = rollout_expert_trajectory(env, traj)
 
         for key in metrics:
             val_1 = metrics[key]

@@ -1,6 +1,7 @@
 import pickle
 import random
 from collections import defaultdict, Counter
+from functools import cached_property
 
 import gymnasium as gym
 import numpy as np
@@ -10,30 +11,27 @@ import typing as ty
 import numpy
 from imitation.data.rollout import flatten_trajectories
 from imitation.data.types import Trajectory, Transitions
-from qiskit import QuantumCircuit, QuantumRegister
+from qiskit import QuantumCircuit
 from qiskit.circuit.quantumregister import Qubit
 from qiskit.converters.circuit_to_dag import circuit_to_dag
 from qiskit.converters.dag_to_circuit import dag_to_circuit
-from qiskit.dagcircuit.dagcircuit import DAGCircuit, DAGNode
+from qiskit.dagcircuit.dagcircuit import DAGNode
 
 from contrib import state
-from contrib.common import qubit_index_from_op, qubit_index_from_swap
+from contrib.common import qknob_metrics
 from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
 from contrib.state import ObservationSpace
 from hamap.distance_matrix import (
-    get_distance_matrix_mixed,
-    get_distance_matrix_swap_number,
     get_distance_matrix_swap_number_and_error,
 )
 from hamap.gates import TwoQubitGate, SwapTwoQubitGate, BridgeTwoQubitGate
 from hamap.hardware.IBMQHardwareArchitecture import IBMQHardwareArchitecture
-from hamap.heuristics import sabre_heuristic, sabre_heuristic_with_effect
+from hamap.heuristics import sabre_heuristic
 from hamap.layer import QuantumLayer, update_layer
 from hamap.mapping import _adapt_quantum_circuit_and_mapping_arity, _create_empty_dagcircuit_from_existing
 from hamap.mapping_to_str import mapping_to_str
-from hamap.swap import get_all_swap_bridge_candidates, get_all_swap_candidates
+from hamap.swap import get_all_swap_bridge_candidates
 import logging
-from imitation.data import serialize, rollout
 from imitation.data.types import DictObs
 
 from pathlib import Path
@@ -55,7 +53,8 @@ class ActionSpace:
 
     def get_space(self):
         A, N = self.A, self.N
-        return gym.spaces.MultiBinary(A*N*N)
+        # return gym.spaces.MultiBinary(A*N*N)
+        return gym.spaces.Discrete(A*N*N)
 
     def encode_execute_list(self, execute_gate_list: list[DAGNode], current_mapping: dict[Qubit, int]):
         action = self.empty_action()
@@ -82,19 +81,43 @@ class ActionSpace:
                 action[SWAP_INDEX, q0, q1] = 1
         return action
 
-    def encode_best_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int]):
-        action = self.empty_action()
+    @cached_property
+    def _N2(self):
+        return self.N * self.N
+
+    def encode(self, index: int, q0: int, q1: int):
+        return index * self._N2 + q0 * self.N + q1
+
+    def encode_best_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
         if isinstance(swap, BridgeTwoQubitGate):  # Already physical
-            action[BRIDGE_INDEX, swap.left._index, swap.right._index] = 1
+            q0, q1 = initial_mapping[swap.left], initial_mapping[swap.right]
+            return self.encode(BRIDGE_INDEX, q0, q1)
+            # action[BRIDGE_INDEX, swap.left._index, swap.right._index] = 1
         else:
             q0, q1 = current_mapping[swap.left], current_mapping[swap.right]
-            action[SWAP_INDEX, q0, q1] = 1
-        return action
+            return self.encode(SWAP_INDEX, q0, q1)
+            # action[SWAP_INDEX, q0, q1] = 1
+        # return action
+
+    def decode(self, policy: int):
+        num_params = self._N2
+        index, params = policy // num_params, policy % num_params
+        left = params // self.N
+        right = params % self.N
+        return index, left, right
+
+    def decode_best_swap(self, policy: int, inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit]):
+        index, left, right = self.decode(policy)
+        swap_class = SwapTwoQubitGate if index == SWAP_INDEX else BridgeTwoQubitGate
+        if index == SWAP_INDEX:
+            return SwapTwoQubitGate(inverse_current_mapping[left], inverse_current_mapping[right])
+        else:
+            return BridgeTwoQubitGate(inverse_mapping[left], None, inverse_mapping[right])
 
 
 class TrajectoryCollector:
 
-    def __init__(self, N: int, L: int, outdir: Path, prefix: str):
+    def __init__(self, N: int, L: int, outdir: Path = None, prefix: str = None):
         """
         N (int): number of qubits
         L (int): max len of gate seq.
@@ -102,6 +125,7 @@ class TrajectoryCollector:
         self.N = N
         self.L = L
         self.trajectories = []
+        self.metrics_list = []
         self.current_traj = None
         self.outdir = outdir
         self.prefix = prefix
@@ -129,7 +153,7 @@ class TrajectoryCollector:
         assert len(new_obs) == len(new_acts) + 1, (len(new_obs), len(new_acts))
         return dict(obs=new_obs, acts=new_acts)
 
-    def end_trajectory(self):
+    def end_trajectory(self, metrics: dict[dict, float] = None):
         current_traj = self.current_traj
         self.current_traj = None
         if not current_traj:
@@ -139,6 +163,8 @@ class TrajectoryCollector:
         obs, acts = current_traj['obs'], current_traj['acts']
         traj = Trajectory(obs=DictObs.from_obs_list(obs), acts=np.asarray(acts), terminal=True, infos=None)
         self.trajectories.append(traj)
+        self.metrics_list.append(metrics)
+        print(f'End trajectory. len {len(traj)}, metrics {metrics}')
 
     def add_state(self, front_layer: QuantumLayer, gates: list[DAGNode], current_mapping: dict[Qubit, int]):
         observation = self.obs_space.encode_obs(front_layer, gates, current_mapping)
@@ -151,15 +177,17 @@ class TrajectoryCollector:
 
     def add_swap_cands(self, swap_cands: list[TwoQubitGate], current_mapping: dict[Qubit, int]):
         action = self.act_space.encode_swap_cands(swap_cands, current_mapping)
-        self.current_traj['acts'].append(action.reshape(-1))
+        self.current_traj['acts'].append(action)
 
-    def add_best_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int]):
-        action = self.act_space.encode_best_swap(swap, current_mapping)
-        self.current_traj['acts'].append(action.reshape(-1))
+    def add_best_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
+        action = self.act_space.encode_best_swap(swap, current_mapping, initial_mapping)
+        self.current_traj['acts'].append(action)
         act_key = 'swap' if isinstance(swap, SwapTwoQubitGate) else 'bridge'
         self.action_count[act_key] += 1
 
     def save(self):
+        self.outdir.mkdir(parents=True, exist_ok=True)
+
         transitions = flatten_trajectories(self.trajectories)
         save_file = self.outdir / f'{self.prefix}.trans'
         with save_file.open('wb') as f:
@@ -195,8 +223,14 @@ class PretrainEnv(gym.Env):
 
     def __init__(self, N: int, L: int = 100):
         super().__init__()
-        self.action_space = ActionSpace(N, NUM_ACTIONS).get_space()
-        self.observation_space = state.ObservationSpace(N, L).get_space()
+        self.N = N
+        self.L = L
+
+        self.action = ActionSpace(N, NUM_ACTIONS)
+        self.state = state.ObservationSpace(N, L)
+
+        self.action_space = self.action.get_space()
+        self.observation_space = self.state.get_space()
 
 
 def ha_mapping(
@@ -305,7 +339,7 @@ def ha_mapping(
                         best_swap_qubits = potential_swap
 
             # collector.add_swap_cands(swap_candidates, current_mapping)
-            collector.add_best_swap(best_swap_qubits, current_mapping)
+            collector.add_best_swap(best_swap_qubits, current_mapping, initial_mapping)
             # We now have our best SWAP/Bridge, let's perform it!
             current_mapping = best_swap_qubits.update_mapping(current_mapping)
             if isinstance(best_swap_qubits, SwapTwoQubitGate):
@@ -334,27 +368,44 @@ def ha_mapping(
     # resulting_dag_quantum_circuit.draw(scale=1, filename="qcirc.dot")
     resulting_circuit = dag_to_circuit(resulting_dag_quantum_circuit)
 
-    collector.end_trajectory()  # Finish one trajectory.
-    print(f'maxlen of frontlayer {max(front_layer_len)}')
-
+    metrics = qknob_metrics(quantum_circuit, resulting_circuit)
+    collector.end_trajectory(metrics)  # Finish one trajectory.
     return resulting_circuit, current_mapping
+
+
+def rollout_expert_trajectory(env: PretrainEnv, trajectory: Trajectory):
+    """
+    Rollout the expert's trajectory on an enviroment.
+    """
+    env.reset()
+    done = False
+    traj_index = 0
+    info = {}
+    for action in trajectory.acts:
+        traj_index += 1
+        state, reward, done, _, info = env.step(action)
+        if done:
+            break
+    assert traj_index == len(trajectory) and done, f'{done=}, {traj_index=}, {len(trajectory)=}'
+    return info['metrics']
+
 
 
 if __name__ == '__main__':
     hardware = IBMQHardwareArchitecture('tokyo')
 
     collector_train = TrajectoryCollector(N=hardware.qubit_number, L=10,
-                                    outdir=Path('../result/pretrain/exe_swap'),
+                                    outdir=Path('../result/pretrain/ha'),
                                     prefix='20Q_gate_Tokyo_train')
 
     collector_val = TrajectoryCollector(N=hardware.qubit_number, L=10,
-                                    outdir=Path('../result/pretrain/exe_swap'),
+                                    outdir=Path('../result/pretrain/ha'),
                                     prefix='20Q_gate_Tokyo_val')
 
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
     random.seed(22)
     random.shuffle(circuit_list)
-    T_train = 16
+    T_train = 8
     T_val = 2
 
     for i in range(T_train):

@@ -1,5 +1,3 @@
-import os
-import pickle
 import random
 from pathlib import Path
 
@@ -8,9 +6,12 @@ import torch.nn
 import torch as th
 
 from imitation.algorithms import bc
+from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.policies import ActorCriticPolicy
 
+from contrib.environs import make_circuit_env
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
+from contrib.ha_traj import InitialMappingStrategy
 from contrib.pretrain_env import PretrainEnv, TrajectoryCollector
 import shutil
 from imitation.util import logger as imit_logger
@@ -21,8 +22,8 @@ from imitation.algorithms.bc import BehaviorCloningLossCalculator
 
 
 def main():
-    bs = 512
-    log_dir = f"../log/pretrain/exe-swap"
+    bs = 128
+    log_dir = f"../log/pretrain/ha/env"
     shutil.rmtree(log_dir, ignore_errors=True)
 
     logger = imit_logger.configure(log_dir,  # 会自动创建子文件夹
@@ -33,11 +34,11 @@ def main():
     env = PretrainEnv(N=hardware.qubit_number, L=10)
 
     train_trans = TrajectoryCollector(N=hardware.qubit_number, L=10,
-                                          outdir=Path('../result/pretrain/exe_swap'),
+                                          outdir=Path('../result/pretrain/ha'),
                                           prefix='20Q_gate_Tokyo_train').load()
 
     val_trans = TrajectoryCollector(N=hardware.qubit_number, L=10,
-                                        outdir=Path('../result/pretrain/exe_swap'),
+                                        outdir=Path('../result/pretrain/ha'),
                                         prefix='20Q_gate_Tokyo_val').load()
 
     loss_calc = BehaviorCloningLossCalculator(0, 0)
@@ -85,6 +86,10 @@ def main():
             bc_trainer.logger.dump(current_epoch)
         current_epoch += 1
 
+    circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
+    random.seed(22)
+    random.shuffle(circuit_list)
+
     bc_trainer.train(
         n_epochs=2_0000,
         log_interval=log_interval,
@@ -94,6 +99,8 @@ def main():
     )
 
     policy.save("../log/pretrain/model.zip")
+
+    # evaluate_policy(policy, venv)
 
 
 if __name__ == '__main__':
