@@ -1,0 +1,310 @@
+{
+    "metrics": {
+        "depth_ratio": 1.0943396226415094,
+        "cx_ratio": 1.4906542056074767
+    },
+    "hardware_name": "tokyo",
+    "initial_mapping": {
+        "9": 16,
+        "19": 0,
+        "3": 7,
+        "17": 5,
+        "4": 4,
+        "10": 12,
+        "5": 19,
+        "11": 8,
+        "8": 15,
+        "1": 6,
+        "7": 18,
+        "13": 2,
+        "12": 1,
+        "18": 17,
+        "14": 13,
+        "16": 3,
+        "0": 14,
+        "6": 10,
+        "15": 11,
+        "2": 9
+    },
+    "input_circuit": "/Users/fengcong/HA/data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_2_15_1.5_no.8.qasm",
+    "init": "sa",
+    "trajectory": [
+        {
+            "action": "MAP",
+            "logical": 9,
+            "physical": 16
+        },
+        {
+            "action": "MAP",
+            "logical": 19,
+            "physical": 0
+        },
+        {
+            "action": "MAP",
+            "logical": 3,
+            "physical": 7
+        },
+        {
+            "action": "MAP",
+            "logical": 17,
+            "physical": 5
+        },
+        {
+            "action": "MAP",
+            "logical": 4,
+            "physical": 4
+        },
+        {
+            "action": "MAP",
+            "logical": 10,
+            "physical": 12
+        },
+        {
+            "action": "MAP",
+            "logical": 5,
+            "physical": 19
+        },
+        {
+            "action": "MAP",
+            "logical": 11,
+            "physical": 8
+        },
+        {
+            "action": "MAP",
+            "logical": 8,
+            "physical": 15
+        },
+        {
+            "action": "MAP",
+            "logical": 1,
+            "physical": 6
+        },
+        {
+            "action": "MAP",
+            "logical": 7,
+            "physical": 18
+        },
+        {
+            "action": "MAP",
+            "logical": 13,
+            "physical": 2
+        },
+        {
+            "action": "MAP",
+            "logical": 12,
+            "physical": 1
+        },
+        {
+            "action": "MAP",
+            "logical": 18,
+            "physical": 17
+        },
+        {
+            "action": "MAP",
+            "logical": 14,
+            "physical": 13
+        },
+        {
+            "action": "MAP",
+            "logical": 16,
+            "physical": 3
+        },
+        {
+            "action": "MAP",
+            "logical": 0,
+            "physical": 14
+        },
+        {
+            "action": "MAP",
+            "logical": 6,
+            "physical": 10
+        },
+        {
+            "action": "MAP",
+            "logical": 15,
+            "physical": 11
+        },
+        {
+            "action": "MAP",
+            "logical": 2,
+            "physical": 9
+        },
+        {
+            "left": 12,
+            "right": 1,
+            "action": "SWAP"
+        },
+        {
+            "left": 3,
+            "right": 12,
+            "action": "SWAP"
+        },
+        {
+            "left": 11,
+            "right": 12,
+            "action": "SWAP"
+        },
+        {
+            "left": 13,
+            "right": 3,
+            "action": "SWAP"
+        },
+        {
+            "left": 6,
+            "right": 3,
+            "action": "BRIDGE",
+            "middle": 1
+        },
+        {
+            "left": 16,
+            "right": 12,
+            "action": "SWAP"
+        },
+        {
+            "left": 17,
+            "right": 13,
+            "action": "SWAP"
+        },
+        {
+            "left": 1,
+            "right": 3,
+            "action": "SWAP"
+        },
+        {
+            "left": 13,
+            "right": 6,
+            "action": "SWAP"
+        },
+        {
+            "left": 8,
+            "right": 13,
+            "action": "SWAP"
+        },
+        {
+            "left": 3,
+            "right": 17,
+            "action": "SWAP"
+        },
+        {
+            "left": 6,
+            "right": 19,
+            "action": "SWAP"
+        },
+        {
+            "left": 8,
+            "right": 15,
+            "action": "SWAP"
+        },
+        {
+            "left": 9,
+            "right": 8,
+            "action": "SWAP"
+        },
+        {
+            "left": 14,
+            "right": 16,
+            "action": "SWAP"
+        },
+        {
+            "left": 5,
+            "right": 16,
+            "action": "SWAP"
+        },
+        {
+            "left": 11,
+            "right": 14,
+            "action": "SWAP"
+        },
+        {
+            "left": 1,
+            "right": 17,
+            "action": "SWAP"
+        },
+        {
+            "left": 13,
+            "right": 15,
+            "action": "SWAP"
+        },
+        {
+            "left": 3,
+            "right": 17,
+            "action": "SWAP"
+        },
+        {
+            "left": 8,
+            "right": 9,
+            "action": "SWAP"
+        },
+        {
+            "left": 8,
+            "right": 13,
+            "action": "SWAP"
+        },
+        {
+            "left": 12,
+            "right": 14,
+            "action": "BRIDGE",
+            "middle": 3
+        },
+        {
+            "left": 3,
+            "right": 14,
+            "action": "SWAP"
+        },
+        {
+            "left": 14,
+            "right": 17,
+            "action": "SWAP"
+        },
+        {
+            "left": 5,
+            "right": 3,
+            "action": "SWAP"
+        },
+        {
+            "left": 17,
+            "right": 5,
+            "action": "SWAP"
+        },
+        {
+            "left": 17,
+            "right": 3,
+            "action": "SWAP"
+        },
+        {
+            "left": 7,
+            "right": 17,
+            "action": "SWAP"
+        },
+        {
+            "left": 5,
+            "right": 3,
+            "action": "SWAP"
+        },
+        {
+            "left": 17,
+            "right": 0,
+            "action": "SWAP"
+        },
+        {
+            "left": 9,
+            "right": 13,
+            "action": "SWAP"
+        },
+        {
+            "left": 10,
+            "right": 13,
+            "action": "SWAP"
+        },
+        {
+            "left": 13,
+            "right": 9,
+            "action": "SWAP"
+        },
+        {
+            "left": 15,
+            "right": 10,
+            "action": "SWAP"
+        }
+    ]
+}
