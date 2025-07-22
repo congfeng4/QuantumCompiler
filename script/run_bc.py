@@ -1,18 +1,14 @@
 """
 Test behaviour clone on our feature extractor.
 """
-import itertools
 import json
 import random
 
 import gymnasium
 import jsons
 import more_itertools
-import pytest
-from pathlib import Path
 
 from imitation.data.rollout import flatten_trajectories
-from imitation.data.types import Trajectory
 from qiskit import QuantumCircuit
 
 from contrib.ha_traj import InitialMappingStrategy, get_initial_mapping
@@ -23,7 +19,7 @@ import torch.nn
 import torch as th
 from dataclasses import dataclass
 from imitation.algorithms import bc
-from stable_baselines3.common.policies import ActorCriticPolicy
+from stable_baselines3.common.policies import ActorCriticPolicy, BaseModel
 
 from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
@@ -33,15 +29,28 @@ import shutil
 from imitation.util import logger as imit_logger
 from hamap import IBMQHardwareArchitecture
 
+from imitation.algorithms.bc import BehaviorCloningLossCalculator
 
-def rollout_policy(policy, env: gymnasium.Env):
+
+def early_stop_callback(bc_trainer, val_trans):
+    loss_calc = BehaviorCloningLossCalculator(0, 0)
+
+    with torch.no_grad():
+        metrics = loss_calc(bc_trainer.policy, val_trans.obs, val_trans.acts)
+    val_bce = float(metrics.prob_true_act)
+    if abs(val_bce - 1) < 1e-5:  # 必须拟合到1
+        print('Reach 100% prob_true_act. Early STOPPED')
+        raise KeyboardInterrupt
+
+
+def rollout_policy(policy: ActorCriticPolicy, env: gymnasium.Env):
     state, _ = env.reset()
     done, truncated = False, False
     steps = 0
     total_reward = 0
     info = {}
     while not done and not truncated:
-        action = policy.predict(state)
+        action, _ = policy.predict(state, deterministic=True)
         state, reward, done, truncated, info = env.step(action)
         total_reward += reward
         steps += 1
@@ -65,13 +74,14 @@ def fit_policy_with_bc(log_dir: str, hardware: IBMQHardwareArchitecture,
     init_mappings = [get_initial_mapping(circuit, hardware, init) for circuit in circuits]
 
     # Collect training data -- Expert trajectories.
-    for circuith, init in zip(circuits, init_mappings):
+    for circuith, initial_mapping in zip(circuits, init_mappings):
         ha_mapping(
             collector=collector,
             quantum_circuit=circuith,
-            initial_mapping=init,
+            initial_mapping=initial_mapping,
             hardware=hardware,
         )
+
     metrics_ha_list = collector.metrics_list
     transitions = flatten_trajectories(collector.trajectories)
     print(f'Collect transitions {len(transitions)}')
@@ -106,19 +116,24 @@ def fit_policy_with_bc(log_dir: str, hardware: IBMQHardwareArchitecture,
         batch_size=batch_size,
     )
     # Training.
-    bc_trainer.train(
-        n_epochs=n_epochs,
-        reset_tensorboard=True,
-        progress_bar=False,
-    )
+    try:
+        bc_trainer.train(
+            n_epochs=n_epochs,
+            reset_tensorboard=True,
+            progress_bar=False,
+            on_epoch_end=lambda : early_stop_callback(bc_trainer, transitions),
+        )
+    except KeyboardInterrupt:
+        pass
     policy.save(log_dir + "/model.zip")
 
     print('Inference')
     # Inference.
+    policy.eval()
     metrics_bc_list = []
-    for circuit, init, metrics_ha in zip(circuits, init_mappings, metrics_ha_list):
+    for circuit, initial_mapping, metrics_ha in zip(circuits, init_mappings, metrics_ha_list):
         env = CircuitEnvWithInitialMapping(
-            input_circuit=circuit, hardware=hardware, initial_mapping=init, L=L
+            input_circuit=circuit, hardware=hardware, initial_mapping=initial_mapping, L=L
         )
         metrics_bc = rollout_policy(policy, env)
         metrics_bc_list.append(metrics_bc)
@@ -136,8 +151,10 @@ def fit_policy_with_bc(log_dir: str, hardware: IBMQHardwareArchitecture,
     with open(log_dir + "/data.json", 'w') as f:
         json.dump(data, f, indent=4)
 
+    return metrics_ha_list, metrics_bc_list
 
-def test_20Q_gate_Tokyo():
+
+def run_20Q_gate_Tokyo():
 
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
     random.shuffle(circuit_list)
@@ -145,9 +162,20 @@ def test_20Q_gate_Tokyo():
 
     hardware = IBMQHardwareArchitecture('tokyo')
 
-    for test_id, circuit_paths in enumerate(more_itertools.chunked(circuit_list, n=4)):
-        fit_policy_with_bc(
+    for test_id, circuit_paths in enumerate(more_itertools.chunked(circuit_list, n=1)):
+
+        metrics_ha_list, metrics_bc_list = fit_policy_with_bc(
             log_dir=f'../log/test/bc/20Q_gate_Tokyo/{test_id:04}',
             hardware=hardware,
-            circuit_paths=circuit_list[:4],
+            circuit_paths=circuit_paths,
+            n_epochs=2000,
         )
+        for metrics_bc, metrics_ha in zip(metrics_bc_list, metrics_ha_list):
+            for key in metrics_bc:
+                val_1 = metrics_ha[key]
+                val_2 = metrics_bc[key]
+                assert abs(val_1 - val_2) < 1e-5, f"{key=}, {val_1=}, {val_2=}"
+
+
+if __name__ == '__main__':
+    run_20Q_gate_Tokyo()
