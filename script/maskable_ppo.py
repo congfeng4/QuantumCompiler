@@ -14,12 +14,12 @@ from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
 
 
 if __name__ == '__main__':
-    bs = 128
-    ns = 1000
-    embed_dim = 64
-    L = 10
+    bs = 256
+    ns = 4000
+    embed_dim = 20
+    L = 15
 
-    log_name = f"B={bs}-E={ns}-D={embed_dim}-L={10}"
+    log_name = f"B={bs}-E={ns}-D={embed_dim}-L={L}"
     hardware = IBMQHardwareArchitecture('tokyo')
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
     random.shuffle(circuit_list)

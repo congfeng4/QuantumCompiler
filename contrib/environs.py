@@ -18,6 +18,7 @@ from contrib.pretrain_env import PretrainEnv
 
 from hamap.distance_matrix import get_distance_matrix_swap_number_and_error
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
+from hamap.heuristics import sabre_heuristic
 from hamap.layer import QuantumLayer, update_layer
 from hamap.mapping import _adapt_quantum_circuit_and_mapping_arity, _create_empty_dagcircuit_from_existing
 from hamap import IBMQHardwareArchitecture, mapping_to_str
@@ -38,6 +39,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         self.input_circuit= input_circuit
         self.hardware = hardware
         self.initial_mapping = initial_mapping
+        self.distance_matrix = get_distance_matrix_swap_number_and_error(self.hardware)
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
@@ -53,7 +55,6 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         self.current_mapping = self.initial_mapping.copy()
         self.trans_mapping = self.initial_mapping.copy()
         self.explored_mappings = set()
-        self.distance_matrix = get_distance_matrix_swap_number_and_error(self.hardware)
         self.metrics = None
         self.inverse_mapping = {val: key for key, val in self.initial_mapping.items()}
 
@@ -87,11 +88,6 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
     def apply_swap_action(self, best_swap_qubits: TwoQubitGate):
         trans_mapping = self.trans_mapping
         inverse_mapping = self.inverse_mapping
-
-        if isinstance(best_swap_qubits, BridgeTwoQubitGate):
-            # Patch the middle qubit before changing the mapping.
-            best_swap_qubits._middle = self.find_middle(best_swap_qubits, trans_mapping, self.inverse_mapping)
-
         # We now have our best SWAP/Bridge, let's perform it!
         self.current_mapping = best_swap_qubits.update_mapping(self.current_mapping)
         if isinstance(best_swap_qubits, SwapTwoQubitGate):
@@ -156,17 +152,31 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
             return self._get_obs(), -0.1, False, True, {}
         return self._get_obs(), -0.1, False, False, {}
 
+    def heuristic_cost(self, swap: TwoQubitGate):
+        return sabre_heuristic(
+            hardware=self.hardware, front_layer=self.front_layer, topological_nodes=self.topological_nodes,
+            current_node_index=self.current_node_index, current_mapping=self.current_mapping,
+            initial_mapping=self.initial_mapping, trans_mapping=self.trans_mapping,
+            distance_matrix=self.distance_matrix, tentative_gate=swap,
+        )
+
     def step(
         self, policy
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         inverse_current_mapping = {val: key for key, val in self.current_mapping.items()}
-        swap = self.action.decode_best_swap(policy, inverse_current_mapping, self.inverse_mapping)
-        if not self.apply_swap_action(swap):
+        best_swap_qubits = self.action.decode_best_swap(policy, inverse_current_mapping, self.inverse_mapping)
+        if isinstance(best_swap_qubits, BridgeTwoQubitGate):
+            # Patch the middle qubit before changing the mapping.
+            best_swap_qubits._middle = self.find_middle(best_swap_qubits, self.trans_mapping, self.inverse_mapping)
+
+        cost = self.heuristic_cost(best_swap_qubits)
+        if not self.apply_swap_action(best_swap_qubits):
             return self.step_invalid()
 
         self.invalid_actions = 0
         num_executed_cnot = self.update()
-        reward = num_executed_cnot - 3 # + 0.2 * len(self.front_layer)
+        reward = -cost * 0.1 + num_executed_cnot - 3
+        # reward = num_executed_cnot - 3 # + 0.2 * len(self.front_layer)
         done = not self.front_layer
         info = {}
         if done:
