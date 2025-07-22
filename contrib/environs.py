@@ -1,6 +1,3 @@
-import json
-import random
-from collections import defaultdict
 from typing import Any, SupportsFloat
 from pathlib import Path
 
@@ -15,22 +12,17 @@ from qiskit.dagcircuit import DAGNode
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 
-from contrib.common import show_mapping, qknob_metrics
-from contrib.ha_traj import convert_action_to_gate, get_initial_mapping, InitialMappingStrategy
-from contrib.action import ActionAsPolicyTuple, ActionType, ActionAsPolicy
-from contrib import state
-from contrib.pretrain_env import ActionSpace, NUM_ACTIONS, PretrainEnv
+from contrib.common import qknob_metrics
+from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
+from contrib.pretrain_env import PretrainEnv
 
 from hamap.distance_matrix import get_distance_matrix_swap_number_and_error
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
-from hamap.heuristics import sabre_heuristic
 from hamap.layer import QuantumLayer, update_layer
 from hamap.mapping import _adapt_quantum_circuit_and_mapping_arity, _create_empty_dagcircuit_from_existing
 from hamap import IBMQHardwareArchitecture, mapping_to_str
 
 import logging
-
-from hamap.swap import get_all_swap_bridge_candidates
 
 logger = logging.getLogger("contrib.env")
 
@@ -184,7 +176,9 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         return self._get_obs(), reward, done, False, info
 
     def action_masks(self):
-        return self.swap_masks() + self.bridge_masks()
+        masks = self.swap_masks() + self.bridge_masks()
+        assert any(masks)
+        return masks
 
     def bridge_masks(self):
         masks = np.zeros((self.num_qubits, self.num_qubits), dtype=bool)
@@ -253,6 +247,7 @@ def make_circuit_env(input_circuit_paths: list[Path], hardware_name: str, init: 
     ) for qc in input_circuit_paths])
     env = VecMonitor(env)
     return env
+
 
 
 if __name__ == '__main__':

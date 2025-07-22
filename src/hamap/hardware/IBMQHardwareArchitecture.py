@@ -225,6 +225,7 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
             )
         # Update the links with a default function
         self.update_link_weights()
+        self.name = backend_name
         # We are done
 
     def draw(self, pos: ty.Dict[ty.Tuple[int, int], ty.Tuple[float, float]] = None):

@@ -2,6 +2,8 @@
 直接用PPO是很难收敛的，因为非法动作空间十分巨大。
 至少需要用MaskablePPO，并且把Action Mask定义好。
 """
+import random
+
 import torch
 from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
@@ -14,15 +16,17 @@ from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
 
 if __name__ == '__main__':
     bs = 128
-    ns = 5000
+    ns = 1000
     embed_dim = 64
     L = 10
 
     log_name = f"B={bs}-E={ns}-D={embed_dim}-L={10}"
     hardware = IBMQHardwareArchitecture('tokyo')
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
+    random.shuffle(circuit_list)
 
     qc = QuantumCircuit.from_qasm_file(str(circuit_list[0]))
+    print(circuit_list[0], qc.depth())
     init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
 
     rng = np.random.default_rng(0)
@@ -51,6 +55,7 @@ if __name__ == '__main__':
     ).learn(
         total_timesteps=1_000_000,
         tb_log_name=log_name,
+        progress_bar=True,
     )
 
     print('Eval policy')

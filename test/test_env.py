@@ -1,19 +1,15 @@
 """
 Test the correctness of implementation of env
 """
-import json
-
 import pytest
 from qiskit import QuantumCircuit
 
-from contrib.action import ActionAsPolicy, ActionAsPolicyTuple, ActionAsPolicyInt
 from contrib.common import get_hardware_name, get_all_qknob_circuit_paths
 from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.ha_traj import run_ha, InitialMappingStrategy, get_initial_mapping
 from contrib.pretrain_env import TrajectoryCollector, ha_mapping, rollout_expert_trajectory
 
 from hamap import IBMQHardwareArchitecture
-from itertools import product
 
 
 ALL_QKNOB_CIRCUIT_PATHS = get_all_qknob_circuit_paths()
