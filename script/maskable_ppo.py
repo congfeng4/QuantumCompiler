@@ -8,7 +8,6 @@ import torch
 from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 
-from contrib.action import ActionAsPolicyInt
 from contrib.environs import *
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
 from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy

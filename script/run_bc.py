@@ -155,6 +155,7 @@ def fit_policy_with_bc(log_dir: str, hardware: IBMQHardwareArchitecture,
 
 
 def run_20Q_gate_Tokyo():
+    batch_size = 256
 
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
     random.shuffle(circuit_list)
@@ -162,13 +163,14 @@ def run_20Q_gate_Tokyo():
 
     hardware = IBMQHardwareArchitecture('tokyo')
 
-    for test_id, circuit_paths in enumerate(more_itertools.chunked(circuit_list, n=1)):
+    for test_id, circuit_paths in enumerate(more_itertools.chunked(circuit_list, n=32)):
 
         metrics_ha_list, metrics_bc_list = fit_policy_with_bc(
             log_dir=f'../log/test/bc/20Q_gate_Tokyo/{test_id:04}',
             hardware=hardware,
             circuit_paths=circuit_paths,
-            n_epochs=2000,
+            n_epochs=10_000,
+            batch_size=batch_size,
         )
         for metrics_bc, metrics_ha in zip(metrics_bc_list, metrics_ha_list):
             for key in metrics_bc:

@@ -60,7 +60,7 @@ class HardwareAwareQubitEmbedding(nn.Module):
     2. preserve the qubit identity.
     """
     def __init__(self, hardware: IBMQHardwareArchitecture,
-                 qubit_embed: str = "onehot",
+                 qubit_embed: str = "param",
                  qubit_embedding_dim: int = 32,
                  num_layers: int = 3, hidden_channels: int = 32,
                  ):
@@ -114,13 +114,13 @@ class GateSeqEncoder(nn.Module):
         if mlp_hidden is None:
             mlp_hidden = embed_dim * 4          # 可调
 
-        # self.mlp = nn.Sequential(
-        #     nn.Linear(embed_dim * 2, mlp_hidden),
-        #     nn.ReLU(),
-        #     nn.Linear(mlp_hidden, mlp_hidden),
-        #     nn.ReLU(),
-        #     nn.Linear(mlp_hidden, embed_dim * 2)  # 输出 2*D
-        # )
+        self.mlp = nn.Sequential(
+            nn.Linear(embed_dim * 2, mlp_hidden),
+            nn.ReLU(),
+            nn.Linear(mlp_hidden, mlp_hidden),
+            nn.ReLU(),
+            nn.Linear(mlp_hidden, embed_dim * 2)  # 输出 2*D
+        )
 
     def forward(self, gate_seq: torch.LongTensor, qubit_embed: torch.FloatTensor):
         """
@@ -154,8 +154,8 @@ class GateSeqEncoder(nn.Module):
         gate_vec = torch.cat([e0, e1], dim=-1)  # (B, S, 2*D)
 
         # 共享 MLP：对每个 (B, S, 2*D) 的向量独立过 MLP
-        # gate_emb = self.mlp(gate_vec.reshape(B*S, -1)).reshape(B, S, -1)  # (B, S, 2*D)
-        return gate_vec
+        gate_emb = self.mlp(gate_vec.reshape(B*S, -1)).reshape(B, S, -1)  # (B, S, 2*D)
+        return gate_emb
 
 
 class PositionalEncoding(nn.Module):
@@ -210,7 +210,7 @@ class CircuitEncoder(nn.Module):
             x = self.pos_enc(x)
             # 构造 key_padding_mask: True 表示 pad 位置要被忽略
             mask = torch.arange(x.size(1), device=x.device).unsqueeze(0) >= lengths.unsqueeze(1)
-            x_enc = self.transformer(x, src_key_padding_mask=mask)
+            x_enc = self.transformer(x, src_key_padding_mask=mask) # TODO: error here.
             # mean-pool 忽略 pad
             mask_float = (~mask).float().unsqueeze(-1)
             state = (x_enc * mask_float).sum(dim=1) / mask_float.sum(dim=1)
@@ -223,7 +223,7 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
         super().__init__(observation_space, features_dim=2 * embed_dim)
         self.qubit_embed = HardwareAwareQubitEmbedding(hardware, qubit_embedding_dim=embed_dim)
         self.gate_seq_encoder = GateSeqEncoder(embed_dim)
-        self.circuit_encoder = CircuitEncoder(2 * embed_dim)
+        self.circuit_encoder = CircuitEncoder(2 * embed_dim, mode='gru')
 
     def forward(self, obs: dict[str, torch.Tensor]):
         # SB3会把Box无脑转成float32.

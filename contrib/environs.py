@@ -166,7 +166,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
 
         self.invalid_actions = 0
         num_executed_cnot = self.update()
-        reward = num_executed_cnot - 3 + 0.2 * len(self.front_layer)
+        reward = num_executed_cnot - 3 # + 0.2 * len(self.front_layer)
         done = not self.front_layer
         info = {}
         if done:
