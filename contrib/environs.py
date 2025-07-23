@@ -57,7 +57,6 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         self.current_mapping = self.initial_mapping.copy()
         self.trans_mapping = self.initial_mapping.copy()
         self.explored_mappings = set()
-        self.metrics = None
         self.inverse_mapping = {val: key for key, val in self.initial_mapping.items()}
 
         self.update_front_layer()

@@ -9,11 +9,14 @@ import jsons
 import torch
 from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
+from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnNoModelImprovement
 
 from contrib.environs import *
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
 from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
 from contrib.metrics_callback import CustomMetricsCallback
+from script.run_bc import early_stop_callback
+from script.seed import set_all_seeds
 
 
 def run_maskable_ppo(
@@ -42,6 +45,21 @@ def run_maskable_ppo(
     circuit_name = Path(circuit_path).stem
     log_name = f'qc={circuit_name}-init={init_strategy.value}-D={embed_dim}-L={seqlen}'
 
+    # 回调：连续 10 次评估无提升就停止
+    stop_callback = StopTrainingOnNoModelImprovement(
+        max_no_improvement_evals=10,
+        min_evals=5,  # 前 5 次评估不计数
+        verbose=1
+    )
+    eval_callback = EvalCallback(
+        Monitor(env),
+        eval_freq=10_0000,  # 每 10w 步评估一次
+        callback_on_new_best=None,  # 可选
+        callback_after_eval=stop_callback,
+        verbose=1,
+        deterministic=False,
+    )
+
     ppo = MaskablePPO(
         policy="MultiInputPolicy",
         env=env,
@@ -66,11 +84,11 @@ def run_maskable_ppo(
         total_timesteps=total_timesteps,
         tb_log_name=log_name,
         progress_bar=True,
-        callback=CustomMetricsCallback(),
+        callback=[CustomMetricsCallback()],
     )
 
     print('Eval policy')
-    reward, _ = evaluate_policy(ppo, env, 10)
+    reward, _ = evaluate_policy(ppo, Monitor(env), 10)
     print(circuit_path)
     print("Reward:", reward)
     metrics = env.metrics
@@ -92,12 +110,16 @@ def run_maskable_ppo(
 
 
 if __name__ == '__main__':
+    set_all_seeds()
+
     bs = 128
     ns = 2000
     embed_dim = 32
     L = 15
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
     random.shuffle(circuit_list)
+
+    # 20Q_gate_Tokyo_large_2_3_1.5_no.7
 
     for path in circuit_list:
         run_maskable_ppo(
