@@ -63,16 +63,10 @@ class HardwareAwareQubitEmbedding(nn.Module):
         self.edge_index = from_networkx(hardware).edge_index
         self.num_qubits = hardware.qubit_number
         self.qubit_embed_class = QUBIT_EMBED[qubit_embed]
-        self.output_channels = qubit_embedding_dim * 2
+        self.output_channels = qubit_embedding_dim
 
         # 1. 逻辑比特嵌入（随映射变化）
         self.qubit_embedding = self.qubit_embed_class(self.num_qubits, qubit_embedding_dim)
-
-        # 2. 物理比特嵌入（固定绑定到物理节点，可学习）
-        self.physical_embedding = nn.Parameter(
-            torch.empty(self.num_qubits, qubit_embedding_dim)
-        )
-        nn.init.xavier_uniform_(self.physical_embedding)
 
         # GNN 输入维度现在是 2 * qubit_embedding_dim
         self.gnn = GraphSAGE(
@@ -85,16 +79,9 @@ class HardwareAwareQubitEmbedding(nn.Module):
     def forward(self, physical2log: torch.LongTensor):
         # physical2log: [B, N]  每行是一个排列，表示物理->逻辑的映射
         B, N = physical2log.shape
-
         # 1) 逻辑嵌入（按物理节点顺序取逻辑比特的嵌入）
         logic_embed = self.qubit_embedding(physical2log)  # [B, N, D]
-
-        # 2) 物理嵌入（直接按物理节点 ID 0..N-1 取，不受映射影响）
-        phy_embed = self.physical_embedding.unsqueeze(0).expand(B, -1, -1)  # [B, N, D]
-
-        # 3) 拼接两种嵌入，形成节点特征 [B, N, 2D]
-        node_feat = torch.cat([phy_embed, logic_embed], dim=-1)
-
+        node_feat = logic_embed
         # 4) 过 GNN
         ha_embed = self.gnn(node_feat, self.edge_index)  # [B, N, D] 或你指定的输出维度
         return ha_embed
@@ -115,14 +102,6 @@ class GateSeqEncoder(nn.Module):
 
         if mlp_hidden is None:
             mlp_hidden = embed_dim * 4          # 可调
-
-        self.mlp = nn.Sequential(
-            nn.Linear(embed_dim * 2, mlp_hidden),
-            nn.ReLU(),
-            nn.Linear(mlp_hidden, mlp_hidden),
-            nn.ReLU(),
-            nn.Linear(mlp_hidden, embed_dim * 2)  # 输出 2*D
-        )
 
     def forward(self, gate_seq: torch.LongTensor, qubit_embed: torch.FloatTensor):
         """
@@ -155,9 +134,7 @@ class GateSeqEncoder(nn.Module):
         e1 = e1.view(B, S, -1)
         gate_vec = torch.cat([e0, e1], dim=-1)  # (B, S, 2*D)
 
-        # 共享 MLP：对每个 (B, S, 2*D) 的向量独立过 MLP
-        gate_emb = self.mlp(gate_vec.reshape(B*S, -1)).reshape(B, S, -1)  # (B, S, 2*D)
-        return gate_emb
+        return gate_vec
 
 
 class PositionalEncoding(nn.Module):
@@ -213,21 +190,23 @@ class CircuitEncoder(nn.Module):
             x = self.pos_enc(x)
             # 构造 key_padding_mask: True 表示 pad 位置要被忽略
             mask = torch.arange(x.size(1), device=x.device).unsqueeze(0) >= lengths.unsqueeze(1)
-            x_enc = self.transformer(x, src_key_padding_mask=mask) # TODO: error here.
+            x_enc = self.transformer(x, src_key_padding_mask=mask.squeeze(1))
             # mean-pool 忽略 pad
             mask_float = (~mask).float().unsqueeze(-1)
             state = (x_enc * mask_float).sum(dim=1) / mask_float.sum(dim=1)
+            print(state) # TODO: error here.
             return state                    # (B, in_dim)
 
 
 class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
 
     def __init__(self, observation_space, hardware: IBMQHardwareArchitecture,
-                 embed_dim: int, mode: str = 'gru', nhead: int = 8):
-        super().__init__(observation_space, features_dim=4 * embed_dim)
+                 embed_dim: int, mode: str = 'gru', nhead: int = 8, num_layers: int = 2):
+        super().__init__(observation_space, features_dim=2 * embed_dim)
         self.qubit_embed = HardwareAwareQubitEmbedding(hardware, qubit_embedding_dim=embed_dim)
         self.gate_seq_encoder = GateSeqEncoder(self.qubit_embed.output_channels)
-        self.circuit_encoder = CircuitEncoder(self.gate_seq_encoder.output_channels, mode=mode, nhead=nhead)
+        self.circuit_encoder = CircuitEncoder(self.gate_seq_encoder.output_channels, mode=mode,
+                                              nhead=nhead, num_layers=num_layers)
 
     def forward(self, obs: dict[str, torch.Tensor]):
         # SB3会把Box无脑转成float32.

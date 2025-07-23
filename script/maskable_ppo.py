@@ -24,8 +24,9 @@ def run_maskable_ppo(
         n_steps: int = 4000,
         seqlen: int = 15,
         embed_dim: int = None,
-        total_timesteps: int = 4_00_000,
+        total_timesteps: int = 40_0000,
         output_dir: str = None,
+        mode: str = 'gru',
 ):
     """
     Run MaskablePPO on a circuit and record the metrics.
@@ -54,10 +55,11 @@ def run_maskable_ppo(
             features_extractor_kwargs=dict(
                 hardware=hardware,
                 embed_dim=embed_dim,
+                mode=mode,
             ),
             net_arch=dict(
-                pi=[embed_dim * 4],
-                vf=[embed_dim * 4],
+                pi=[embed_dim * 2],
+                vf=[embed_dim * 2],
             ),
         )
     ).learn(
@@ -76,6 +78,13 @@ def run_maskable_ppo(
         circuit_path=circuit_path,
         hardware_name=hardware_name,
         metrics=metrics,
+        mode=mode,
+        batch_size=batch_size,
+        total_timesteps=total_timesteps,
+        init_strategy=init_strategy.value,
+        seqlen=seqlen,
+        embed_dim=embed_dim,
+        n_steps=n_steps,
     ))
     json_file = output_dir + '/' + log_name + '.json'
     with open(json_file, 'w') as f:
@@ -83,16 +92,20 @@ def run_maskable_ppo(
 
 
 if __name__ == '__main__':
-    bs = 256
-    ns = 4000
+    bs = 128
+    ns = 2000
     embed_dim = 32
     L = 15
+    circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
+    random.shuffle(circuit_list)
 
-    run_maskable_ppo(
-        circuit_path='../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_1_10_1.5_no.1.qasm',
-        hardware_name='tokyo',
-        batch_size=bs,
-        n_steps=ns,
-        seqlen=L,
-        embed_dim=embed_dim,
-    )
+    for path in circuit_list:
+        run_maskable_ppo(
+            circuit_path=str(path),
+            hardware_name='tokyo',
+            batch_size=bs,
+            n_steps=ns,
+            seqlen=L,
+            mode='gru',
+            total_timesteps=15_0000,
+        )
