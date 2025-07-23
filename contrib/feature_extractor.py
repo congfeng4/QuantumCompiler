@@ -54,49 +54,50 @@ def inverse_permutation_batched(p: torch.Tensor) -> torch.Tensor:
 
 
 class HardwareAwareQubitEmbedding(nn.Module):
-    """
-    Create hardware-aware qubit embedings.
-    1. reflects the hardware graph affinity and
-    2. preserve the qubit identity.
-    """
     def __init__(self, hardware: IBMQHardwareArchitecture,
                  qubit_embed: str = "param",
                  qubit_embedding_dim: int = 32,
-                 num_layers: int = 3, hidden_channels: int = 32,
-                 ):
+                 num_layers: int = 3, hidden_channels: int = 32):
         super().__init__()
         self.hardware = hardware
         self.edge_index = from_networkx(hardware).edge_index
-        self.num_qubits: int = hardware.qubit_number
+        self.num_qubits = hardware.qubit_number
         self.qubit_embed_class = QUBIT_EMBED[qubit_embed]
+        self.output_channels = qubit_embedding_dim * 2
+
+        # 1. 逻辑比特嵌入（随映射变化）
         self.qubit_embedding = self.qubit_embed_class(self.num_qubits, qubit_embedding_dim)
 
+        # 2. 物理比特嵌入（固定绑定到物理节点，可学习）
+        self.physical_embedding = nn.Parameter(
+            torch.empty(self.num_qubits, qubit_embedding_dim)
+        )
+        nn.init.xavier_uniform_(self.physical_embedding)
+
+        # GNN 输入维度现在是 2 * qubit_embedding_dim
         self.gnn = GraphSAGE(
-            in_channels=self.qubit_embedding.embedding_dim,
-            out_channels=qubit_embedding_dim,
+            in_channels=self.output_channels,
+            out_channels=self.output_channels,
             num_layers=num_layers,
             hidden_channels=hidden_channels,
         )
 
     def forward(self, physical2log: torch.LongTensor):
-        """
-        logical2phy: [B, N]
-        """
-        # physical2log = inverse_permutation_batched(logical2phy)
-        # 1. Convert indices to initial embeddings
-        init_phy_embed = self.qubit_embedding(physical2log)
-        # 2. Go through gnn.
-        ha_phy_embed = self.gnn(init_phy_embed, self.edge_index)
-        # 3. Look up the embeddings of each logical bit.
-        # gnn_embeddings: (B, N, d)   —— 物理比特顺序
-        # logical2phy   : (B, N)     —— 每行是 0..N-1 的排列
-        # B, N, d = ha_phy_embed.shape
-        # # 构造索引 (B, N, d) 的最后一个维度广播
-        # idx = logical2phy.unsqueeze(-1).expand(-1, -1, d)
-        # # 按逻辑比特顺序重排
-        # logic_embed = torch.gather(ha_phy_embed, dim=1, index=idx)
-        # # 结果 shape 仍为 (B, N, d)
-        return ha_phy_embed
+        # physical2log: [B, N]  每行是一个排列，表示物理->逻辑的映射
+        B, N = physical2log.shape
+
+        # 1) 逻辑嵌入（按物理节点顺序取逻辑比特的嵌入）
+        logic_embed = self.qubit_embedding(physical2log)  # [B, N, D]
+
+        # 2) 物理嵌入（直接按物理节点 ID 0..N-1 取，不受映射影响）
+        phy_embed = self.physical_embedding.unsqueeze(0).expand(B, -1, -1)  # [B, N, D]
+
+        # 3) 拼接两种嵌入，形成节点特征 [B, N, 2D]
+        node_feat = torch.cat([phy_embed, logic_embed], dim=-1)
+
+        # 4) 过 GNN
+        ha_embed = self.gnn(node_feat, self.edge_index)  # [B, N, D] 或你指定的输出维度
+        return ha_embed
 
 
 class GateSeqEncoder(nn.Module):
@@ -110,6 +111,7 @@ class GateSeqEncoder(nn.Module):
                  mlp_hidden: int = None):
         super().__init__()
         self.embed_dim = embed_dim
+        self.output_channels = embed_dim * 2
 
         if mlp_hidden is None:
             mlp_hidden = embed_dim * 4          # 可调
@@ -175,8 +177,9 @@ class PositionalEncoding(nn.Module):
 
 
 class CircuitEncoder(nn.Module):
-    def __init__(self, in_dim, mode='gru', num_layers: int = 2):
+    def __init__(self, in_dim, mode='gru', num_layers: int = 2, nhead: int = 8):
         super().__init__()
+        self.output_channels = in_dim
         assert mode in ['gru', 'lstm', 'transformer']
         self.mode = mode
         if mode == 'gru':
@@ -185,7 +188,7 @@ class CircuitEncoder(nn.Module):
             self.rnn = nn.LSTM(in_dim, in_dim, num_layers=num_layers, batch_first=True)
         else:   # Transformer
             encoder_layer = nn.TransformerEncoderLayer(
-                d_model=in_dim, nhead=8, dim_feedforward=in_dim * 2, batch_first=True
+                d_model=in_dim, nhead=nhead, dim_feedforward=in_dim * 2, batch_first=True
             )
             self.pos_enc = PositionalEncoding(in_dim, max_len=1024)  # 或用可学习版本
             self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
@@ -219,21 +222,22 @@ class CircuitEncoder(nn.Module):
 
 class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
 
-    def __init__(self, observation_space, hardware: IBMQHardwareArchitecture, embed_dim: int):
-        super().__init__(observation_space, features_dim=2 * embed_dim)
+    def __init__(self, observation_space, hardware: IBMQHardwareArchitecture,
+                 embed_dim: int, mode: str = 'gru', nhead: int = 8):
+        super().__init__(observation_space, features_dim=4 * embed_dim)
         self.qubit_embed = HardwareAwareQubitEmbedding(hardware, qubit_embedding_dim=embed_dim)
-        self.gate_seq_encoder = GateSeqEncoder(embed_dim)
-        self.circuit_encoder = CircuitEncoder(2 * embed_dim, mode='gru')
+        self.gate_seq_encoder = GateSeqEncoder(self.qubit_embed.output_channels)
+        self.circuit_encoder = CircuitEncoder(self.gate_seq_encoder.output_channels, mode=mode, nhead=nhead)
 
     def forward(self, obs: dict[str, torch.Tensor]):
         # SB3会把Box无脑转成float32.
         mapping = obs['mapping'].long()  # [B, N] Logical to physical mapping
-        qubit_embed = self.qubit_embed(mapping)  # Logical qubit embed
+        qubit_embed = self.qubit_embed(mapping)  # Logical + Physical qubit embed [B, 2*D]
 
         gate_seq = obs['gate_seq'].long() # [B, S, 2] Gate seq of qubit pairs. (padded)
         gate_len = obs['gate_len'].long() # [B, 1] Gate seq len of each seq.
-        gate_embed = self.gate_seq_encoder(gate_seq, qubit_embed)  # [B, S, 2*D], D is embed_dim
-        circuit_embed = self.circuit_encoder(gate_embed, gate_len)  # [B, 2*D]
+        gate_embed = self.gate_seq_encoder(gate_seq, qubit_embed)  # [B, S, 4*D], D is embed_dim
+        circuit_embed = self.circuit_encoder(gate_embed, gate_len)  # [B, 4*D]
         return circuit_embed
 
 

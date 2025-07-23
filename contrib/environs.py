@@ -34,10 +34,12 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                  input_circuit: QuantumCircuit,
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
-                 L: int):
+                 L: int,
+                 cost_ceof: float = 0.1):
         super().__init__(N=hardware.qubit_number, L=L)
         self.input_circuit= input_circuit
         self.hardware = hardware
+        self.cost_ceof = cost_ceof
         self.initial_mapping = initial_mapping
         self.distance_matrix = get_distance_matrix_swap_number_and_error(self.hardware)
 
@@ -175,8 +177,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
 
         self.invalid_actions = 0
         num_executed_cnot = self.update()
-        reward = -cost * 0.1 + num_executed_cnot - 3
-        # reward = num_executed_cnot - 3 # + 0.2 * len(self.front_layer)
+        reward = -cost * self.cost_ceof + num_executed_cnot - 3
         done = not self.front_layer
         info = {}
         if done:
