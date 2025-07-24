@@ -6,7 +6,6 @@ import json
 import random
 
 import jsons
-import torch
 from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
@@ -30,6 +29,7 @@ def run_maskable_ppo(
         total_timesteps: int = 40_0000,
         output_dir: str = None,
         mode: str = 'gru',
+        ent_coef: float = 0.01,
         idx: int = 0,
 ):
     """
@@ -44,7 +44,7 @@ def run_maskable_ppo(
     init = get_initial_mapping(qc, hardware, init_strategy)
     env = CircuitEnvWithInitialMapping(qc, hardware, init, seqlen)
     circuit_name = Path(circuit_path).stem
-    log_name = f'qc={circuit_name}-init={init_strategy.value}-D={embed_dim}-L={seqlen}-I={idx}'
+    log_name = f'qc={circuit_name}-B={batch_size}-NS={n_steps}-E={ent_coef}-I={idx}'
 
     # 回调：连续 10 次评估无提升就停止
     stop_callback = StopTrainingOnNoModelImprovement(
@@ -69,6 +69,7 @@ def run_maskable_ppo(
         batch_size=batch_size,
         tensorboard_log="../log/maskable_ppo/",
         verbose=1,
+        ent_coef=ent_coef,
         policy_kwargs=dict(
             activation_fn=torch.nn.LeakyReLU,
             features_extractor_class=HierarchicalCircuitFeaturesExtractor,
@@ -115,13 +116,14 @@ def run_maskable_ppo(
 
 
 if __name__ == '__main__':
-    set_all_seeds()
+    # set_all_seeds()
 
-    bs = 512
+    bs = 128
     ns = 4000
     embed_dim = 32
     L = 15
     times_per_circuit = 10
+    ent_coef = 0.01
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
     random.shuffle(circuit_list)
 
@@ -129,6 +131,8 @@ if __name__ == '__main__':
 
     for path in circuit_list:
         for i in range(times_per_circuit):
+    # i = 0
+    # path = '../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_1_25_1.5_no.9.qasm'
             run_maskable_ppo(
                 circuit_path=str(path),
                 hardware_name='tokyo',
@@ -136,7 +140,7 @@ if __name__ == '__main__':
                 n_steps=ns,
                 seqlen=L,
                 mode='gru',
+                ent_coef=ent_coef,
                 total_timesteps=40_0000,
                 idx=i,
             )
-        break
