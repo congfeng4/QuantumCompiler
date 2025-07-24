@@ -293,3 +293,4 @@ pip-selfcheck.json
 /result/expert/
 /log*
 *.trans
+best_model.zip

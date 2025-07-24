@@ -1,6 +1,7 @@
 """
 直接用PPO是很难收敛的，因为非法动作空间十分巨大。
 至少需要用MaskablePPO，并且把Action Mask定义好。
+☀️🌛🎉🖼🏊🏻🏓✈️🚗
 """
 import json
 import random
@@ -10,12 +11,16 @@ from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
+from stable_baselines3.common.vec_env import SubprocVecEnv
 
 from contrib.environs import *
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
 from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
 from contrib.metrics_callback import CustomMetricsCallback
 from script.seed import set_all_seeds
+
+
+M = int(1e6)
 
 
 def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwareArchitecture,
@@ -36,6 +41,7 @@ def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwar
             vec_funcs.append(make_func(qc, init))
 
     print(f'Create env with {len(circuit_paths)} circuits')
+    # SubProcVecEnv一开始就内存爆炸了💥
     return VecMonitor(DummyVecEnv(vec_funcs))
 
 
@@ -52,10 +58,11 @@ def run_maskable_ppo(
         mode: str = 'gru',
         ent_coef: float = 0.01,
         eval_env = None,
+        eval_freq: int = 1_000,
         **kwargs,
 ):
     """
-    Run MaskablePPO on a circuit and record the metrics.
+    ✅ Run MaskablePPO on a circuit and record the metrics.
     """
     if output_dir is None:
         output_dir = '../result/maskable_ppo/'
@@ -72,12 +79,13 @@ def run_maskable_ppo(
     )
     eval_callback = MaskableEvalCallback(
         eval_env,
-        eval_freq=1_0000,  # 每 10w 步评估一次
+        eval_freq=eval_freq,  # 每 10w 步评估一次
         callback_on_new_best=None,  # 可选
         callback_after_eval=stop_callback,
         verbose=1,
         deterministic=False,
         use_masking=True,
+        best_model_save_path=output_dir + "models/" + log_name,
     )
 
     ppo = MaskablePPO(
@@ -114,7 +122,11 @@ def run_maskable_ppo(
     reward, _ = evaluate_policy(ppo, eval_env, 10,
                                 deterministic=False, use_masking=True)
     print("Reward:", reward)
-    metrics = env.metrics
+    try:
+        metrics = env.metrics
+    except AttributeError:
+        metrics = env.get_wrapper_attr('metrics')
+
     data = jsons.dump(dict(
         metrics=metrics,
         mode=mode,
@@ -129,6 +141,7 @@ def run_maskable_ppo(
     json_file = output_dir + '/' + log_name + '.json'
     with open(json_file, 'w') as f:
         f.write(json.dumps(data, indent=4, ensure_ascii=False))
+    return ppo, data
 
 
 def run_vec_env():
@@ -138,20 +151,21 @@ def run_vec_env():
     L = 15
     ent_coef = 0.01
     mode = 'gru'
-    num_train = 5
-    num_eval = 2
+    num_train = 160
+    num_eval = 40
     hardware_name = 'tokyo'
     data_name = '20Q_gate_Tokyo'
 
     hardware = IBMQHardwareArchitecture(hardware_name)
     circuit_list = list(map(str, Path(f'../data/{data_name}/circuits').glob('*.qasm')))
     random.shuffle(circuit_list)
-    env = create_vec_env_from_circuits(circuit_list[:num_train], hardware, L=L)
-    eval_env = create_vec_env_from_circuits(circuit_list[num_train:num_train+num_eval], hardware, L=L)
+    env = create_vec_env_from_circuits(circuit_list[:num_train], hardware, L=L, num_random=10)
+    eval_env = create_vec_env_from_circuits(circuit_list[num_train:num_train+num_eval], hardware, L=L,
+                                            num_random=0)  # Use sabre only.
 
     log_name = f'{data_name}-B={bs}-NS={ns}-E={ent_coef}-DS={num_train}'
 
-    run_maskable_ppo(
+    model, details = run_maskable_ppo(
         env,
         hardware=hardware,
         batch_size=bs,
@@ -159,13 +173,36 @@ def run_vec_env():
         seqlen=L,
         embed_dim=embed_dim,
         ent_coef=ent_coef,
-        total_timesteps=40_0000,
+        total_timesteps=int(1e30),
         mode=mode,
         log_name=log_name,
         eval_env=eval_env,
         num_train=num_train,
         data_name=data_name,
     )
+    evaluate_all(model, circuit_list, log_name, L, details=details)
+
+
+def evaluate_all(model, circuit_list, log_name: str, L: int, **kwargs):
+    result_file = f'../result/maskable_ppo/{log_name}.json'
+    results = []
+    init_strategy = InitialMappingStrategy.SABRE
+    kwargs.update(init=init_strategy.value)
+
+    for circuit_path in circuit_list:
+        qc = QuantumCircuit.from_qasm_file(str(circuit_path))
+        init = get_initial_mapping(qc, hardware, init_strategy)
+        env = CircuitEnvWithInitialMapping(qc, hardware, init, L)
+        evaluate_policy(model, env, n_eval_episodes=1, deterministic=False, use_masking=True)
+        result = dict(
+            circuit_path=circuit_path,
+            metrics=env.metrics,
+        )
+        results.append(result)
+
+    results = dict(results=results, config=kwargs)
+    with open(result_file, 'w') as f:
+        f.write(json.dumps(jsons.dump(results), indent=4, ensure_ascii=False))
 
 
 def run_env():
@@ -197,13 +234,12 @@ def run_env():
                 seqlen=L,
                 mode='gru',
                 ent_coef=ent_coef,
-                total_timesteps=40_0000,
+                total_timesteps=1000_0000,
             )
 
     # 20Q_gate_Tokyo_large_2_3_1.5_no.7
 
 
 if __name__ == '__main__':
-    # set_all_seeds()
-
+    set_all_seeds()
     run_vec_env()
