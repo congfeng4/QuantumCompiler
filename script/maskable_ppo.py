@@ -30,6 +30,7 @@ def run_maskable_ppo(
         total_timesteps: int = 40_0000,
         output_dir: str = None,
         mode: str = 'gru',
+        idx: int = 0,
 ):
     """
     Run MaskablePPO on a circuit and record the metrics.
@@ -43,7 +44,7 @@ def run_maskable_ppo(
     init = get_initial_mapping(qc, hardware, init_strategy)
     env = CircuitEnvWithInitialMapping(qc, hardware, init, seqlen)
     circuit_name = Path(circuit_path).stem
-    log_name = f'qc={circuit_name}-init={init_strategy.value}-D={embed_dim}-L={seqlen}'
+    log_name = f'qc={circuit_name}-init={init_strategy.value}-D={embed_dim}-L={seqlen}-I={idx}'
 
     # 回调：连续 10 次评估无提升就停止
     stop_callback = StopTrainingOnNoModelImprovement(
@@ -81,7 +82,9 @@ def run_maskable_ppo(
                 vf=[embed_dim * 2],
             ),
         )
-    ).learn(
+    )
+    # ppo.policy = ppo.policy.double()
+    ppo.learn(
         total_timesteps=total_timesteps,
         tb_log_name=log_name,
         progress_bar=True,
@@ -114,22 +117,26 @@ def run_maskable_ppo(
 if __name__ == '__main__':
     set_all_seeds()
 
-    bs = 128
-    ns = 2000
+    bs = 512
+    ns = 4000
     embed_dim = 32
     L = 15
+    times_per_circuit = 10
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
     random.shuffle(circuit_list)
 
     # 20Q_gate_Tokyo_large_2_3_1.5_no.7
 
     for path in circuit_list:
-        run_maskable_ppo(
-            circuit_path=str(path),
-            hardware_name='tokyo',
-            batch_size=bs,
-            n_steps=ns,
-            seqlen=L,
-            mode='gru',
-            total_timesteps=15_0000,
-        )
+        for i in range(times_per_circuit):
+            run_maskable_ppo(
+                circuit_path=str(path),
+                hardware_name='tokyo',
+                batch_size=bs,
+                n_steps=ns,
+                seqlen=L,
+                mode='gru',
+                total_timesteps=40_0000,
+                idx=i,
+            )
+        break
