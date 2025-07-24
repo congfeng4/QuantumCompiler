@@ -90,7 +90,8 @@ def run_maskable_ppo(
     )
 
     print('Eval policy')
-    reward, _ = evaluate_policy(ppo, Monitor(env), 10)
+    reward, _ = evaluate_policy(ppo, Monitor(env), 10,
+                                deterministic=False, use_masking=True)
     print(circuit_path)
     print("Reward:", reward)
     metrics = env.metrics

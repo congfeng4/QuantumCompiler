@@ -11,7 +11,7 @@ from contrib.common import qubit_index_from_op
 from hamap.layer import QuantumLayer
 
 
-class ObservationSpace:
+class StateSpace:
 
     def __init__(self, N: int, L: int):
         self.N = N
