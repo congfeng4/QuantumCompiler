@@ -18,10 +18,31 @@ from contrib.metrics_callback import CustomMetricsCallback
 from script.seed import set_all_seeds
 
 
+def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwareArchitecture,
+                                 num_random: int = 10, add_sabre: bool = True, L: int = 10):
+    vec_funcs = []
+
+    def make_func(circ: QuantumCircuit, init):
+        return lambda : CircuitEnvWithInitialMapping(circ, hardware, init, L)
+
+    for path in circuit_paths:
+        print(f'Path {path}')
+        qc = QuantumCircuit.from_qasm_file(path)
+        if add_sabre:
+            init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
+            vec_funcs.append(make_func(qc, init))
+        for i in range(num_random):
+            init = get_initial_mapping(qc, hardware, InitialMappingStrategy.RANDOM)
+            vec_funcs.append(make_func(qc, init))
+
+    print(f'Create env with {len(circuit_paths)} circuits')
+    return VecMonitor(DummyVecEnv(vec_funcs))
+
+
 def run_maskable_ppo(
-        circuit_path: str,
-        hardware_name: str,
-        init_strategy: InitialMappingStrategy = InitialMappingStrategy.SABRE,
+        env,
+        hardware: IBMQHardwareArchitecture,
+        log_name: str,
         batch_size: int = 256,
         n_steps: int = 4000,
         seqlen: int = 15,
@@ -30,21 +51,18 @@ def run_maskable_ppo(
         output_dir: str = None,
         mode: str = 'gru',
         ent_coef: float = 0.01,
-        idx: int = 0,
+        eval_env = None,
+        **kwargs,
 ):
     """
     Run MaskablePPO on a circuit and record the metrics.
     """
     if output_dir is None:
         output_dir = '../result/maskable_ppo/'
-    hardware = IBMQHardwareArchitecture(hardware_name)
+    # hardware = IBMQHardwareArchitecture(hardware_name)
     if embed_dim is None:
         embed_dim = hardware.qubit_number
-    qc = QuantumCircuit.from_qasm_file(circuit_path)
-    init = get_initial_mapping(qc, hardware, init_strategy)
-    env = CircuitEnvWithInitialMapping(qc, hardware, init, seqlen)
-    circuit_name = Path(circuit_path).stem
-    log_name = f'qc={circuit_name}-B={batch_size}-NS={n_steps}-E={ent_coef}-I={idx}'
+    eval_env = eval_env or Monitor(env)
 
     # 回调：连续 10 次评估无提升就停止
     stop_callback = StopTrainingOnNoModelImprovement(
@@ -53,8 +71,8 @@ def run_maskable_ppo(
         verbose=1
     )
     eval_callback = MaskableEvalCallback(
-        Monitor(env),
-        eval_freq=5_0000,  # 每 10w 步评估一次
+        eval_env,
+        eval_freq=1_0000,  # 每 10w 步评估一次
         callback_on_new_best=None,  # 可选
         callback_after_eval=stop_callback,
         verbose=1,
@@ -93,54 +111,99 @@ def run_maskable_ppo(
     )
 
     print('Eval policy')
-    reward, _ = evaluate_policy(ppo, Monitor(env), 10,
+    reward, _ = evaluate_policy(ppo, eval_env, 10,
                                 deterministic=False, use_masking=True)
-    print(circuit_path)
     print("Reward:", reward)
     metrics = env.metrics
     data = jsons.dump(dict(
-        circuit_path=circuit_path,
-        hardware_name=hardware_name,
         metrics=metrics,
         mode=mode,
         batch_size=batch_size,
         total_timesteps=total_timesteps,
-        init_strategy=init_strategy.value,
         seqlen=seqlen,
         embed_dim=embed_dim,
         n_steps=n_steps,
+        ent_coef=ent_coef,
+        **kwargs,
     ))
     json_file = output_dir + '/' + log_name + '.json'
     with open(json_file, 'w') as f:
         f.write(json.dumps(data, indent=4, ensure_ascii=False))
 
 
-if __name__ == '__main__':
-    # set_all_seeds()
+def run_vec_env():
+    bs = 128
+    ns = 1000
+    embed_dim = 32
+    L = 15
+    ent_coef = 0.01
+    mode = 'gru'
+    num_train = 5
+    num_eval = 2
+    hardware_name = 'tokyo'
+    data_name = '20Q_gate_Tokyo'
 
+    hardware = IBMQHardwareArchitecture(hardware_name)
+    circuit_list = list(map(str, Path(f'../data/{data_name}/circuits').glob('*.qasm')))
+    random.shuffle(circuit_list)
+    env = create_vec_env_from_circuits(circuit_list[:num_train], hardware, L=L)
+    eval_env = create_vec_env_from_circuits(circuit_list[num_train:num_train+num_eval], hardware, L=L)
+
+    log_name = f'{data_name}-B={bs}-NS={ns}-E={ent_coef}-DS={num_train}'
+
+    run_maskable_ppo(
+        env,
+        hardware=hardware,
+        batch_size=bs,
+        n_steps=ns,
+        seqlen=L,
+        embed_dim=embed_dim,
+        ent_coef=ent_coef,
+        total_timesteps=40_0000,
+        mode=mode,
+        log_name=log_name,
+        eval_env=eval_env,
+        num_train=num_train,
+        data_name=data_name,
+    )
+
+
+def run_env():
     bs = 128
     ns = 4000
     embed_dim = 32
     L = 15
-    times_per_circuit = 10
+    times_per_circuit = 2
     ent_coef = 0.01
+    init_strategy = InitialMappingStrategy.RANDOM
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
     random.shuffle(circuit_list)
 
-    # 20Q_gate_Tokyo_large_2_3_1.5_no.7
-
-    for path in circuit_list:
+    for circuit_path in circuit_list:
         for i in range(times_per_circuit):
-    # i = 0
-    # path = '../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_1_25_1.5_no.9.qasm'
+            qc = QuantumCircuit.from_qasm_file(str(circuit_path))
+            init = get_initial_mapping(qc, hardware, init_strategy)
+            env = CircuitEnvWithInitialMapping(qc, hardware, init, L)
+            circuit_name = Path(circuit_path).stem
+            log_name = f'qc={circuit_name}-B={bs}-NS={ns}-E={ent_coef}-I={i}'
+
             run_maskable_ppo(
-                circuit_path=str(path),
-                hardware_name='tokyo',
+                log_name=log_name,
+                hardware=hardware,
+                env=env,
+                embed_dim=embed_dim,
                 batch_size=bs,
                 n_steps=ns,
                 seqlen=L,
                 mode='gru',
                 ent_coef=ent_coef,
                 total_timesteps=40_0000,
-                idx=i,
             )
+
+    # 20Q_gate_Tokyo_large_2_3_1.5_no.7
+
+
+if __name__ == '__main__':
+    # set_all_seeds()
+
+    run_vec_env()
