@@ -9,7 +9,8 @@ import jsons
 import torch
 from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
-from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnNoModelImprovement
+from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
+from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
 
 from contrib.environs import *
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
@@ -51,13 +52,14 @@ def run_maskable_ppo(
         min_evals=5,  # 前 5 次评估不计数
         verbose=1
     )
-    eval_callback = EvalCallback(
+    eval_callback = MaskableEvalCallback(
         Monitor(env),
-        eval_freq=10_0000,  # 每 10w 步评估一次
+        eval_freq=5_0000,  # 每 10w 步评估一次
         callback_on_new_best=None,  # 可选
         callback_after_eval=stop_callback,
         verbose=1,
         deterministic=False,
+        use_masking=True,
     )
 
     ppo = MaskablePPO(
@@ -84,7 +86,7 @@ def run_maskable_ppo(
         total_timesteps=total_timesteps,
         tb_log_name=log_name,
         progress_bar=True,
-        callback=[CustomMetricsCallback()],
+        callback=[CustomMetricsCallback(), eval_callback],
     )
 
     print('Eval policy')
