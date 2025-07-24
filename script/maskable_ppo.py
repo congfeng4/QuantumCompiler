@@ -16,7 +16,6 @@ from contrib.environs import *
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
 from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
 from contrib.metrics_callback import CustomMetricsCallback
-from script.run_bc import early_stop_callback
 from script.seed import set_all_seeds
 
 

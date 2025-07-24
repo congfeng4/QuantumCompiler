@@ -6,7 +6,6 @@ from collections import defaultdict
 from enum import Enum
 from pathlib import Path
 from qiskit import QuantumCircuit
-from typing import Any
 
 from contrib.action import ActionType
 from hamap._cli.compare_initial_mappings import get_mapping_cost, get_initial_mapping_from_annealing, \
@@ -16,7 +15,6 @@ from hamap._cli.compare_initial_mappings import get_mapping_cost, get_initial_ma
 from hamap import (
     ha_mapping,  # Bridge selection performed with a
     # different algorithm than the one described in the paper.
-    ha_mapping_paper_compliant,  # Bridge selection using the exact same algorithm
     # described in the paper.
     IBMQHardwareArchitecture,
 )

@@ -23,8 +23,10 @@ class ActionSpace:
 
     def get_space(self):
         A, N = self.A, self.N
-        # return gym.spaces.MultiBinary(A*N*N)
         return gym.spaces.Discrete(A*N*N)
+
+    def get_size(self):
+        return self.A * self.N * self.N
 
     def encode_execute_list(self, execute_gate_list: list[DAGNode], current_mapping: dict[Qubit, int]):
         action = self.empty_action()

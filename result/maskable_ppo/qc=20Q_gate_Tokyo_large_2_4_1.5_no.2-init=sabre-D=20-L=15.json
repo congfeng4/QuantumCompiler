@@ -2,8 +2,10 @@
     "circuit_path": "../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_2_4_1.5_no.2.qasm",
     "hardware_name": "tokyo",
     "metrics": {
-        "depth_ratio": 1.6071428571428572,
-        "cx_ratio": 2.808219178082192
+        "depth_ratio": 1.3452380952380953,
+        "cx_ratio": 2.8493150684931505,
+        "num_swap": 40,
+        "total_cost": 1.4527816975707435
     },
     "mode": "gru",
     "batch_size": 128,

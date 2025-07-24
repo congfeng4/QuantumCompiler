@@ -23,7 +23,12 @@ from hamap.layer import QuantumLayer, update_layer
 from hamap.mapping import _adapt_quantum_circuit_and_mapping_arity, _create_empty_dagcircuit_from_existing
 from hamap import IBMQHardwareArchitecture, mapping_to_str
 
+import torch
+import torch.nn.functional as F
+
 import logging
+
+from hamap.swap import get_all_swap_bridge_candidates
 
 logger = logging.getLogger("contrib.env")
 
@@ -35,11 +40,14 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
                  L: int,
-                 cost_ceof: float = 0.1):
+                 cand_ratio: float = 0.5,
+                 cost_ceof: float = 0):
         super().__init__(N=hardware.qubit_number, L=L)
         self.input_circuit= input_circuit
         self.hardware = hardware
         self.cost_ceof = cost_ceof
+        self.cand_ratio = cand_ratio
+        self.K = 5
         self.initial_mapping = initial_mapping
         self.distance_matrix = get_distance_matrix_swap_number_and_error(self.hardware)
 
@@ -58,6 +66,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         self.trans_mapping = self.initial_mapping.copy()
         self.explored_mappings = set()
         self.inverse_mapping = {val: key for key, val in self.initial_mapping.items()}
+        self.total_cost = 0
 
         self.update_front_layer()
         self.update()
@@ -70,6 +79,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
         self.metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
+        self.metrics.update(total_cost=float(self.total_cost))
 
     def find_middle(self, best_swap_qubits: BridgeTwoQubitGate, trans_mapping, inverse_mapping) -> Qubit:
         # inverse_trans_mapping = {val: key for key, val in trans_mapping.items()}
@@ -171,13 +181,13 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
             best_swap_qubits._middle = self.find_middle(best_swap_qubits, self.trans_mapping, self.inverse_mapping)
 
         cost = self.heuristic_cost(best_swap_qubits)
+        self.total_cost += cost
         if not self.apply_swap_action(best_swap_qubits):
             return self.step_invalid()
 
         self.invalid_actions = 0
         num_executed_cnot = self.update()
-        reward = -cost * self.cost_ceof + num_executed_cnot - 3
-        # reward = num_executed_cnot - 3
+        reward = num_executed_cnot - 3
         done = not self.front_layer
         info = {}
         if done:
@@ -187,7 +197,22 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         return self._get_obs(), reward, done, False, info
 
     def action_masks(self):
-        masks = self.swap_masks() + self.bridge_masks()
+        return self.swap_masks() + self.bridge_masks()
+        swap_candidates = get_all_swap_bridge_candidates(
+            self.front_layer, self.hardware, self.initial_mapping, self.current_mapping, self.trans_mapping,
+            self.explored_mappings
+        )
+        swap_costs = torch.as_tensor([self.heuristic_cost(swap) for swap in swap_candidates])
+        logits = -swap_costs  # 代价越小，logit 越大
+        probs = F.softmax(logits, dim=0)  # 概率分布
+        # 无放回采样 K 个门（推荐，避免重复）
+        K = min(self.K, len(swap_candidates))
+        idx_list = torch.multinomial(probs, num_samples=K, replacement=False)
+        masks = [False for _ in range(self.action.get_size())]
+        for idx in idx_list:
+            swap = swap_candidates[idx]
+            value = self.action.encode_best_swap(swap, self.current_mapping, self.initial_mapping)
+            masks[value] = True
         assert any(masks)
         return masks
 
