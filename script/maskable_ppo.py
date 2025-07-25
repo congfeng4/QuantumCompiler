@@ -11,13 +11,12 @@ from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
-from stable_baselines3.common.vec_env import SubprocVecEnv
 
 from contrib.environs import *
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
 from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
 from contrib.metrics_callback import CustomMetricsCallback
-from script.seed import set_all_seeds
+from contrib.seed import set_all_seeds
 
 
 M = int(1e6)
@@ -59,6 +58,8 @@ def run_maskable_ppo(
         ent_coef: float = 0.01,
         eval_env = None,
         eval_freq: int = 1_000,
+        pretrain: Path = None,
+        early_stop: bool = True,
         **kwargs,
 ):
     """
@@ -66,14 +67,13 @@ def run_maskable_ppo(
     """
     if output_dir is None:
         output_dir = '../result/maskable_ppo/'
-    # hardware = IBMQHardwareArchitecture(hardware_name)
     if embed_dim is None:
         embed_dim = hardware.qubit_number
     eval_env = eval_env or Monitor(env)
 
     # 回调：连续 10 次评估无提升就停止
     stop_callback = StopTrainingOnNoModelImprovement(
-        max_no_improvement_evals=10,
+        max_no_improvement_evals=20,
         min_evals=5,  # 前 5 次评估不计数
         verbose=1
     )
@@ -81,7 +81,7 @@ def run_maskable_ppo(
         eval_env,
         eval_freq=eval_freq,  # 每 10w 步评估一次
         callback_on_new_best=None,  # 可选
-        callback_after_eval=stop_callback,
+        callback_after_eval=stop_callback if early_stop else None,
         verbose=1,
         deterministic=False,
         use_masking=True,
@@ -109,8 +109,9 @@ def run_maskable_ppo(
                 vf=[embed_dim * 2],
             ),
         )
-    )
-    # ppo.policy = ppo.policy.double()
+    ) if pretrain is None else MaskablePPO.load(pretrain, env)
+    print(f'Model loaded: {ppo}')
+
     ppo.learn(
         total_timesteps=total_timesteps,
         tb_log_name=log_name,
@@ -122,10 +123,10 @@ def run_maskable_ppo(
     reward, _ = evaluate_policy(ppo, eval_env, 10,
                                 deterministic=False, use_masking=True)
     print("Reward:", reward)
-    try:
-        metrics = env.metrics
-    except AttributeError:
-        metrics = env.get_wrapper_attr('metrics')
+    if isinstance(eval_env, DummyVecEnv):
+        metrics = [env.metrics for env in eval_env.envs]
+    else:
+        metrics = eval_env.metrics
 
     data = jsons.dump(dict(
         metrics=metrics,
@@ -205,41 +206,8 @@ def evaluate_all(model, circuit_list, log_name: str, L: int, **kwargs):
         f.write(json.dumps(jsons.dump(results), indent=4, ensure_ascii=False))
 
 
-def run_env():
-    bs = 128
-    ns = 4000
-    embed_dim = 32
-    L = 15
-    times_per_circuit = 2
-    ent_coef = 0.01
-    init_strategy = InitialMappingStrategy.RANDOM
-    circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
-    random.shuffle(circuit_list)
-
-    for circuit_path in circuit_list:
-        for i in range(times_per_circuit):
-            qc = QuantumCircuit.from_qasm_file(str(circuit_path))
-            init = get_initial_mapping(qc, hardware, init_strategy)
-            env = CircuitEnvWithInitialMapping(qc, hardware, init, L)
-            circuit_name = Path(circuit_path).stem
-            log_name = f'qc={circuit_name}-B={bs}-NS={ns}-E={ent_coef}-I={i}'
-
-            run_maskable_ppo(
-                log_name=log_name,
-                hardware=hardware,
-                env=env,
-                embed_dim=embed_dim,
-                batch_size=bs,
-                n_steps=ns,
-                seqlen=L,
-                mode='gru',
-                ent_coef=ent_coef,
-                total_timesteps=1000_0000,
-            )
-
-    # 20Q_gate_Tokyo_large_2_3_1.5_no.7
-
 
 if __name__ == '__main__':
     set_all_seeds()
-    run_vec_env()
+    # run_vec_env()
+    run_env()

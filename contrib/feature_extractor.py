@@ -194,7 +194,7 @@ class CircuitEncoder(nn.Module):
             # mean-pool 忽略 pad
             mask_float = (~mask).float().unsqueeze(-1)
             state = (x_enc * mask_float).sum(dim=1) / mask_float.sum(dim=1)
-            print(state) # TODO: error here.
+            print('state', state.shape, 'x_enc', x_enc.shape, 'mask_float', mask_float.shape)
             return state                    # (B, in_dim)
 
 

@@ -4,6 +4,7 @@ from pathlib import Path
 import gymnasium as gym
 import numpy as np
 from gymnasium.core import ObsType
+from gymnasium.utils.env_checker import check_env
 
 from qiskit import QuantumCircuit
 from qiskit.circuit import Qubit
@@ -56,8 +57,10 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         self.topological_nodes: list[DAGNode] = list(self.dag_circuit.topological_op_nodes())
 
         self.resulting_circuit = None
+        check_env(self)
 
     def reset(self, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:
+        super().reset(seed=seed)
         self.invalid_actions = 0
         self.front_layer = QuantumLayer()
         self.current_node_index = 0
@@ -198,23 +201,6 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
 
     def action_masks(self):
         return self.swap_masks() + self.bridge_masks()
-        swap_candidates = get_all_swap_bridge_candidates(
-            self.front_layer, self.hardware, self.initial_mapping, self.current_mapping, self.trans_mapping,
-            self.explored_mappings
-        )
-        swap_costs = torch.as_tensor([self.heuristic_cost(swap) for swap in swap_candidates])
-        logits = -swap_costs  # 代价越小，logit 越大
-        probs = F.softmax(logits, dim=0)  # 概率分布
-        # 无放回采样 K 个门（推荐，避免重复）
-        K = min(self.K, len(swap_candidates))
-        idx_list = torch.multinomial(probs, num_samples=K, replacement=False)
-        masks = [False for _ in range(self.action.get_size())]
-        for idx in idx_list:
-            swap = swap_candidates[idx]
-            value = self.action.encode_best_swap(swap, self.current_mapping, self.initial_mapping)
-            masks[value] = True
-        assert any(masks)
-        return masks
 
     def bridge_masks(self):
         masks = np.zeros((self.num_qubits, self.num_qubits), dtype=bool)
