@@ -11,6 +11,7 @@ from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
+from stable_baselines3.common.vec_env import VecEnv
 
 from contrib.environs import *
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
@@ -45,7 +46,7 @@ def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwar
 
 
 def run_maskable_ppo(
-        env,
+        env: VecEnv,
         hardware: IBMQHardwareArchitecture,
         log_name: str,
         batch_size: int = 256,
@@ -56,7 +57,7 @@ def run_maskable_ppo(
         output_dir: str = None,
         mode: str = 'gru',
         ent_coef: float = 0.01,
-        eval_env = None,
+        eval_env: VecEnv = None,
         eval_freq: int = 1_000,
         pretrain: Path = None,
         early_stop: bool = True,
@@ -69,7 +70,7 @@ def run_maskable_ppo(
         output_dir = '../result/maskable_ppo/'
     if embed_dim is None:
         embed_dim = hardware.qubit_number
-    eval_env = eval_env or Monitor(env)
+    eval_env = eval_env or VecMonitor(env)
 
     # 回调：连续 10 次评估无提升就停止
     stop_callback = StopTrainingOnNoModelImprovement(
@@ -120,13 +121,10 @@ def run_maskable_ppo(
     )
 
     print('Eval policy')
-    reward, _ = evaluate_policy(ppo, eval_env, 10,
+    reward, _ = evaluate_policy(ppo, eval_env, 1,
                                 deterministic=False, use_masking=True)
     print("Reward:", reward)
-    if isinstance(eval_env, DummyVecEnv):
-        metrics = [env.metrics for env in eval_env.envs]
-    else:
-        metrics = eval_env.metrics
+    metrics = eval_env.get_attr('metrics', [0])[0]
 
     data = jsons.dump(dict(
         metrics=metrics,
@@ -210,4 +208,3 @@ def evaluate_all(model, circuit_list, log_name: str, L: int, **kwargs):
 if __name__ == '__main__':
     set_all_seeds()
     # run_vec_env()
-    run_env()

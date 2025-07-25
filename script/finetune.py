@@ -17,7 +17,6 @@ def run_env():
     ns = 1000
     embed_dim = 32
     L = 15
-    NR = 0
     ent_coef = 1e-2
 
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
@@ -26,24 +25,21 @@ def run_env():
     hardware = IBMQHardwareArchitecture('tokyo')
 
     for circuit_path in circuit_list:
-        env = create_vec_env_from_circuits([str(circuit_path)], hardware, NR, L=L)
-        eval_env = create_vec_env_from_circuits([str(circuit_path)], hardware, num_random=0, L=L)
-
+        env = create_vec_env_from_circuits([str(circuit_path)], hardware, num_random=0, L=L)
         circuit_name = Path(circuit_path).stem
-        log_name = f'Q={circuit_name}-B={bs}-NS={ns}-E={ent_coef}-NR={NR}'
+        log_name = f'Q={circuit_name}-B={bs}-NS={ns}-E={ent_coef}'
 
         run_maskable_ppo(
             log_name=log_name,
             hardware=hardware,
             env=env,
-            eval_env=eval_env,
             embed_dim=embed_dim,
             batch_size=bs,
             n_steps=ns,
             seqlen=L,
             mode='gru',
             ent_coef=ent_coef,
-            total_timesteps=120_000,
+            total_timesteps=10_0000,
             early_stop=False,
             pretrain=Path('../result/maskable_ppo/models/20Q_gate_Tokyo-B=128-NS=1000-E=0.01-DS=160/best_model.zip')
         )
