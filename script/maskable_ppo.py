@@ -14,7 +14,7 @@ from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
 from stable_baselines3.common.vec_env import VecEnv
 
 from contrib.environs import *
-from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
+from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor, get_policy_kwargs
 from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
 from contrib.metrics_callback import CustomMetricsCallback
 from contrib.seed import set_all_seeds
@@ -98,18 +98,8 @@ def run_maskable_ppo(
         tensorboard_log="../log/maskable_ppo/",
         verbose=1,
         ent_coef=ent_coef,
-        policy_kwargs=dict(
-            activation_fn=torch.nn.LeakyReLU,
-            features_extractor_class=HierarchicalCircuitFeaturesExtractor,
-            features_extractor_kwargs=dict(
-                hardware=hardware,
-                embed_dim=embed_dim,
-                mode=mode,
-            ),
-            net_arch=dict(
-                pi=[embed_dim * 2],
-                vf=[embed_dim * 2],
-            ),
+        policy_kwargs=get_policy_kwargs(
+            hardware, embed_dim, mode
         )
     ) if pretrain is None else MaskablePPO.load(pretrain, env)
     print(f'Model loaded: {ppo}')

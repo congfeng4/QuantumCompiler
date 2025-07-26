@@ -61,6 +61,7 @@ class HardwareAwareQubitEmbedding(nn.Module):
         super().__init__()
         self.hardware = hardware
         self.edge_index = from_networkx(hardware).edge_index
+        self.distance_matrix =
         self.num_qubits = hardware.qubit_number
         self.qubit_embed_class = QUBIT_EMBED[qubit_embed]
         self.output_channels = qubit_embedding_dim
@@ -226,6 +227,22 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
         gate_embed = self.gate_seq_encoder(gate_seq, qubit_embed)  # [B, S, 4*D], D is embed_dim
         circuit_embed = self.circuit_encoder(gate_embed, gate_len)  # [B, 4*D]
         return circuit_embed
+
+
+def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int, mode: str):
+    return dict(
+        activation_fn=torch.nn.LeakyReLU,
+        features_extractor_class=HierarchicalCircuitFeaturesExtractor,
+        features_extractor_kwargs=dict(
+            hardware=hardware,
+            embed_dim=embed_dim,
+            mode=mode,
+        ),
+        net_arch=dict(
+            pi=[embed_dim * 2],
+            vf=[embed_dim * 2],
+        ),
+    )
 
 
 if __name__ == '__main__':
