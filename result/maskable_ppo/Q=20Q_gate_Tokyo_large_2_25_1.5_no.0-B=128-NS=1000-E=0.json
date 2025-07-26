@@ -1,0 +1,15 @@
+{
+    "metrics": {
+        "depth_ratio": 2.529166666666667,
+        "cx_ratio": 3.4812680115273773,
+        "num_swap": 276,
+        "total_cost": 9.306277820075623
+    },
+    "mode": "gru",
+    "batch_size": 128,
+    "total_timesteps": 100000,
+    "seqlen": 15,
+    "embed_dim": 32,
+    "n_steps": 1000,
+    "ent_coef": 0
+}
