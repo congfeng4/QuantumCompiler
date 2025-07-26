@@ -187,15 +187,23 @@ class CircuitEncoder(nn.Module):
             state = h_last[-1] if self.mode == 'gru' else h_last[0][-1]
             return state                    # (B, hidden)
         else:   # Transformer
-            x = self.pos_enc(x)
-            # 构造 key_padding_mask: True 表示 pad 位置要被忽略
-            mask = torch.arange(x.size(1), device=x.device).unsqueeze(0) >= lengths.unsqueeze(1)
-            x_enc = self.transformer(x, src_key_padding_mask=mask.squeeze(1))
-            # mean-pool 忽略 pad
-            mask_float = (~mask).float().unsqueeze(-1)
-            state = (x_enc * mask_float).sum(dim=1) / mask_float.sum(dim=1)
-            print('state', state.shape, 'x_enc', x_enc.shape, 'mask_float', mask_float.shape)
-            return state                    # (B, in_dim)
+            x = self.pos_enc(x)  # [B, L, F]
+            B = x.shape[0]
+            # 1. 构造 key_padding_mask
+            max_len = x.size(1)
+            print('lengths', lengths.shape, 'arange',
+                  torch.arange(max_len, device=x.device).expand(B, -1).shape, 'x', x.shape)
+
+            mask = torch.arange(max_len, device=x.device).expand(B, -1) >= lengths  # [B, L]
+            # 2. Transformer 前向
+            x_enc = self.transformer(x, src_key_padding_mask=mask)  # [B, L, F]
+
+            # 3. mean-pool 忽略 pad
+            mask_float = (~mask).float().unsqueeze(-1)  # [B, L, 1]
+            denom = mask_float.sum(dim=1, keepdim=True).clamp_min(1e-8)  # [B, 1, 1]
+            state = (x_enc * mask_float).sum(dim=1, keepdim=False) / denom.squeeze(1)  # [B, F]
+
+            return state                  # (B, in_dim)
 
 
 class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
@@ -230,16 +238,16 @@ if __name__ == '__main__':
     num_qubits = hw.qubit_number
 
     # 2. 组装一个单样本 batch
-    B, S, D = 1, 7, 32  # 样本数=1，门序列最大长度=7，单比特嵌入32维
+    B, S, D = 2, 7, 32  # 样本数=1，门序列最大长度=7，单比特嵌入32维
     gate_seq = torch.randint(0, num_qubits, (B, S, 2))
-    gate_len = torch.tensor([5])  # 样本真实长度=5（后面 2 个是 pad）
+    gate_len = torch.tensor([5, 4])  # 样本真实长度=5（后面 2 个是 pad）
 
     # 3. 随机映射（逻辑→物理）
     mapping = torch.randperm(num_qubits).unsqueeze(0)  # (1, N)
 
     # 4. 构造模型
     obs_space = None  # SB3 里可填 gym.spaces.Dict，这里不用
-    extractor = HierarchicalCircuitFeaturesExtractor(hw, None, embed_dim=D)
+    extractor = HierarchicalCircuitFeaturesExtractor(None, hw, embed_dim=D, mode='transformer')
 
     # 5. 前向
     obs = {

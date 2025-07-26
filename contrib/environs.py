@@ -41,14 +41,11 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
                  L: int,
-                 cand_ratio: float = 0.5,
-                 cost_ceof: float = 0):
+                 sparse_reward: bool = False):
         super().__init__(N=hardware.qubit_number, L=L)
         self.input_circuit= input_circuit
         self.hardware = hardware
-        self.cost_ceof = cost_ceof
-        self.cand_ratio = cand_ratio
-        self.K = 5
+        self.sparse_reward = sparse_reward
         self.initial_mapping = initial_mapping
         self.distance_matrix = get_distance_matrix_swap_number_and_error(self.hardware)
 
@@ -190,13 +187,15 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
 
         self.invalid_actions = 0
         num_executed_cnot = self.update()
-        reward = num_executed_cnot - 3
+        reward = - 3 if not self.sparse_reward else 0
         done = not self.front_layer
         info = {}
         if done:
             self.finalize_result()
             info['metrics'] = self.metrics
             print(f'Game ends {self.metrics}')
+            if self.sparse_reward:
+                reward = -self.metrics['cx_ratio'] - self.metrics['depth_ratio']
         return self._get_obs(), reward, done, False, info
 
     def action_masks(self):

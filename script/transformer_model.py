@@ -47,7 +47,7 @@ def run_env():
             seqlen=L,
             mode='transformer',
             ent_coef=ent_coef,
-            total_timesteps=1000_0000,
+            total_timesteps=10_0000,
             early_stop=False,
             pretrain=None,
         )

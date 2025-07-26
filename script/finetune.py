@@ -17,7 +17,7 @@ def run_env():
     ns = 1000
     embed_dim = 32
     L = 15
-    ent_coef = 1e-2
+    ent_coef = 0
 
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
     random.shuffle(circuit_list)

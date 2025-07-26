@@ -24,11 +24,12 @@ M = int(1e6)
 
 
 def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwareArchitecture,
-                                 num_random: int = 10, add_sabre: bool = True, L: int = 10):
+                                 num_random: int = 10, add_sabre: bool = True, L: int = 10,
+                                 sparse_reward: bool = False):
     vec_funcs = []
 
     def make_func(circ: QuantumCircuit, init):
-        return lambda : CircuitEnvWithInitialMapping(circ, hardware, init, L)
+        return lambda : CircuitEnvWithInitialMapping(circ, hardware, init, L, sparse_reward)
 
     for path in circuit_paths:
         print(f'Path {path}')
@@ -149,20 +150,22 @@ def run_vec_env():
     embed_dim = 32
     L = 15
     ent_coef = 0.01
-    mode = 'gru'
-    num_train = 160
-    num_eval = 40
+    num_train = 1
+    num_eval = 2
     hardware_name = 'tokyo'
     data_name = '20Q_gate_Tokyo'
+    sparse = False
+    # mode = 'transformer'
+    mode = 'gru'
 
     hardware = IBMQHardwareArchitecture(hardware_name)
     circuit_list = list(map(str, Path(f'../data/{data_name}/circuits').glob('*.qasm')))
     random.shuffle(circuit_list)
-    env = create_vec_env_from_circuits(circuit_list[:num_train], hardware, L=L, num_random=10)
+    env = create_vec_env_from_circuits(circuit_list[:num_train], hardware, L=L, num_random=0, sparse_reward=sparse)
     eval_env = create_vec_env_from_circuits(circuit_list[num_train:num_train+num_eval], hardware, L=L,
-                                            num_random=0)  # Use sabre only.
+                                            num_random=0, sparse_reward=sparse)  # Use sabre only.
 
-    log_name = f'{data_name}-B={bs}-NS={ns}-E={ent_coef}-DS={num_train}'
+    log_name = f'{data_name}-B={bs}-NS={ns}-E={ent_coef}-DS={num_train}-M={mode}-SR={sparse}'
 
     model, details = run_maskable_ppo(
         env,
@@ -207,4 +210,4 @@ def evaluate_all(model, circuit_list, log_name: str, L: int, **kwargs):
 
 if __name__ == '__main__':
     set_all_seeds()
-    # run_vec_env()
+    run_vec_env()

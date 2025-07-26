@@ -1,9 +1,9 @@
 {
     "metrics": {
-        "depth_ratio": 2.283582089552239,
-        "cx_ratio": 3.3823529411764706,
-        "num_swap": 127,
-        "total_cost": 4.315629654417491
+        "depth_ratio": 1.9146341463414633,
+        "cx_ratio": 3.1159420289855073,
+        "num_swap": 129,
+        "total_cost": 4.670356607191219
     },
     "mode": "gru",
     "batch_size": 128,
