@@ -1,12 +1,24 @@
 import torch
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch import nn
+from enum import Enum
 
 from hamap.distance_matrix import get_distance_matrix_swap_number_and_error
 from hamap.hardware import IBMQHardwareArchitecture
-from torch_geometric.nn import GraphSAGE
-from torch_geometric.utils import from_networkx
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+import torch_geometric as pyg
+
+
+class DenseGNNType(Enum):
+    GCN_CONV = pyg.nn.DenseGCNConv
+    GRAPH_CONV = pyg.nn.DenseGraphConv
+    GIN_CONV = pyg.nn.DenseGINConv
+    GAT_CONV = pyg.nn.DenseGATConv
+    SAGE_CONV = pyg.nn.DenseSAGEConv
+
+    @property
+    def name(self):
+        return self.value.__name__
 
 
 class QubitEmbedding(nn.Module):
@@ -55,15 +67,32 @@ def inverse_permutation_batched(p: torch.Tensor) -> torch.Tensor:
     return inv
 
 
+class GNNModule(nn.Module):
+
+    def __init__(self, in_channels, out_channels, hidden_channels,
+                 conv_mode: DenseGNNType = DenseGNNType.GCN_CONV):
+        super().__init__()
+        self.conv1 = conv_mode.value(in_channels, hidden_channels)
+        self.conv2 = conv_mode.value(hidden_channels, out_channels)
+
+    def forward(self, node_feat, adjacent_matrix):
+        x = self.conv1(node_feat, adjacent_matrix)
+        x = nn.functional.relu(x)
+        x = self.conv2(x, adjacent_matrix)
+        x = nn.functional.relu(x)
+        return x
+
+
 class HardwareAwareQubitEmbedding(nn.Module):
     def __init__(self, hardware: IBMQHardwareArchitecture,
                  qubit_embed: str = "param",
                  qubit_embedding_dim: int = 32,
-                 num_layers: int = 3, hidden_channels: int = 32):
+                 hidden_channels: int = 32,
+                 conv_mode: DenseGNNType = DenseGNNType.GCN_CONV):
         super().__init__()
         self.hardware = hardware
-        self.edge_index = from_networkx(hardware).edge_index
-        self.distance_matrix = get_distance_matrix_swap_number_and_error(self.hardware)
+        # self.edge_index = from_networkx(hardware).edge_index
+        self.distance_matrix = torch.tensor(get_distance_matrix_swap_number_and_error(self.hardware), dtype=torch.float)
         self.num_qubits = hardware.qubit_number
         self.qubit_embed_class = QUBIT_EMBED[qubit_embed]
         self.output_channels = qubit_embedding_dim
@@ -72,11 +101,10 @@ class HardwareAwareQubitEmbedding(nn.Module):
         self.qubit_embedding = self.qubit_embed_class(self.num_qubits, qubit_embedding_dim)
 
         # GNN 输入维度现在是 2 * qubit_embedding_dim
-        self.gnn = GraphSAGE(
+        self.gnn = GNNModule(
             in_channels=self.output_channels,
-            out_channels=self.output_channels,
-            num_layers=num_layers,
             hidden_channels=hidden_channels,
+            out_channels=self.output_channels,
         )
 
     def forward(self, physical2log: torch.LongTensor):
@@ -86,7 +114,7 @@ class HardwareAwareQubitEmbedding(nn.Module):
         logic_embed = self.qubit_embedding(physical2log)  # [B, N, D]
         node_feat = logic_embed
         # 4) 过 GNN
-        ha_embed = self.gnn(node_feat, self.edge_index)  # [B, N, D] 或你指定的输出维度
+        ha_embed = self.gnn(node_feat, self.distance_matrix)  # [B, N, D]
         return ha_embed
 
 
@@ -98,13 +126,16 @@ class GateSeqEncoder(nn.Module):
     """
     def __init__(self,
                  embed_dim: int,  # embed dim of a qubit.
-                 mlp_hidden: int = None):
+                 ):
         super().__init__()
         self.embed_dim = embed_dim
-        self.output_channels = embed_dim * 2
+        self.output_channels = embed_dim
 
-        if mlp_hidden is None:
-            mlp_hidden = embed_dim * 4          # 可调
+        self.mlp = nn.Sequential(
+            nn.Linear(2 * embed_dim, embed_dim),
+            nn.ReLU(),
+            nn.Linear(embed_dim, embed_dim),
+        )
 
     def forward(self, gate_seq: torch.LongTensor, qubit_embed: torch.FloatTensor):
         """
@@ -136,8 +167,8 @@ class GateSeqEncoder(nn.Module):
         e0 = e0.view(B, S, -1)
         e1 = e1.view(B, S, -1)
         gate_vec = torch.cat([e0, e1], dim=-1)  # (B, S, 2*D)
-
-        return gate_vec
+        gate_embed = self.mlp(gate_vec.reshape(B * S, -1)).reshape(B, S, -1)
+        return gate_embed
 
 
 class PositionalEncoding(nn.Module):
@@ -156,7 +187,7 @@ class PositionalEncoding(nn.Module):
         return x + self.pe[:, :x.size(1)]
 
 
-class CircuitEncoder(nn.Module):
+class SequenceEncoder(nn.Module):
     def __init__(self, in_dim, mode='gru', num_layers: int = 2, nhead: int = 8):
         super().__init__()
         self.output_channels = in_dim
@@ -212,28 +243,33 @@ class CircuitEncoder(nn.Module):
 class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
 
     def __init__(self, observation_space, hardware: IBMQHardwareArchitecture,
-                 embed_dim: int, mode: str = 'gru', nhead: int = 8, num_layers: int = 2):
-        super().__init__(observation_space, features_dim=2 * embed_dim)
-        self.qubit_embed = HardwareAwareQubitEmbedding(hardware, qubit_embedding_dim=embed_dim)
+                 embed_dim: int, mode: str = 'gru', nhead: int = 8, num_layers: int = 2,
+                 conv_mode = DenseGNNType.GCN_CONV):
+        super().__init__(observation_space, features_dim=embed_dim)
+        self.qubit_embed = HardwareAwareQubitEmbedding(hardware, qubit_embedding_dim=embed_dim,
+                                                       hidden_channels=embed_dim // 2,
+                                                       conv_mode=conv_mode)
         self.gate_seq_encoder = GateSeqEncoder(self.qubit_embed.output_channels)
-        self.circuit_encoder = CircuitEncoder(self.gate_seq_encoder.output_channels, mode=mode,
-                                              nhead=nhead, num_layers=num_layers)
+        self.circuit_encoder = SequenceEncoder(self.gate_seq_encoder.output_channels, mode=mode,
+                                               nhead=nhead, num_layers=num_layers)
 
     def forward(self, obs: dict[str, torch.Tensor]):
         # SB3会把Box无脑转成float32.
         mapping = obs['mapping'].long()  # [B, N] Logical to physical mapping
-        qubit_embed = self.qubit_embed(mapping)  # Logical + Physical qubit embed [B, 2*D]
+        qubit_embed = self.qubit_embed(mapping)  # Logical + Physical qubit embed [B, N, D]
 
         gate_seq = obs['gate_seq'].long() # [B, S, 2] Gate seq of qubit pairs. (padded)
         gate_len = obs['gate_len'].long() # [B, 1] Gate seq len of each seq.
-        gate_embed = self.gate_seq_encoder(gate_seq, qubit_embed)  # [B, S, 4*D], D is embed_dim
-        circuit_embed = self.circuit_encoder(gate_embed, gate_len)  # [B, 4*D]
+
+        gate_embed = self.gate_seq_encoder(gate_seq, qubit_embed)  # [B, S, D], D is embed_dim
+        circuit_embed = self.circuit_encoder(gate_embed, gate_len)  # [B, D]
         return circuit_embed
 
 
-def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int, mode: str):
+def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int = 128, mode: str = 'gru'):
+
     return dict(
-        activation_fn=torch.nn.LeakyReLU,
+        activation_fn=torch.nn.ReLU,
         features_extractor_class=HierarchicalCircuitFeaturesExtractor,
         features_extractor_kwargs=dict(
             hardware=hardware,
@@ -241,8 +277,8 @@ def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int, mode: 
             mode=mode,
         ),
         net_arch=dict(
-            pi=[embed_dim * 2],
-            vf=[embed_dim * 2],
+            pi=[embed_dim, embed_dim],
+            vf=[embed_dim, embed_dim],
         ),
     )
 

@@ -4,6 +4,7 @@
 ☀️🌛🎉🖼🏊🏻🏓✈️🚗
 """
 import json
+import os
 import random
 
 import jsons
@@ -55,7 +56,7 @@ def run_maskable_ppo(
         seqlen: int = 15,
         embed_dim: int = None,
         total_timesteps: int = 40_0000,
-        output_dir: str = None,
+        output_dirname: str = None,
         mode: str = 'gru',
         ent_coef: float = 0.01,
         eval_env: VecEnv = None,
@@ -67,8 +68,12 @@ def run_maskable_ppo(
     """
     ✅ Run MaskablePPO on a circuit and record the metrics.
     """
-    if output_dir is None:
-        output_dir = '../result/maskable_ppo/'
+    if output_dirname is None:
+        output_dirname = 'maskable_ppo'
+    output_dir = f'../result/{output_dirname}'
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    log_dir = f'../log/{output_dirname}'
     if embed_dim is None:
         embed_dim = hardware.qubit_number
     eval_env = eval_env or VecMonitor(env)
@@ -87,7 +92,7 @@ def run_maskable_ppo(
         verbose=1,
         deterministic=False,
         use_masking=True,
-        best_model_save_path=output_dir + "models/" + log_name,
+        best_model_save_path=output_dir + "/models/" + log_name,
     )
 
     ppo = MaskablePPO(
@@ -95,7 +100,7 @@ def run_maskable_ppo(
         env=env,
         n_steps=n_steps,
         batch_size=batch_size,
-        tensorboard_log="../log/maskable_ppo/",
+        tensorboard_log=log_dir,
         verbose=1,
         ent_coef=ent_coef,
         policy_kwargs=get_policy_kwargs(
