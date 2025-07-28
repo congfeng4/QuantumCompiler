@@ -1,6 +1,8 @@
 import torch
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch import nn
+
+from hamap.distance_matrix import get_distance_matrix_swap_number_and_error
 from hamap.hardware import IBMQHardwareArchitecture
 from torch_geometric.nn import GraphSAGE
 from torch_geometric.utils import from_networkx
@@ -61,7 +63,7 @@ class HardwareAwareQubitEmbedding(nn.Module):
         super().__init__()
         self.hardware = hardware
         self.edge_index = from_networkx(hardware).edge_index
-        self.distance_matrix =
+        self.distance_matrix = get_distance_matrix_swap_number_and_error(self.hardware)
         self.num_qubits = hardware.qubit_number
         self.qubit_embed_class = QUBIT_EMBED[qubit_embed]
         self.output_channels = qubit_embedding_dim
