@@ -3,6 +3,8 @@ from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch import nn
 from enum import Enum
 
+from torch_geometric.nn import GraphSAGE
+from torch_geometric.utils import from_networkx
 from hamap.distance_matrix import get_distance_matrix_swap_number_and_error
 from hamap.hardware import IBMQHardwareArchitecture
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
@@ -91,8 +93,11 @@ class HardwareAwareQubitEmbedding(nn.Module):
                  conv_mode: DenseGNNType = DenseGNNType.GCN_CONV):
         super().__init__()
         self.hardware = hardware
-        # self.edge_index = from_networkx(hardware).edge_index
-        self.distance_matrix = torch.tensor(get_distance_matrix_swap_number_and_error(self.hardware), dtype=torch.float)
+        self.edge_index = from_networkx(hardware).edge_index
+        # self.distance_matrix = torch.tensor(get_distance_matrix_swap_number_and_error(self.hardware), dtype=torch.float)
+        # max_val, min_val = self.distance_matrix.max(), self.distance_matrix.min()
+        # self.distance_matrix = - (self.distance_matrix - min_val) / (max_val - min_val)
+        # self.distance_matrix = torch.exp(-self.distance_matrix)
         self.num_qubits = hardware.qubit_number
         self.qubit_embed_class = QUBIT_EMBED[qubit_embed]
         self.output_channels = qubit_embedding_dim
@@ -101,10 +106,17 @@ class HardwareAwareQubitEmbedding(nn.Module):
         self.qubit_embedding = self.qubit_embed_class(self.num_qubits, qubit_embedding_dim)
 
         # GNN 输入维度现在是 2 * qubit_embedding_dim
-        self.gnn = GNNModule(
-            in_channels=self.output_channels,
-            hidden_channels=hidden_channels,
-            out_channels=self.output_channels,
+        # self.gnn = GNNModule(
+        #     in_channels=self.output_channels,
+        #     hidden_channels=hidden_channels,
+        #     out_channels=self.output_channels,
+        #     conv_mode=conv_mode,
+        # )
+        self.gnn = GraphSAGE(
+            in_channels=qubit_embedding_dim,
+            out_channels=qubit_embedding_dim,
+            hidden_channels=qubit_embedding_dim,
+            num_layers=2,
         )
 
     def forward(self, physical2log: torch.LongTensor):
@@ -114,7 +126,7 @@ class HardwareAwareQubitEmbedding(nn.Module):
         logic_embed = self.qubit_embedding(physical2log)  # [B, N, D]
         node_feat = logic_embed
         # 4) 过 GNN
-        ha_embed = self.gnn(node_feat, self.distance_matrix)  # [B, N, D]
+        ha_embed = self.gnn(node_feat, self.edge_index)  # [B, N, D]
         return ha_embed
 
 
@@ -225,8 +237,8 @@ class SequenceEncoder(nn.Module):
             B = x.shape[0]
             # 1. 构造 key_padding_mask
             max_len = x.size(1)
-            print('lengths', lengths.shape, 'arange',
-                  torch.arange(max_len, device=x.device).expand(B, -1).shape, 'x', x.shape)
+            # print('lengths', lengths.shape, 'arange',
+            #       torch.arange(max_len, device=x.device).expand(B, -1).shape, 'x', x.shape)
 
             mask = torch.arange(max_len, device=x.device).expand(B, -1) >= lengths  # [B, L]
             # 2. Transformer 前向
@@ -247,7 +259,7 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
                  conv_mode = DenseGNNType.GCN_CONV):
         super().__init__(observation_space, features_dim=embed_dim)
         self.qubit_embed = HardwareAwareQubitEmbedding(hardware, qubit_embedding_dim=embed_dim,
-                                                       hidden_channels=embed_dim // 2,
+                                                       hidden_channels=embed_dim,
                                                        conv_mode=conv_mode)
         self.gate_seq_encoder = GateSeqEncoder(self.qubit_embed.output_channels)
         self.circuit_encoder = SequenceEncoder(self.gate_seq_encoder.output_channels, mode=mode,

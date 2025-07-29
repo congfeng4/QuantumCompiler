@@ -142,25 +142,23 @@ def run_maskable_ppo(
 def run_vec_env():
     bs = 128
     ns = 1000
-    embed_dim = 32
+    embed_dim = 128
     L = 15
     ent_coef = 0.01
-    num_train = 1
-    num_eval = 2
+    num_train = 199
+    num_eval = 1
     hardware_name = 'tokyo'
     data_name = '20Q_gate_Tokyo'
-    sparse = False
-    # mode = 'transformer'
     mode = 'gru'
 
     hardware = IBMQHardwareArchitecture(hardware_name)
     circuit_list = list(map(str, Path(f'../data/{data_name}/circuits').glob('*.qasm')))
     random.shuffle(circuit_list)
-    env = create_vec_env_from_circuits(circuit_list[:num_train], hardware, L=L, num_random=0, sparse_reward=sparse)
+    env = create_vec_env_from_circuits(circuit_list[:num_train], hardware, L=L, num_random=0)
     eval_env = create_vec_env_from_circuits(circuit_list[num_train:num_train+num_eval], hardware, L=L,
-                                            num_random=0, sparse_reward=sparse)  # Use sabre only.
+                                            num_random=0)  # Use sabre only.
 
-    log_name = f'{data_name}-B={bs}-NS={ns}-E={ent_coef}-DS={num_train}-M={mode}-SR={sparse}'
+    log_name = f'{data_name}-B={bs}-NS={ns}-E={ent_coef}-DS={num_train}-M={mode}'
 
     model, details = run_maskable_ppo(
         env,
@@ -170,6 +168,7 @@ def run_vec_env():
         seqlen=L,
         embed_dim=embed_dim,
         ent_coef=ent_coef,
+        output_dirname='maskable_ppo_v3_pretrain',
         total_timesteps=int(1e30),
         mode=mode,
         log_name=log_name,
