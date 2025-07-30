@@ -26,11 +26,12 @@ M = int(1e6)
 
 def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwareArchitecture,
                                  num_random: int = 10, add_sabre: bool = True, L: int = 10,
-                                 sparse_reward: bool = False):
+                                 ):
     vec_funcs = []
+    init_mappings = []
 
     def make_func(circ: QuantumCircuit, init):
-        return lambda : CircuitEnvWithInitialMapping(circ, hardware, init, L, sparse_reward)
+        return lambda : CircuitEnvWithInitialMapping(circ, hardware, init, L)
 
     for path in circuit_paths:
         print(f'Path {path}')
@@ -38,9 +39,11 @@ def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwar
         if add_sabre:
             init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
             vec_funcs.append(make_func(qc, init))
+            init_mappings.append(init)
         for i in range(num_random):
             init = get_initial_mapping(qc, hardware, InitialMappingStrategy.RANDOM)
             vec_funcs.append(make_func(qc, init))
+            init_mappings.append(init)
 
     print(f'Create env with {len(circuit_paths)} circuits')
     # SubProcVecEnv一开始就内存爆炸了💥
@@ -107,6 +110,7 @@ def run_maskable_ppo(
             hardware, embed_dim, mode
         )
     ) if pretrain is None else MaskablePPO.load(pretrain, env)
+    ppo.tensorboard_log = log_dir
     print(f'Model loaded: {ppo}')
 
     ppo.learn(
@@ -133,24 +137,24 @@ def run_maskable_ppo(
         ent_coef=ent_coef,
         **kwargs,
     ))
-    json_file = output_dir + '/' + log_name + '.json'
-    with open(json_file, 'w') as f:
-        f.write(json.dumps(data, indent=4, ensure_ascii=False))
-    return ppo, data
+
+    return data
 
 
-def run_vec_env():
-    bs = 128
-    ns = 1000
-    embed_dim = 128
-    L = 15
-    ent_coef = 0.01
-    num_train = 199
-    num_eval = 1
-    hardware_name = 'tokyo'
-    data_name = '20Q_gate_Tokyo'
-    mode = 'gru'
-
+def run_vec_env(
+    bs = 128,
+    ns = 1000,
+    embed_dim = 128,
+    L = 15,
+    ent_coef = 0.01,
+    num_train = 199,
+    num_eval = 1,
+    hardware_name = 'tokyo',
+    data_name = '20Q_gate_Tokyo',
+    mode = 'gru',
+    output_dirname='maskable_ppo_v3_pretrain',
+    pretrain: bool = False,
+):
     hardware = IBMQHardwareArchitecture(hardware_name)
     circuit_list = list(map(str, Path(f'../data/{data_name}/circuits').glob('*.qasm')))
     random.shuffle(circuit_list)
@@ -158,7 +162,11 @@ def run_vec_env():
     eval_env = create_vec_env_from_circuits(circuit_list[num_train:num_train+num_eval], hardware, L=L,
                                             num_random=0)  # Use sabre only.
 
-    log_name = f'{data_name}-B={bs}-NS={ns}-E={ent_coef}-DS={num_train}-M={mode}'
+    log_name = f'{data_name}-B={bs}-NS={ns}-E={ent_coef}-DS={num_train}-M={mode}-D={embed_dim}'
+    if pretrain:
+        pretrain_path = Path(f'../result/{output_dirname}/models/{log_name}/best_model.zip')
+    else:
+        pretrain_path = None
 
     model, details = run_maskable_ppo(
         env,
@@ -168,18 +176,19 @@ def run_vec_env():
         seqlen=L,
         embed_dim=embed_dim,
         ent_coef=ent_coef,
-        output_dirname='maskable_ppo_v3_pretrain',
+        output_dirname=output_dirname,
         total_timesteps=int(1e30),
         mode=mode,
         log_name=log_name,
         eval_env=eval_env,
         num_train=num_train,
         data_name=data_name,
+        pretrain=pretrain_path,
     )
-    evaluate_all(model, circuit_list, log_name, L, details=details)
+    evaluate_all(model, hardware, circuit_list, log_name, L, details=details)
 
 
-def evaluate_all(model, circuit_list, log_name: str, L: int, **kwargs):
+def evaluate_all(model, hardware, circuit_list, log_name: str, L: int, **kwargs):
     result_file = f'../result/maskable_ppo/{log_name}.json'
     results = []
     init_strategy = InitialMappingStrategy.SABRE
@@ -199,6 +208,7 @@ def evaluate_all(model, circuit_list, log_name: str, L: int, **kwargs):
     results = dict(results=results, config=kwargs)
     with open(result_file, 'w') as f:
         f.write(json.dumps(jsons.dump(results), indent=4, ensure_ascii=False))
+
 
 
 

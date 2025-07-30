@@ -14,7 +14,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, VecMonitor
 
 from contrib.common import qknob_metrics
-from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
+from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy, ha_baseline
 from contrib.pretrain_env import PretrainEnv
 
 from hamap.distance_matrix import get_distance_matrix_swap_number_and_error
@@ -40,12 +40,10 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                  input_circuit: QuantumCircuit,
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
-                 L: int,
-                 sparse_reward: bool = False):
+                 L: int):
         super().__init__(N=hardware.qubit_number, L=L)
         self.input_circuit= input_circuit
         self.hardware = hardware
-        self.sparse_reward = sparse_reward
         self.initial_mapping = initial_mapping
         self.distance_matrix = get_distance_matrix_swap_number_and_error(self.hardware)
 
@@ -54,6 +52,8 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         self.topological_nodes: list[DAGNode] = list(self.dag_circuit.topological_op_nodes())
 
         self.resulting_circuit = None
+        self.metrics_baseline = ha_baseline(input_circuit, hardware, initial_mapping)
+
         check_env(self)
 
     def reset(self, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:
@@ -79,7 +79,9 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
         self.metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
-        self.metrics.update(total_cost=float(self.total_cost))
+        # self.metrics.update(total_cost=float(self.total_cost))
+        for key, value in self.metrics_baseline.items():
+            self.metrics[key + '_HA'] = value
 
     def find_middle(self, best_swap_qubits: BridgeTwoQubitGate, trans_mapping, inverse_mapping) -> Qubit:
         # inverse_trans_mapping = {val: key for key, val in trans_mapping.items()}
@@ -187,15 +189,13 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
 
         self.invalid_actions = 0
         num_executed_cnot = self.update()
-        reward = - 3 if not self.sparse_reward else 0
+        reward = - 3
         done = not self.front_layer
         info = {}
         if done:
             self.finalize_result()
             info['metrics'] = self.metrics
             print(f'Game ends {self.metrics}')
-            if self.sparse_reward:
-                reward = -self.metrics['cx_ratio'] - self.metrics['depth_ratio']
         return self._get_obs(), reward, done, False, info
 
     def action_masks(self):

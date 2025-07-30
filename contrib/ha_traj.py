@@ -77,6 +77,17 @@ def run_ha(circ_path: str, hardware_name: str,
                 init=initial_mapping_strategy.value, trajectory=trajectory)
 
 
+def ha_baseline(qc: QuantumCircuit, hardware: IBMQHardwareArchitecture, initial_mapping):
+    """
+    Returns dict(metrics=metrics, init=readable_initial_mapping, input_circuit=circ_path,
+                initial_mapping_strategy=initial_mapping_strategy.value, trajectory=trajectory)
+    """
+    mapped_circuit, final_mapping = ha_mapping(qc, initial_mapping, hardware)
+    metrics = qknob_metrics(qc, mapped_circuit)
+
+    return metrics
+
+
 def load_and_group_trajectories(traj_root: Path = None) -> dict[str, list[Path]]:
     """
     Utility function to load trajectories and group them by hardware_name.
