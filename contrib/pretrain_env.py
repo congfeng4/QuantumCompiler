@@ -19,7 +19,7 @@ from qiskit.dagcircuit.dagcircuit import DAGNode
 from contrib.common import qknob_metrics
 from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
 from contrib.state_space import StateSpace
-from contrib.action_space import ActionSpace, NUM_ACTIONS
+from contrib.action_space import ActionSpace, NUM_ACTIONS, ActionSpaceSwapOnly
 
 from hamap.distance_matrix import (
     get_distance_matrix_swap_number_and_error,
@@ -152,6 +152,23 @@ class PretrainEnv(gym.Env):
         self.L = L
 
         self.action = ActionSpace(N, NUM_ACTIONS)
+        self.state = StateSpace(N, L)
+
+        self.action_space = self.action.get_space()
+        self.observation_space = self.state.get_space()
+
+
+class PretrainEnvSwapOnly(gym.Env):
+    """
+    An env that lets the model determine the gate state (Executable or not).
+    """
+
+    def __init__(self, N: int, L: int = 100):
+        super().__init__()
+        self.N = N
+        self.L = L
+
+        self.action = ActionSpaceSwapOnly(N, NUM_ACTIONS)
         self.state = StateSpace(N, L)
 
         self.action_space = self.action.get_space()

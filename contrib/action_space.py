@@ -85,3 +85,32 @@ class ActionSpace:
             return SwapTwoQubitGate(inverse_current_mapping[left], inverse_current_mapping[right])
         else:
             return BridgeTwoQubitGate(inverse_mapping[left], None, inverse_mapping[right])
+
+class ActionSpaceSwapOnly:
+
+    def __init__(self, N: int, A: int):
+        self.A = A
+        self.N = N
+
+    def get_space(self):
+        A, N = self.A, self.N
+        return gym.spaces.Discrete(N*N)
+
+    def get_size(self):
+        return self.N * self.N
+
+    def encode(self, q0: int, q1: int):
+        return q0 * self.N + q1
+
+    def encode_best_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
+        q0, q1 = current_mapping[swap.left], current_mapping[swap.right]
+        return self.encode(q0, q1)
+
+    def decode(self, policy: int):
+        left = policy // self.N
+        right = policy % self.N
+        return left, right
+
+    def decode_best_swap(self, policy: int, inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit]):
+        left, right = self.decode(policy)
+        return SwapTwoQubitGate(inverse_current_mapping[left], inverse_current_mapping[right])

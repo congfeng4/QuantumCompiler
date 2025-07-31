@@ -69,7 +69,7 @@ def inverse_permutation_batched(p: torch.Tensor) -> torch.Tensor:
     return inv
 
 
-class GNNModule(nn.Module):
+class DenseGNNModule(nn.Module):
 
     def __init__(self, in_channels, out_channels, hidden_channels,
                  conv_mode: DenseGNNType = DenseGNNType.GCN_CONV):
@@ -94,10 +94,6 @@ class HardwareAwareQubitEmbedding(nn.Module):
         super().__init__()
         self.hardware = hardware
         self.edge_index = from_networkx(hardware).edge_index
-        # self.distance_matrix = torch.tensor(get_distance_matrix_swap_number_and_error(self.hardware), dtype=torch.float)
-        # max_val, min_val = self.distance_matrix.max(), self.distance_matrix.min()
-        # self.distance_matrix = - (self.distance_matrix - min_val) / (max_val - min_val)
-        # self.distance_matrix = torch.exp(-self.distance_matrix)
         self.num_qubits = hardware.qubit_number
         self.qubit_embed_class = QUBIT_EMBED[qubit_embed]
         self.output_channels = qubit_embedding_dim
@@ -105,17 +101,10 @@ class HardwareAwareQubitEmbedding(nn.Module):
         # 1. 逻辑比特嵌入（随映射变化）
         self.qubit_embedding = self.qubit_embed_class(self.num_qubits, qubit_embedding_dim)
 
-        # GNN 输入维度现在是 2 * qubit_embedding_dim
-        # self.gnn = GNNModule(
-        #     in_channels=self.output_channels,
-        #     hidden_channels=hidden_channels,
-        #     out_channels=self.output_channels,
-        #     conv_mode=conv_mode,
-        # )
         self.gnn = GraphSAGE(
             in_channels=qubit_embedding_dim,
             out_channels=qubit_embedding_dim,
-            hidden_channels=qubit_embedding_dim,
+            hidden_channels=hidden_channels,
             num_layers=2,
         )
 
@@ -123,10 +112,9 @@ class HardwareAwareQubitEmbedding(nn.Module):
         # physical2log: [B, N]  每行是一个排列，表示物理->逻辑的映射
         B, N = physical2log.shape
         # 1) 逻辑嵌入（按物理节点顺序取逻辑比特的嵌入）
-        logic_embed = self.qubit_embedding(physical2log)  # [B, N, D]
-        node_feat = logic_embed
-        # 4) 过 GNN
-        ha_embed = self.gnn(node_feat, self.edge_index)  # [B, N, D]
+        node_feat = self.qubit_embedding(physical2log)  # [B, N, D]
+        # 2) 过 GNN
+        ha_embed = self.gnn(node_feat, self.edge_index) # [B, N, D]
         return ha_embed
 
 
@@ -144,7 +132,7 @@ class GateSeqEncoder(nn.Module):
         self.output_channels = embed_dim
 
         self.mlp = nn.Sequential(
-            nn.Linear(2 * embed_dim, embed_dim),
+            nn.Linear(embed_dim, embed_dim),
             nn.ReLU(),
             nn.Linear(embed_dim, embed_dim),
         )
@@ -179,7 +167,10 @@ class GateSeqEncoder(nn.Module):
         e0 = e0.view(B, S, -1)
         e1 = e1.view(B, S, -1)
         gate_vec = torch.cat([e0, e1], dim=-1)  # (B, S, 2*D)
-        gate_embed = self.mlp(gate_vec.reshape(B * S, -1)).reshape(B, S, -1)
+        # Residual MLP
+        x = gate_vec.reshape(B * S, -1)
+        x = self.mlp(x) + x
+        gate_embed = x.reshape(B, S, -1)
         return gate_embed
 
 
@@ -258,10 +249,10 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
                  embed_dim: int, mode: str = 'gru', nhead: int = 8, num_layers: int = 2,
                  conv_mode = DenseGNNType.GCN_CONV):
         super().__init__(observation_space, features_dim=embed_dim)
-        self.qubit_embed = HardwareAwareQubitEmbedding(hardware, qubit_embedding_dim=embed_dim,
+        self.qubit_embed = HardwareAwareQubitEmbedding(hardware, qubit_embedding_dim=embed_dim // 2,
                                                        hidden_channels=embed_dim,
                                                        conv_mode=conv_mode)
-        self.gate_seq_encoder = GateSeqEncoder(self.qubit_embed.output_channels)
+        self.gate_seq_encoder = GateSeqEncoder(embed_dim)
         self.circuit_encoder = SequenceEncoder(self.gate_seq_encoder.output_channels, mode=mode,
                                                nhead=nhead, num_layers=num_layers)
 
@@ -289,8 +280,8 @@ def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int = 128, 
             mode=mode,
         ),
         net_arch=dict(
-            pi=[embed_dim, embed_dim],
-            vf=[embed_dim, embed_dim],
+            pi=[embed_dim, embed_dim, embed_dim],
+            vf=[embed_dim, embed_dim, embed_dim],
         ),
     )
 

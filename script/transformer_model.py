@@ -32,7 +32,7 @@ def run_env():
 
     for circuit_path in circuit_list:
         env = create_vec_env_from_circuits([str(circuit_path)], hardware, NR, L=L)
-        eval_env = create_vec_env_from_circuits([str(circuit_path)], hardware, num_random=0, L=L)
+        eval_env = create_vec_env_from_circuits([str(circuit_path)], hardware, num=0, L=L)
         circuit_name = Path(circuit_path).stem
         log_name = f'Q={circuit_name}-B={bs}-NS={ns}-E={ent_coef}-NR={NR}'
 
