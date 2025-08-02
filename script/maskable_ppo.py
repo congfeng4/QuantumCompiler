@@ -27,13 +27,13 @@ M = int(1e6)
 
 def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwareArchitecture,
                                  num: int = 1, add_sabre: bool = True, add_random: bool = False,
-                                 L: int = 10, swap_only: bool = False
+                                 L: int = 10, K: int = 50, swap_only: bool = False
                                  ):
     vec_funcs = []
     init_mappings = []
 
     def make_func(circ: QuantumCircuit, path, init):
-        return lambda : CircuitEnvWithInitialMapping(circ, path, hardware, init, L) if not swap_only else CircuitEnvSwapOnly(
+        return lambda : CircuitEnvWithInitialMapping(circ, path, hardware, init, L, K) if not swap_only else CircuitEnvSwapOnly(
             circ, hardware, init, L
         )
 

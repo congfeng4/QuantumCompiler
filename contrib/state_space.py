@@ -53,10 +53,10 @@ class StateSpace:
     def encode_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
         if isinstance(swap, BridgeTwoQubitGate):  # Already physical
             q0, q1 = initial_mapping[swap.left], initial_mapping[swap.right]
-            return SWAP_INDEX, q0, q1
+            return q0, q1, SWAP_INDEX
         else:
             q0, q1 = current_mapping[swap.left], current_mapping[swap.right]
-            return BRIDGE_INDEX, q0, q1
+            return q0, q1, BRIDGE_INDEX
 
     def patch_candidates(self, raw_cands: list[TwoQubitGate]):
         assert len(raw_cands) <= self.K

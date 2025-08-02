@@ -10,7 +10,7 @@ from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.policies import ActorCriticPolicy
 
 from contrib.environs import make_circuit_env
-from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
+from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor, get_policy
 from contrib.ha_traj import InitialMappingStrategy
 from contrib.pretrain_env import PretrainEnv, TrajectoryCollector
 import shutil
@@ -33,32 +33,18 @@ def main():
     rng = np.random.default_rng(0)
     env = PretrainEnv(N=hardware.qubit_number, L=10)
 
-    train_trans = TrajectoryCollector(N=hardware.qubit_number, L=10,
+    train_trans = TrajectoryCollector(N=hardware.qubit_number, L=10, K=50,
                                           outdir=Path('../result/pretrain/ha'),
                                           prefix='20Q_gate_Tokyo_train').load()
 
-    val_trans = TrajectoryCollector(N=hardware.qubit_number, L=10,
+    val_trans = TrajectoryCollector(N=hardware.qubit_number, L=10, K=50,
                                         outdir=Path('../result/pretrain/ha'),
                                         prefix='20Q_gate_Tokyo_val').load()
 
     loss_calc = BehaviorCloningLossCalculator(0, 0)
-    embed_dim = 64
+    embed_dim = 128
 
-    policy = ActorCriticPolicy(
-        observation_space=env.observation_space,
-        action_space=env.action_space,
-        lr_schedule=lambda _: th.finfo(th.float32).max,
-        activation_fn=torch.nn.LeakyReLU,
-        features_extractor_class=HierarchicalCircuitFeaturesExtractor,
-        features_extractor_kwargs=dict(
-            hardware=hardware,
-            embed_dim=embed_dim,
-        ),
-        net_arch=dict(
-            pi=[embed_dim * 2],
-            vf=[embed_dim * 2],
-        ),
-    )
+    policy = get_policy(env, hardware, embed_dim)
 
     print('Train BC...')
     bc_trainer = bc.BC(
