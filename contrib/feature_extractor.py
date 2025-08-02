@@ -105,7 +105,7 @@ class HardwareAwareQubitEmbedding(nn.Module):
             in_channels=qubit_embedding_dim,
             out_channels=qubit_embedding_dim,
             hidden_channels=hidden_channels,
-            num_layers=2,
+            num_layers=3,
         )
 
     def forward(self, physical2log: torch.LongTensor):

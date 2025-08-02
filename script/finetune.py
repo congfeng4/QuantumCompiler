@@ -25,7 +25,7 @@ def run_env():
     hardware = IBMQHardwareArchitecture('tokyo')
 
     for circuit_path in circuit_list:
-        env = create_vec_env_from_circuits([str(circuit_path)], hardware, num=5, add_sabre=False,
+        env = create_vec_env_from_circuits([str(circuit_path)], hardware, num=1, add_sabre=False,
                                            add_random=True, L=L)
         circuit_name = Path(circuit_path).stem
         log_name = f'Q={circuit_name}-B={bs}-NS={ns}-E={ent_coef}-D={embed_dim}-L={L}'
