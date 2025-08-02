@@ -21,13 +21,13 @@ def test_env(data: str):
         hardware_name = get_hardware_name(data)
         circuit = QuantumCircuit.from_qasm_file(str(circuit_path))
         hardware = IBMQHardwareArchitecture(hardware_name)
-        collector = TrajectoryCollector(N=hardware.qubit_number, L=10)
+        collector = TrajectoryCollector(N=hardware.qubit_number, L=10, K=50)
 
         init = get_initial_mapping(circuit, hardware, InitialMappingStrategy.IDENTITY)
-        ha_mapping(collector, circuit, init, hardware, strategy='best')
+        ha_mapping(collector, circuit, init, hardware)
         traj = collector.trajectories[0]
         metrics = collector.metrics_list[0]
-        env = CircuitEnvWithInitialMapping(circuit, hardware, init, L=10)
+        env = CircuitEnvWithInitialMapping(circuit, str(circuit_path), hardware, init, L=10, K=50)
         metrics_env = rollout_expert_trajectory(env, traj)
 
         for key in metrics:

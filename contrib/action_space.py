@@ -8,25 +8,20 @@ from qiskit.dagcircuit.dagcircuit import DAGNode
 
 from hamap.gates import TwoQubitGate, SwapTwoQubitGate, BridgeTwoQubitGate
 
-
-NUM_ACTIONS = 2
-EXE_INDEX = None
-SWAP_INDEX = 0
-BRIDGE_INDEX = 1
+from contrib.common import EXE_INDEX, SWAP_INDEX, BRIDGE_INDEX
 
 
 class ActionSpace:
 
-    def __init__(self, N: int, A: int):
-        self.A = A
+    def __init__(self, N: int):
         self.N = N
 
     def get_space(self):
-        A, N = self.A, self.N
-        return gym.spaces.Discrete(A*N*N)
+        N = self.N
+        return gym.spaces.Discrete(N*N)
 
     def get_size(self):
-        return self.A * self.N * self.N
+        return 2*self.N * self.N
 
     def encode_execute_list(self, execute_gate_list: list[DAGNode], current_mapping: dict[Qubit, int]):
         action = self.empty_action()
@@ -41,16 +36,6 @@ class ActionSpace:
 
     def empty_action(self):
         action = np.zeros((self.A, self.N, self.N), np.float32)
-        return action
-
-    def encode_swap_cands(self, swap_cands: list[TwoQubitGate], current_mapping: dict[Qubit, int]):
-        action = self.empty_action()
-        for swap in swap_cands:
-            if isinstance(swap, BridgeTwoQubitGate):
-                action[BRIDGE_INDEX, swap.left._index, swap.right._index] = 1
-            else:
-                q0, q1 = current_mapping[swap.left], current_mapping[swap.right]
-                action[SWAP_INDEX, q0, q1] = 1
         return action
 
     @cached_property
@@ -86,14 +71,26 @@ class ActionSpace:
         else:
             return BridgeTwoQubitGate(inverse_mapping[left], None, inverse_mapping[right])
 
+
+class ActionSpaceCands:
+
+    def __init__(self, K: int):
+        self.K = K
+
+    def get_size(self):
+        return self.K
+
+    def get_space(self):
+        return gym.spaces.Discrete(self.K)
+
+
 class ActionSpaceSwapOnly:
 
-    def __init__(self, N: int, A: int):
-        self.A = A
+    def __init__(self, N: int):
         self.N = N
 
     def get_space(self):
-        A, N = self.A, self.N
+        N = self.N
         return gym.spaces.Discrete(N*N)
 
     def get_size(self):

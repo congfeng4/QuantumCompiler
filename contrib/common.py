@@ -7,6 +7,11 @@ from hamap.gates import TwoQubitGate
 
 RESULT_DIR = Path(__file__).parent.parent / 'result'
 
+NUM_ACTIONS = 2
+EXE_INDEX = None
+SWAP_INDEX = 0
+BRIDGE_INDEX = 1
+
 
 def get_cnot_num(cirt: QuantumCircuit):
     count = cirt.count_ops()
