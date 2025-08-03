@@ -195,7 +195,7 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
 
         self._weight_func = weight_func
 
-        backend = IBMQHardwareArchitecture._get_backend_fake(backend_name)
+        backend = IBMQHardwareArchitecture._get_backend_fake(backend_name.lower())
 
         # Get the configuration data
         backend_configuration = backend.configuration()

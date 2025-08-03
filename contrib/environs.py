@@ -171,8 +171,8 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
             return self.step_invalid()
 
         self.invalid_actions = 0
-        self.update()
-        reward = -cost
+        num_exe = self.update()
+        reward = -cost + num_exe - 1
         done = not self.front_layer
         info = {}
         if done:

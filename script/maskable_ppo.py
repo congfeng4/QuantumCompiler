@@ -95,7 +95,6 @@ def run_maskable_ppo(
     eval_callback = MaskableEvalCallback(
         eval_env,
         eval_freq=eval_freq,  # 每 10w 步评估一次
-        callback_on_new_best=None,  # 可选
         callback_after_eval=stop_callback if early_stop else None,
         verbose=1,
         deterministic=False,
