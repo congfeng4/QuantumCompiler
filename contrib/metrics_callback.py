@@ -37,23 +37,18 @@ class CustomMetricsCallback(BaseCallback):
         :return: (bool) If the callback returns False, training is aborted early.
         """
         metrics_env = []
-        # self.locals['dones'] is a list of boolean flags, one for each env
-        for i, done in enumerate(self.locals['dones']):
-            if done:
-                # self.locals['infos'] is a list of info dicts, one for each env
-                info = self.locals['infos'][i]
+        # 注意：self.locals['infos'] 可能不是 list，而是 dict（非向量化 env）
+        infos = self.locals['infos']
+        if not isinstance(infos, list):
+            infos = [infos]
 
-                # Check if our custom info is present
-                if 'metrics' in info:
-                    metrics = info['metrics']
-                    metrics_env.append(metrics)
+        for info in infos:
+            if 'metrics' in info:
+                metrics_env.append(info['metrics'])
 
-        # Calculate average metrics across all environments
         metrics = average_metrics(metrics_env)
-        if self.verbose >= 1:
-            print(f"Average metrics: {metrics}")
-        # Record the metrics in the logger
-        for key, value in metrics.items():
-            self.logger.record(f"custom/{key}", value)
+        if metrics:
+            for key, value in metrics.items():
+                self.logger.record(f"custom/{key}", value)
 
-        return True  # Continue training
+        return True

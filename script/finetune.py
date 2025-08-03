@@ -15,12 +15,12 @@ def run_env():
     bs = 128
     ns = 1000
     embed_dim = 128
-    L = 5
+    L = 8
     ent_coef = 0.01
 
-    circuit_list = list(Path('../data/53Q_gate_Sycamore/circuits/').glob('*.qasm'))
+    circuit_list = list(Path('../data/53Q_depth_Sycamore/circuits/').glob('*.qasm'))
     # random.shuffle(circuit_list)
-    result_dir = Path('../result/maskable_ppo_random')
+    result_dir = Path('../result/swap_bridge_not_overlap')
     result_dir.mkdir(parents=True, exist_ok=True)
 
     hardware = IBMQHardwareArchitecture('sycamore')
@@ -46,7 +46,7 @@ def run_env():
             mode='gru',
             ent_coef=ent_coef,
             total_timesteps=200_000,
-            output_dirname='maskable_ppo_random',
+            output_dirname='swap_bridge_not_overlap',
             early_stop=False,
             # pretrain=Path('../result/maskable_ppo_v3_pretrain/models/20Q_gate_Tokyo-B=128-NS=1000-E=0.01-DS=199-M=gru-D=128/best_model.zip')
         )

@@ -80,7 +80,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
         self.metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
-        # self.metrics.update(total_cost=float(self.total_cost))
+        self.metrics.update(total_cost=float(self.total_cost))
         for key, value in self.metrics_baseline.items():
             self.metrics[key + '_HA'] = value
 
@@ -171,9 +171,8 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
             return self.step_invalid()
 
         self.invalid_actions = 0
-        num_executed_cnot = self.update()
+        self.update()
         reward = -cost
-        # reward = num_executed_cnot - 3 #- 0.1 * cost
         done = not self.front_layer
         info = {}
         if done:
