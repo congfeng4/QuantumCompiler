@@ -15,10 +15,9 @@ from hamap.layer import QuantumLayer
 
 class StateSpace:
 
-    def __init__(self, N: int, L: int, K: int):
+    def __init__(self, N: int, L: int):
         self.N = N
         self.L = L
-        self.K = K
 
     def get_space(self):
         N, L = self.N, self.L
@@ -38,35 +37,9 @@ class StateSpace:
             "gate_len": gym.spaces.Box(
                 low=0, high=L, shape=(), dtype=np.int64
             ),
-
-            # 候选动作
-            "cands": gym.spaces.Box(
-                low=0, high=float('inf'), shape=(self.K, 3), dtype=np.int64,
-            ),
-
-            # 候选动作
-            "cand_len": gym.spaces.Box(
-                low=0, high=self.K, shape=(), dtype=np.int64,
-            )
         })
 
-    def encode_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
-        if isinstance(swap, BridgeTwoQubitGate):  # Already physical
-            q0, q1 = initial_mapping[swap.left], initial_mapping[swap.right]
-            return q0, q1, SWAP_INDEX
-        else:
-            q0, q1 = current_mapping[swap.left], current_mapping[swap.right]
-            return q0, q1, BRIDGE_INDEX
-
-    def patch_candidates(self, raw_cands: list[TwoQubitGate]):
-        assert len(raw_cands) <= self.K
-        # random.shuffle(raw_cands)
-        patched_cands = [None] * self.K
-        patched_cands[:len(raw_cands)] = raw_cands
-        return patched_cands
-
-    def encode_obs(self, front_layer: QuantumLayer, gates: list[DAGNode], current_mapping: dict[Qubit, int],
-                   initial_mapping: dict[Qubit, int], swap_candidates: list[TwoQubitGate]):
+    def encode(self, front_layer: QuantumLayer, gates: list[DAGNode], current_mapping: dict[Qubit, int]):
         mapping = np.zeros((self.N,), np.int64)
         for qb, j in current_mapping.items():
             mapping[j] = qb._index  # Phy to logic
@@ -81,12 +54,4 @@ class StateSpace:
             gate_seq[gate_len] = current_mapping[op.qargs[0]], current_mapping[op.qargs[1]]
             gate_len += 1
 
-        cands = np.zeros((self.K, 3), np.int64)
-        cand_len = 0
-        for i, swap in enumerate(swap_candidates):
-            if swap is None:
-                continue
-            cands[i] = self.encode_swap(swap, current_mapping, initial_mapping)
-            cand_len += 1
-
-        return dict(mapping=mapping, gate_seq=gate_seq, gate_len=gate_len, cands=cands, cand_len=cand_len)
+        return dict(mapping=mapping, gate_seq=gate_seq, gate_len=gate_len)

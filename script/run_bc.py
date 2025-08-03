@@ -24,7 +24,7 @@ from stable_baselines3.common.policies import ActorCriticPolicy, BaseModel
 from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor
 from contrib.ha_traj import InitialMappingStrategy
-from contrib.pretrain_env import PretrainEnv, TrajectoryCollector, ha_mapping
+from contrib.expert import PretrainEnv, TrajectoryCollector, heuristic_algorithm
 import shutil
 from imitation.util import logger as imit_logger
 from hamap import IBMQHardwareArchitecture
@@ -75,7 +75,7 @@ def fit_policy_with_bc(log_dir: str, hardware: IBMQHardwareArchitecture,
 
     # Collect training data -- Expert trajectories.
     for circuith, initial_mapping in zip(circuits, init_mappings):
-        ha_mapping(
+        heuristic_algorithm(
             collector=collector,
             quantum_circuit=circuith,
             initial_mapping=initial_mapping,

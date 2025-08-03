@@ -96,26 +96,31 @@ class HardwareAwareQubitEmbedding(nn.Module):
         self.hardware = hardware
         self.edge_index = from_networkx(hardware).edge_index
         self.num_qubits = hardware.qubit_number
+        self.distance_matrix = torch.tensor(get_distance_matrix_swap_number_and_error(hardware), dtype=torch.float32)
         self.qubit_embed_class = QUBIT_EMBED[qubit_embed]
         self.output_channels = qubit_embedding_dim
 
         # 1. 逻辑比特嵌入（随映射变化）
         self.qubit_embedding = self.qubit_embed_class(self.num_qubits, qubit_embedding_dim)
 
-        self.gnn = GraphSAGE(
-            in_channels=qubit_embedding_dim,
-            out_channels=qubit_embedding_dim,
-            hidden_channels=hidden_channels,
-            num_layers=3,
-        )
+        # self.gnn = GraphSAGE(
+        #     in_channels=qubit_embedding_dim,
+        #     out_channels=qubit_embedding_dim,
+        #     hidden_channels=hidden_channels,
+        #     num_layers=3,
+        # )
+        self.linear = nn.Linear(self.num_qubits, qubit_embedding_dim)
 
     def forward(self, physical2log: torch.LongTensor):
         # physical2log: [B, N]  每行是一个排列，表示物理->逻辑的映射
         B, N = physical2log.shape
+        # physical2log = torch.arange(self.num_qubits)  # [B, N]
+        node_feat = self.distance_matrix.expand(B, -1, -1)
         # 1) 逻辑嵌入（按物理节点顺序取逻辑比特的嵌入）
-        node_feat = self.qubit_embedding(physical2log)  # [B, N, D]
+        ha_embed = self.linear(node_feat)
+        # node_feat = self.qubit_embedding(physical2log)  # [B, N, D]
         # 2) 过 GNN
-        ha_embed = self.gnn(node_feat, self.edge_index) # [B, N, D]
+        # ha_embed = self.gnn(node_feat, self.edge_index) # [B, N, D]
         return ha_embed
 
 
@@ -170,7 +175,7 @@ class GateSeqEncoder(nn.Module):
         gate_vec = torch.cat([e0, e1], dim=-1)  # (B, S, 2*D)
         # Residual MLP
         x = gate_vec.reshape(B * S, -1)
-        x = self.mlp(x) + x
+        x = self.mlp(x)
         gate_embed = x.reshape(B, S, -1)
         return gate_embed
 
@@ -253,8 +258,8 @@ class CandidateEncoder(nn.Module):
         self.gate_type_embed = nn.Embedding(num_embeddings=2, embedding_dim=dim)
         self.mlp = nn.Sequential(
             nn.Linear(3 * dim, feature_dim),
-            nn.ReLU(),
-            nn.Linear(feature_dim, feature_dim),
+            # nn.ReLU(),
+            # nn.Linear(feature_dim, feature_dim),
         )
 
     def forward(self, cands: torch.Tensor, qubit_embed: torch.Tensor):
@@ -284,8 +289,7 @@ class CandidateEncoder(nn.Module):
         e0 = e0.view(B, S, -1)
         e1 = e1.view(B, S, -1)
         et = self.gate_type_embed(cands[:, :, -1])
-        gate_vec = torch.cat([e0, e1, et], dim=-1)  # (B, S, 2*D)
-        # Residual MLP
+        gate_vec = torch.cat([e0, e1, et], dim=-1)  # (B, S, 3*D)
         x = gate_vec.reshape(B * S, -1)
         x = self.mlp(x)
         gate_embed = x.reshape(B, S, -1)
@@ -320,7 +324,6 @@ class StateCandsAttention(nn.Module):
         #    形状 (B, K)，True 会被屏蔽
         range_vec = torch.arange(K, device=cand_len.device).expand(B, -1)  # (B, K)
         key_padding_mask = range_vec >= cand_len           # (B, K)
-        # mask = torch.arange(max_len, device=x.device).expand(B, -1) >= lengths  # [B, L]
 
         # 3) 调用 MHA
         out, attn_weights = self.mha(query, key, value,
@@ -375,8 +378,8 @@ def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int = 128, 
             mode=mode,
         ),
         net_arch=dict(
-            pi=[K, K, K],
-            vf=[K, K, K],
+            pi=[K],
+            vf=[K],
         ),
     )
 

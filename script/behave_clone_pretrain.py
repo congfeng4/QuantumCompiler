@@ -12,7 +12,7 @@ from stable_baselines3.common.policies import ActorCriticPolicy
 from contrib.environs import make_circuit_env
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor, get_policy
 from contrib.ha_traj import InitialMappingStrategy
-from contrib.pretrain_env import PretrainEnv, TrajectoryCollector
+from contrib.expert import PretrainEnv, TrajectoryCollector
 import shutil
 from imitation.util import logger as imit_logger
 

@@ -6,6 +6,7 @@ from contrib.ha_traj import ha_baseline
 from contrib.seed import set_all_seeds
 import random
 
+from pathlib import Path
 from contrib.environs import *
 from script.maskable_ppo import create_vec_env_from_circuits, run_maskable_ppo
 
@@ -14,8 +15,8 @@ def run_env():
     bs = 128
     ns = 1000
     embed_dim = 128
-    L = 15
-    ent_coef = 0.01
+    L = 5
+    ent_coef = 0
 
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
     # random.shuffle(circuit_list)

@@ -1,4 +1,6 @@
+import logging
 from functools import cached_property
+from typing import Optional
 
 import gymnasium as gym
 import numpy as np
@@ -6,9 +8,34 @@ import numpy as np
 from qiskit.circuit.quantumregister import Qubit
 from qiskit.dagcircuit.dagcircuit import DAGNode
 
+from hamap import IBMQHardwareArchitecture
 from hamap.gates import TwoQubitGate, SwapTwoQubitGate, BridgeTwoQubitGate
 
 from contrib.common import EXE_INDEX, SWAP_INDEX, BRIDGE_INDEX
+
+logger = logging.getLogger("action_space")
+
+
+def find_middle(best_swap_qubits: BridgeTwoQubitGate, hardware, initial_mapping, inverse_mapping) -> Optional[Qubit]:
+    control, target = best_swap_qubits.left, best_swap_qubits.right
+    control_index = initial_mapping[control]
+    target_index = initial_mapping[target]
+    # For each qubit q linked with control, check if target is linked with q.
+    for _, potential_middle_index in hardware.out_edges(control_index):
+        for _, potential_target_index in hardware.out_edges(potential_middle_index):
+            if potential_target_index == target_index:
+                return inverse_mapping[potential_middle_index]
+
+    raise ValueError(f"Cannot find middle qubit for BRIDGE {best_swap_qubits}. Your circuit is probably wrong")
+
+
+def two_qubit_gate_to_tuple(swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
+    if isinstance(swap, BridgeTwoQubitGate):  # Already physical
+        q0, q1 = initial_mapping[swap.left], initial_mapping[swap.right]
+        return BRIDGE_INDEX, q0, q1
+    else:
+        q0, q1 = current_mapping[swap.left], current_mapping[swap.right]
+        return SWAP_INDEX, q0, q1
 
 
 class ActionSpace:
@@ -21,93 +48,59 @@ class ActionSpace:
         return gym.spaces.Discrete(N*N)
 
     def get_size(self):
-        return 2*self.N * self.N
-
-    def encode_execute_list(self, execute_gate_list: list[DAGNode], current_mapping: dict[Qubit, int]):
-        action = self.empty_action()
-        num_exe_cx = 0
-        for op in execute_gate_list:
-            if op.name != 'cx':
-                continue
-            q0, q1 = current_mapping[op.qargs[0]], current_mapping[op.qargs[1]]
-            action[EXE_INDEX, q0, q1] = 1
-            num_exe_cx += 1
-        return action
-
-    def empty_action(self):
-        action = np.zeros((self.A, self.N, self.N), np.float32)
-        return action
-
-    @cached_property
-    def _N2(self):
         return self.N * self.N
 
-    def encode(self, index: int, q0: int, q1: int):
-        return index * self._N2 + q0 * self.N + q1
-
-    def encode_best_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
-        if isinstance(swap, BridgeTwoQubitGate):  # Already physical
-            q0, q1 = initial_mapping[swap.left], initial_mapping[swap.right]
-            return self.encode(BRIDGE_INDEX, q0, q1)
-            # action[BRIDGE_INDEX, swap.left._index, swap.right._index] = 1
-        else:
-            q0, q1 = current_mapping[swap.left], current_mapping[swap.right]
-            return self.encode(SWAP_INDEX, q0, q1)
-            # action[SWAP_INDEX, q0, q1] = 1
-        # return action
-
-    def decode(self, policy: int):
-        num_params = self._N2
-        index, params = policy // num_params, policy % num_params
-        left = params // self.N
-        right = params % self.N
-        return index, left, right
-
-    def decode_best_swap(self, policy: int, inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit]):
-        index, left, right = self.decode(policy)
-        swap_class = SwapTwoQubitGate if index == SWAP_INDEX else BridgeTwoQubitGate
-        if index == SWAP_INDEX:
-            return SwapTwoQubitGate(inverse_current_mapping[left], inverse_current_mapping[right])
-        else:
-            return BridgeTwoQubitGate(inverse_mapping[left], None, inverse_mapping[right])
-
-
-class ActionSpaceCands:
-
-    def __init__(self, K: int):
-        self.K = K
-
-    def get_size(self):
-        return self.K
-
-    def get_space(self):
-        return gym.spaces.Discrete(self.K)
-
-
-class ActionSpaceSwapOnly:
-
-    def __init__(self, N: int):
-        self.N = N
-
-    def get_space(self):
-        N = self.N
-        return gym.spaces.Discrete(N*N)
-
-    def get_size(self):
-        return self.N * self.N
-
-    def encode(self, q0: int, q1: int):
+    def _encode(self, q0: int, q1: int):
         return q0 * self.N + q1
 
-    def encode_best_swap(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
-        q0, q1 = current_mapping[swap.left], current_mapping[swap.right]
-        return self.encode(q0, q1)
+    def encode(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int],
+               hardware: IBMQHardwareArchitecture):
+        _, q0, q1 = two_qubit_gate_to_tuple(swap, current_mapping, initial_mapping)
+        if isinstance(swap, BridgeTwoQubitGate):
+            inverse_mapping = {val: key for key, val in initial_mapping.items()}
+            find_middle(swap, hardware, initial_mapping, inverse_mapping)
+        assert ((q0, q1) in hardware.edges) == isinstance(swap, SwapTwoQubitGate)
+        return self._encode(q0, q1)
 
-    def decode(self, policy: int):
+    def _decode(self, policy: int):
         left = policy // self.N
         right = policy % self.N
         return left, right
 
-    def decode_best_swap(self, policy: int, inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit]):
-        left, right = self.decode(policy)
-        return SwapTwoQubitGate(inverse_current_mapping[left], inverse_current_mapping[right])
+    def decode(self, policy: int, initial_mapping,
+                         inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit],
+                         hardware: IBMQHardwareArchitecture):
+        left, right = self._decode(policy)
+        swap_class = SWAP_INDEX if (left, right) in hardware.edges else BRIDGE_INDEX
+        if swap_class == SWAP_INDEX:
+            return SwapTwoQubitGate(inverse_current_mapping[left], inverse_current_mapping[right])
+
+        swap = BridgeTwoQubitGate(inverse_mapping[left], None, inverse_mapping[right])
+        swap._middle = find_middle(swap, hardware, initial_mapping, inverse_mapping)
+        return swap
+
+
+class ActionSpaceCandsAndCost:
+
+    def __init__(self, N: int):
+        self.N = N
+
+    def get_size(self):
+        return self.N * self.N
+
+    def get_space(self):
+        return gym.spaces.MultiBinary(self.get_size())
+
+    def encode(self, candidates_with_cost, current_mapping, initial_mapping):
+        action = np.zeros((self.N, self.N), np.float32)
+        # Swap and bridge
+        for swap, cost in candidates_with_cost:
+            _, q0, q1 = two_qubit_gate_to_tuple(swap, current_mapping, initial_mapping)
+            assert action[q0, q1] == 0, f"Conflict in action: {swap=} {q0=} {q1=}"
+            prob = np.exp(-cost)  # Map [0->inf] to [0, 1]
+        return action.reshape(-1)
+
+    def decode(self, action, determistic=True):
+        if determistic:
+            index = np.argmin(action)
+

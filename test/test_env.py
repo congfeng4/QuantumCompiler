@@ -7,7 +7,7 @@ from qiskit import QuantumCircuit
 from contrib.common import get_hardware_name, get_all_qknob_circuit_paths
 from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.ha_traj import run_ha, InitialMappingStrategy, get_initial_mapping
-from contrib.pretrain_env import TrajectoryCollector, ha_mapping, rollout_expert_trajectory
+from contrib.expert import TrajectoryCollector, heuristic_algorithm, rollout_expert_trajectory
 
 from hamap import IBMQHardwareArchitecture
 
@@ -21,13 +21,13 @@ def test_env(data: str):
         hardware_name = get_hardware_name(data)
         circuit = QuantumCircuit.from_qasm_file(str(circuit_path))
         hardware = IBMQHardwareArchitecture(hardware_name)
-        collector = TrajectoryCollector(N=hardware.qubit_number, L=10, K=50)
+        collector = TrajectoryCollector(N=hardware.qubit_number, L=10)
 
         init = get_initial_mapping(circuit, hardware, InitialMappingStrategy.IDENTITY)
-        ha_mapping(collector, circuit, init, hardware)
+        heuristic_algorithm(collector, circuit, init, hardware)
         traj = collector.trajectories[0]
         metrics = collector.metrics_list[0]
-        env = CircuitEnvWithInitialMapping(circuit, str(circuit_path), hardware, init, L=10, K=50)
+        env = CircuitEnvWithInitialMapping(circuit, str(circuit_path), hardware, init, L=10)
         metrics_env = rollout_expert_trajectory(env, traj)
 
         for key in metrics:
