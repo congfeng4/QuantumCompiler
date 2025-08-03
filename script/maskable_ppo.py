@@ -6,6 +6,7 @@
 import json
 import os
 import random
+from pathlib import Path
 
 import jsons
 import pandas as pd
@@ -13,7 +14,7 @@ from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
-from stable_baselines3.common.vec_env import VecEnv
+from stable_baselines3.common.vec_env import VecEnv, VecMonitor, DummyVecEnv
 
 from contrib.environs import *
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor, get_policy_kwargs
@@ -27,15 +28,13 @@ M = int(1e6)
 
 def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwareArchitecture,
                                  num: int = 1, add_sabre: bool = True, add_random: bool = False,
-                                 L: int = 10, K: int = 50, swap_only: bool = False
+                                 L: int = 10
                                  ):
     vec_funcs = []
     init_mappings = []
 
     def make_func(circ: QuantumCircuit, path, init):
-        return lambda : CircuitEnvWithInitialMapping(circ, path, hardware, init, L, K) if not swap_only else CircuitEnvSwapOnly(
-            circ, hardware, init, L
-        )
+        return lambda : CircuitEnvWithInitialMapping(circ, path, hardware, init, L)
 
     for path in circuit_paths:
         print(f'Path {path}')

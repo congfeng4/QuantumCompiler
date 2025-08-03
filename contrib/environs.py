@@ -193,7 +193,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         initial_mapping = self.initial_mapping
 
         inverse_trans_mapping = {val: key for key, val in trans_mapping.items()}
-        inverse_mapping = {val: key for key, val in initial_mapping.items()}
+        # inverse_mapping = {val: key for key, val in initial_mapping.items()}
         for op in self.front_layer.ops:
             if len(op.qargs) < 2:
                 # We just pass 1 qubit gates because they do not participate in the
@@ -215,10 +215,11 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                         #     inverse_mapping[potential_middle_index],
                         #     inverse_trans_mapping[initial_mapping[target]],
                         # )
-                        assert not masks[control_index, target_index]
+                        # Not using assert! bridge has deplicates.
+                        # assert not masks[control_index, target_index], (control_index, target_index, masks[control_index, target_index])
                         masks[control_index, target_index] = True
 
-    def swap_masks(self, mask):
+    def swap_masks(self, masks):
         # First compute all the qubits involved in the given layer
         qubits_involved_in_front_layer = set()
         for op in self.front_layer.ops:

@@ -46,6 +46,7 @@ class StateSpace:
 
         gate_seq = np.zeros((self.L, 2), np.int64)
         gate_len = 0
+        assert self.L >= len(front_layer), f"L too small to cover front layer!! {self.L=} {len(front_layer)=}"
         for op in front_layer.ops + gates:
             if gate_len >= self.L:
                 break

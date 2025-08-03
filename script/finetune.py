@@ -16,18 +16,18 @@ def run_env():
     ns = 1000
     embed_dim = 128
     L = 5
-    ent_coef = 0
+    ent_coef = 0.01
 
-    circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
+    circuit_list = list(Path('../data/53Q_gate_Sycamore/circuits/').glob('*.qasm'))
     # random.shuffle(circuit_list)
     result_dir = Path('../result/maskable_ppo_random')
     result_dir.mkdir(parents=True, exist_ok=True)
 
-    hardware = IBMQHardwareArchitecture('tokyo')
+    hardware = IBMQHardwareArchitecture('sycamore')
 
     for circuit_path in circuit_list:
-        env = create_vec_env_from_circuits([str(circuit_path)], hardware, num=1, add_sabre=False,
-                                           add_random=True, L=L)
+        env = create_vec_env_from_circuits([str(circuit_path)], hardware, num=1, add_sabre=True,
+                                           add_random=False, L=L)
         circuit_name = Path(circuit_path).stem
         log_name = f'Q={circuit_name}-B={bs}-NS={ns}-E={ent_coef}-D={embed_dim}-L={L}'
 

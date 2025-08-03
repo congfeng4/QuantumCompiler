@@ -361,11 +361,7 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
         gate_embed = self.gate_seq_encoder(gate_seq, qubit_embed)  # [B, S, D], D is embed_dim
         circuit_embed = self.circuit_encoder(gate_embed, gate_len)  # [B, D]
 
-        cands = obs['cands'].long()  # [B, K, 3]
-        cand_len = obs['cand_len'].long()  # [B, 1]
-        cands_embed = self.cand_encoder(cands, qubit_embed)  # [B, K, D]
-        selected = self.attention(circuit_embed, cands_embed, cand_len)  # [B, D]
-        return selected
+        return circuit_embed
 
 
 def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int = 128, mode: str = 'gru', K: int = 50):
