@@ -112,7 +112,7 @@ def run_maskable_ppo(
         ent_coef=ent_coef,
         policy_kwargs=get_policy_kwargs(
             hardware, embed_dim, mode
-        )
+        ),
     ) if pretrain is None else MaskablePPO.load(pretrain, env)
     ppo.tensorboard_log = log_dir
     print(f'Model loaded: {ppo}')

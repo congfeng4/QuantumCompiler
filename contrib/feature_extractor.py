@@ -139,8 +139,6 @@ class GateSeqEncoder(nn.Module):
 
         self.mlp = nn.Sequential(
             nn.Linear(embed_dim, embed_dim),
-            nn.ReLU(),
-            nn.Linear(embed_dim, embed_dim),
         )
 
     def forward(self, gate_seq: torch.LongTensor, qubit_embed: torch.FloatTensor):
@@ -249,91 +247,6 @@ class SequenceEncoder(nn.Module):
             return state                  # (B, in_dim)
 
 
-class CandidateEncoder(nn.Module):
-    """
-    Encode at most K candidate swap/bridge into fixed-size embeddings.
-    """
-    def __init__(self, dim: int, feature_dim: int):  # dim for qubit and gate type.
-        super().__init__()
-        self.gate_type_embed = nn.Embedding(num_embeddings=2, embedding_dim=dim)
-        self.mlp = nn.Sequential(
-            nn.Linear(3 * dim, feature_dim),
-            # nn.ReLU(),
-            # nn.Linear(feature_dim, feature_dim),
-        )
-
-    def forward(self, cands: torch.Tensor, qubit_embed: torch.Tensor):
-        # cands: [K, 3]
-        # qubit_embed : (B, N, D)   —— 每行是 N 个逻辑比特的嵌入
-        # cands    : (B, S, 3)   —— 每个门是 (q0, q1, gate_type) 物理比特编号
-        B, S = cands.shape[:2]
-        _, N, _ = qubit_embed.shape
-
-        # 把 q0, q1 展平到 (B*S,) 方便 gather
-        q0_flat = cands[..., 0].reshape(-1)  # (B*S,)
-        q1_flat = cands[..., 1].reshape(-1)  # (B*S,)
-
-        # 构造 batch 偏移索引
-        batch_offset = torch.arange(B, device=qubit_embed.device).unsqueeze(1) * N
-        batch_offset = batch_offset.expand(-1, S).reshape(-1)  # (B*S,)
-
-        idx0 = q0_flat + batch_offset.reshape(-1)  # (B*S,)
-        idx1 = q1_flat + batch_offset.reshape(-1)  # (B*S,)
-
-        # 展平 qubit_embed 到 (B*N, D) 后 gather
-        embed_flat = qubit_embed.view(-1, qubit_embed.size(-1))  # (B*N, D)
-        e0 = embed_flat[idx0]  # (B*S, D)
-        e1 = embed_flat[idx1]  # (B*S, D)
-
-        # reshape 回 (B, S, D) 并 concat
-        e0 = e0.view(B, S, -1)
-        e1 = e1.view(B, S, -1)
-        et = self.gate_type_embed(cands[:, :, -1])
-        gate_vec = torch.cat([e0, e1, et], dim=-1)  # (B, S, 3*D)
-        x = gate_vec.reshape(B * S, -1)
-        x = self.mlp(x)
-        gate_embed = x.reshape(B, S, -1)
-        return gate_embed
-
-
-class StateCandsAttention(nn.Module):
-    """
-    state    : [B, D]      -> query
-    cands    : [B, K, D]   -> key / value
-    cand_len : [B]  (int64)  有效长度
-    -> out   : [B, D]
-    """
-    def __init__(self, embed_dim: int, num_heads: int = 8, dropout: float = 0.0):
-        super().__init__()
-        # PyTorch 自带多头注意力
-        self.mha = nn.MultiheadAttention(embed_dim=embed_dim,
-                                         num_heads=num_heads,
-                                         dropout=dropout,
-                                         batch_first=True)  # 输入格式 (B, L, D)
-
-    def forward(self, state: torch.Tensor,
-                      cands: torch.Tensor,
-                      cand_len: torch.Tensor) -> torch.Tensor:
-        B, K, D = cands.shape
-
-        # 1) 把 state 扩展到 [B, 1, D] 作为 query
-        query = state.unsqueeze(1)                    # (B, 1, D)
-        key = value = cands                           # (B, K, D)
-
-        # 2) 构造 key_padding_mask: True 表示该位置是 PAD
-        #    形状 (B, K)，True 会被屏蔽
-        range_vec = torch.arange(K, device=cand_len.device).expand(B, -1)  # (B, K)
-        key_padding_mask = range_vec >= cand_len           # (B, K)
-
-        # 3) 调用 MHA
-        out, attn_weights = self.mha(query, key, value,
-                                     key_padding_mask=key_padding_mask,
-                                     need_weights=False)  # 只返回 out
-        # attn_weights is None!!
-        # out 形状 (B, 1, D) -> squeeze 掉长度维度
-        return out.squeeze(1)  # (B, D)
-
-
 class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
 
     def __init__(self, observation_space, hardware: IBMQHardwareArchitecture,
@@ -347,8 +260,6 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
         self.gate_seq_encoder = GateSeqEncoder(feature_dim)
         self.circuit_encoder = SequenceEncoder(self.gate_seq_encoder.output_channels, mode=mode,
                                                nhead=nhead, num_layers=num_layers)
-        self.cand_encoder = CandidateEncoder(dim, feature_dim)
-        self.attention = StateCandsAttention(feature_dim, num_heads=num_heads)
 
     def forward(self, obs: dict[str, torch.Tensor]):
         # SB3会把Box无脑转成float32.
@@ -364,7 +275,7 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
         return circuit_embed
 
 
-def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int = 128, mode: str = 'gru', K: int = 50):
+def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int = 128, mode: str = 'gru'):
     return dict(
         activation_fn=torch.nn.ReLU,
         features_extractor_class=HierarchicalCircuitFeaturesExtractor,
@@ -374,8 +285,8 @@ def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int = 128, 
             mode=mode,
         ),
         net_arch=dict(
-            pi=[K],
-            vf=[K],
+            pi=[embed_dim, embed_dim],
+            vf=[embed_dim, embed_dim],
         ),
     )
 

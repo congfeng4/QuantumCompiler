@@ -82,7 +82,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         self.metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
         self.metrics.update(total_cost=float(self.total_cost))
         for key, value in self.metrics_baseline.items():
-            self.metrics[key + '_HA'] = value
+            self.metrics[key] -= value
 
     def apply_swap_action(self, best_swap_qubits: TwoQubitGate):
         trans_mapping = self.trans_mapping
@@ -172,7 +172,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
 
         self.invalid_actions = 0
         num_exe = self.update()
-        reward = -cost + num_exe - 1
+        reward = -0.1 * cost + (num_exe - 3) * 0.9
         done = not self.front_layer
         info = {}
         if done:
