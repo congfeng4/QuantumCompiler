@@ -172,7 +172,11 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
 
         self.invalid_actions = 0
         num_exe = self.update()
-        reward = -0.1 * cost + (num_exe - 3) * 0.9
+        # IMPORTANT: two terms have different effects:
+        # -cost can converge model quickly on startup but rebound later.
+        # num_exe - 3 converge slowly but will not rebound.
+        # TODO: an annealing scheme needed
+        reward = -0.6 * cost + (num_exe - 3) * 0.4
         done = not self.front_layer
         info = {}
         if done:

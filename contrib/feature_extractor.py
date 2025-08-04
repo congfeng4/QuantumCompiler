@@ -86,7 +86,14 @@ class DenseGNNModule(nn.Module):
         return x
 
 
+class QubitEmbeddingMode(Enum):
+    DISTANCE_MATRIX_MLP = 0
+    GNN_EDGE_INDEX = 1
+
+
 class HardwareAwareQubitEmbedding(nn.Module):
+    # TODO: Use GNN or distance-matrix + MLP? NEED ABLATION!
+
     def __init__(self, hardware: IBMQHardwareArchitecture,
                  qubit_embed: str = "param",
                  qubit_embedding_dim: int = 32,

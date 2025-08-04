@@ -39,6 +39,7 @@ def two_qubit_gate_to_tuple(swap: TwoQubitGate, current_mapping: dict[Qubit, int
 
 
 class ActionSpace:
+    # IMPORTANT: Swap and Bridge can share one NxN matrix since their qubits CANNOT conflict!
 
     def __init__(self, N: int):
         self.N = N
