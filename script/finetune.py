@@ -26,8 +26,6 @@ def run_env():
     hardware = IBMQHardwareArchitecture('Sycamore')
 
     for circuit_path in circuit_list:
-        circuit_path = '../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_1_25_1.5_no.1.qasm'
-
         env = create_vec_env_from_circuits([str(circuit_path)], hardware, num=1, add_sabre=True,
                                            add_random=False, L=L)
         circuit_name = Path(circuit_path).stem

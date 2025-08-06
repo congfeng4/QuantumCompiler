@@ -1,3 +1,4 @@
+from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from stable_baselines3.common.callbacks import BaseCallback
 
 
@@ -18,15 +19,15 @@ def average_metrics(metrics_list):
     return avg_metrics
 
 
-class CustomMetricsCallback(BaseCallback):
+class CustomMetricsCallback(MaskableEvalCallback):
     """
     A custom callback that derives from ``BaseCallback``.
 
     :param verbose: Verbosity level: 0 for no output, 1 for info messages, 2 for debug messages
     """
 
-    def __init__(self, verbose=0):
-        super().__init__(verbose)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def _on_step(self) -> bool:
         """
@@ -36,16 +37,7 @@ class CustomMetricsCallback(BaseCallback):
 
         :return: (bool) If the callback returns False, training is aborted early.
         """
-        metrics_env = []
-        # 注意：self.locals['infos'] 可能不是 list，而是 dict（非向量化 env）
-        infos = self.locals['infos']
-        if not isinstance(infos, list):
-            infos = [infos]
-
-        for info in infos:
-            if 'metrics' in info:
-                metrics_env.append(info['metrics'])
-
+        metrics_env = self.eval_env.get_attr("metrics", range(self.eval_env.num_envs))
         metrics = average_metrics(metrics_env)
         if metrics:
             for key, value in metrics.items():

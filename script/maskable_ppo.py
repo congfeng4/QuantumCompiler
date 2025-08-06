@@ -92,10 +92,13 @@ def run_maskable_ppo(
         min_evals=5,  # 前 5 次评估不计数
         verbose=1
     )
+
+    metrics_callback = CustomMetricsCallback(eval_env)
+
     eval_callback = MaskableEvalCallback(
         eval_env,
         eval_freq=eval_freq,  # 每 10w 步评估一次
-        callback_after_eval=stop_callback if early_stop else None,
+        callback_after_eval=metrics_callback,
         verbose=1,
         deterministic=False,
         use_masking=True,
@@ -121,7 +124,7 @@ def run_maskable_ppo(
         total_timesteps=total_timesteps,
         tb_log_name=log_name,
         progress_bar=True,
-        callback=[CustomMetricsCallback(), eval_callback],
+        callback=[eval_callback],
     )
 
     print('Eval policy')
