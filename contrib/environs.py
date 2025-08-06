@@ -44,8 +44,9 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
                  L: int,
-                 reward_mode: RewardMode,
-                 look_ahead_depth: int):
+                 reward_mode: RewardMode = RewardMode.MIXED_GATE_NUM_AND_HEURISTIC_COST,
+                 look_ahead_depth: int = 20,
+                 look_ahead_weight: float = 0.5):
         super().__init__(hardware, L=L)
         self.input_circuit= input_circuit
         self.circuit_path = circuit_path
@@ -54,6 +55,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         self.distance_matrix = get_distance_matrix_swap_number_and_error(self.hardware)
         self.reward_mode = reward_mode
         self.look_ahead_depth = look_ahead_depth
+        self.look_ahead_weight = look_ahead_weight
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
@@ -89,7 +91,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         self.metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
         self.metrics.update(total_cost=float(self.total_cost))
         for key, value in self.metrics_baseline.items():
-            self.metrics[key + '_diff'] = self.metrics[key] - value
+            self.metrics[key + '_diff'] = round(self.metrics[key] - value, 2)
 
     def apply_swap_action(self, best_swap_qubits: TwoQubitGate):
         trans_mapping = self.trans_mapping
@@ -162,7 +164,8 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
             hardware=self.hardware, front_layer=self.front_layer, topological_nodes=self.topological_nodes,
             current_node_index=self.current_node_index, current_mapping=self.current_mapping,
             initial_mapping=self.initial_mapping, trans_mapping=self.trans_mapping,
-            distance_matrix=self.distance_matrix, tentative_gate=swap, look_ahead_depth=self.look_ahead_depth
+            distance_matrix=self.distance_matrix, tentative_gate=swap, look_ahead_depth=self.look_ahead_depth,
+            look_ahead_weight=self.look_ahead_weight,
         )
 
     def step(
@@ -184,7 +187,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         # num_exe - 3 converge slowly but will not rebound.
         # TODO: an annealing scheme needed
         if self.reward_mode == RewardMode.MIXED_GATE_NUM_AND_HEURISTIC_COST:
-            reward = -0.6 * cost + (num_exe - 3) * 0.4
+            reward = -cost +  -0.0001
         elif self.reward_mode == RewardMode.GATE_NUM_COST:
             reward = num_exe - 3
         elif self.reward_mode == RewardMode.NEG_HEURISTIC_COST:
@@ -205,13 +208,13 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                                               self.trans_mapping, self.explored_mappings)
 
     def action_masks(self):
-        return self.action.get_masks(
-            swap_candidates=self.get_candidates(), current_mapping=self.current_mapping, initial_mapping=self.initial_mapping,
-        )
-        # masks = np.zeros((self.num_qubits, self.num_qubits), dtype=bool)
-        # self.swap_masks(masks)
-        # self.bridge_masks(masks)
-        # return masks.reshape(-1).tolist()
+        # return self.action.get_masks(
+        #     swap_candidates=self.get_candidates(), current_mapping=self.current_mapping, initial_mapping=self.initial_mapping,
+        # )
+        masks = np.zeros(self.action.get_size(), dtype=bool)
+        self.swap_masks(masks)
+        self.bridge_masks(masks)
+        return masks.tolist()
 
     def bridge_masks(self, masks):
         trans_mapping = self.trans_mapping
@@ -242,7 +245,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                         # )
                         # Not using assert! bridge has deplicates.
                         # assert not masks[control_index, target_index], (control_index, target_index, masks[control_index, target_index])
-                        masks[control_index, target_index] = True
+                        masks[self.action.action_to_index[control_index, target_index]] = True
 
     def swap_masks(self, masks):
         # First compute all the qubits involved in the given layer
@@ -257,7 +260,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
             qubit_index = self.current_mapping[involved_qubit]
             # For all the links that involve the current qubit.
             for source, sink in self.hardware.out_edges(qubit_index):
-                masks[source, sink] = True
+                masks[self.action.action_to_index[source, sink]] = True
 
 
 gym.register("CircuitEnv", "contrib.environs:CircuitEnvWithInitialMapping")
@@ -269,7 +272,7 @@ if __name__ == '__main__':
     hardware_name = 'sycamore'
     circuit = QuantumCircuit.from_qasm_file(str(circuit_path))
     hardware = IBMQHardwareArchitecture(hardware_name)
-    collector = TrajectoryCollector(N=hardware.qubit_number, L=10)
+    collector = TrajectoryCollector(hardware=hardware, L=10)
 
     init = get_initial_mapping(circuit, hardware, InitialMappingStrategy.IDENTITY)
     heuristic_algorithm(collector, circuit, init, hardware)

@@ -131,7 +131,7 @@ class HardwareAwareQubitEmbedding(nn.Module):
             # physical2log = torch.arange(self.num_qubits)  # [B, N]
             node_feat = self.distance_matrix.expand(B, -1, -1)
             # 1) 逻辑嵌入（按物理节点顺序取逻辑比特的嵌入）
-            ha_embed = self.linear(node_feat)
+            ha_embed = self.mlp(node_feat)
             # 2) 过 GNN
             return ha_embed
 

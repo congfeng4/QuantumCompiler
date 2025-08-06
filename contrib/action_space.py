@@ -123,14 +123,15 @@ class ActionSpaceEdge:
         swap_set = set(hardware.edges)
         bridge_set = set(non_adj_common_pairs(hardware.to_undirected()))
         make_symmetric(bridge_set)
-        self.action_list = sorted(swap_set | bridge_set)
+        self.action_list = sorted(swap_set) + sorted(bridge_set)
         check_symmetric(self.action_list)
         assert len(self.action_list) == len(swap_set) + len(bridge_set), \
             f'{len(swap_set)=} {len(bridge_set)=} {len(self.action_list)=}'
         self.action_to_index = {act : i for i, act in enumerate(self.action_list)}
 
     def __repr__(self):
-        return f'<{self.__class__.__name__}(Size={self.get_size()}, N^2={self.N ** 2})>'
+        ratio = round(self.get_size() / self.N ** 2, 2)
+        return f'<{self.__class__.__name__}(Size={self.get_size()}, N^2={self.N ** 2}, Ratio={ratio})>'
 
     def get_size(self):
         return len(self.action_list)
@@ -160,10 +161,11 @@ class ActionSpaceEdge:
         for swap in swap_candidates:
             policy = self.encode(swap, current_mapping, initial_mapping)
             masks[policy] = True
-        return masks
+        return masks.tolist()
 
 
 if __name__ == '__main__':
-    hardware = IBMQHardwareArchitecture('Sycamore')
-    space = ActionSpaceEdge(hardware)
-    print(space)
+    for name in ['tokyo', 'sycamore', 'rochester']:
+        hardware = IBMQHardwareArchitecture(name)
+        space = ActionSpaceEdge(hardware)
+        print(space)

@@ -12,15 +12,15 @@ from script.maskable_ppo import create_vec_env_from_circuits, run_maskable_ppo
 
 
 def run_env():
-    bs = 64
+    bs = 128
     ns = 1000
     embed_dim = 128
-    L = 8
+    L = 32
     ent_coef = 0.01
 
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits/').glob('*.qasm'))
     # random.shuffle(circuit_list)
-    result_dir = Path('../result/use_distance_matrix')
+    result_dir = Path('../result/action_space_edge')
     result_dir.mkdir(parents=True, exist_ok=True)
 
     hardware = IBMQHardwareArchitecture('Tokyo')
@@ -47,7 +47,7 @@ def run_env():
             mode='gru',
             ent_coef=ent_coef,
             total_timesteps=200_000,
-            output_dirname='use_distance_matrix',
+            output_dirname='action_space_edge',
             early_stop=False,
             # pretrain=Path('../result/maskable_ppo_v3_pretrain/models/20Q_gate_Tokyo-B=128-NS=1000-E=0.01-DS=199-M=gru-D=128/best_model.zip')
         )
@@ -57,11 +57,4 @@ def run_env():
 
 
 if __name__ == '__main__':
-    # run_env()
-    hardware = IBMQHardwareArchitecture('Sycamore')
-    hardware = hardware.to_undirected()
-    N2 = hardware.number_of_nodes() ** 2
-    E = len(hardware.edges)
-    E2 = len(non_adj_common_pairs(hardware))
-    EnE2 = E + E2
-    print(EnE2 / N2)
+    run_env()
