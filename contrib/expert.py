@@ -19,7 +19,7 @@ from qiskit.dagcircuit.dagcircuit import DAGNode
 from contrib.common import qknob_metrics
 from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
 from contrib.state_space import StateSpace
-from contrib.action_space import ActionSpace
+from contrib.action_space import ActionSpace, ActionSpaceEdge
 
 from hamap.distance_matrix import (
     get_distance_matrix_swap_number_and_error,
@@ -42,13 +42,13 @@ logger = logging.getLogger("hamap.swap")
 
 class TrajectoryCollector:
 
-    def __init__(self, N: int, L: int, outdir: Path = None, prefix: str = None):
+    def __init__(self, hardware: IBMQHardwareArchitecture, L: int, outdir: Path = None, prefix: str = None):
         """
         N (int): number of qubits
         L (int): max len of gate seq.
         K (int): max number of candidate swap/bridge.
         """
-        self.N = N
+        self.N = N = hardware.qubit_number
         self.L = L
         self.trajectories = []
         self.metrics_list = []
@@ -56,7 +56,7 @@ class TrajectoryCollector:
         self.outdir = outdir
         self.prefix = prefix
         self.obs_space = StateSpace(N, L)
-        self.act_space = ActionSpace(N)
+        self.act_space = ActionSpaceEdge(hardware)
         self.action_count = Counter()
 
     def begin_trajectory(self):
@@ -96,9 +96,8 @@ class TrajectoryCollector:
         observation = self.obs_space.encode(front_layer, gates, current_mapping)
         self.current_traj['obs'].append(observation)
 
-    def add_action(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int],
-                   hardware):
-        action = self.act_space.encode(swap, current_mapping, initial_mapping, hardware)
+    def add_action(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
+        action = self.act_space.encode(swap, current_mapping, initial_mapping)
         self.current_traj['acts'].append(action)
         act_key = 'swap' if isinstance(swap, SwapTwoQubitGate) else 'bridge'
         self.action_count[act_key] += 1
@@ -143,12 +142,12 @@ class PretrainEnv(gym.Env):
     An env that lets the model determine the gate state (Executable or not).
     """
 
-    def __init__(self, N: int, L: int = 10):
+    def __init__(self, hardware: IBMQHardwareArchitecture, L: int = 10):
         super().__init__()
-        self.N = N
+        self.N = N = hardware.qubit_number
         self.L = L
 
-        self.action = ActionSpace(N)
+        self.action = ActionSpaceEdge(hardware)
         self.state = StateSpace(N, L)
 
         self.action_space = self.action.get_space()
@@ -255,7 +254,7 @@ def heuristic_algorithm(
                     best_swap_qubits = potential_swap
                 candidates_with_cost.append((potential_swap, cost))
             # Add action
-            collector.add_action(best_swap_qubits, current_mapping, initial_mapping, hardware)
+            collector.add_action(best_swap_qubits, current_mapping, initial_mapping)
             # We now have our best SWAP/Bridge, let's perform it!
             current_mapping = best_swap_qubits.update_mapping(current_mapping)
             if isinstance(best_swap_qubits, SwapTwoQubitGate):
@@ -310,11 +309,11 @@ def rollout_expert_trajectory(env: PretrainEnv, trajectory: Trajectory):
 if __name__ == '__main__':
     hardware = IBMQHardwareArchitecture('tokyo')
 
-    collector_train = TrajectoryCollector(N=hardware.qubit_number, L=10,
+    collector_train = TrajectoryCollector(hardware, L=10,
                                     outdir=Path('../result/pretrain/ha'),
                                     prefix='20Q_gate_Tokyo_train')
 
-    collector_val = TrajectoryCollector(N=hardware.qubit_number, L=10,
+    collector_val = TrajectoryCollector(hardware, L=10,
                                     outdir=Path('../result/pretrain/ha'),
                                     prefix='20Q_gate_Tokyo_val')
 

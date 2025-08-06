@@ -28,13 +28,13 @@ M = int(1e6)
 
 def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwareArchitecture,
                                  num: int = 1, add_sabre: bool = True, add_random: bool = False,
-                                 L: int = 10
+                                 L: int = 10, **kwargs
                                  ):
     vec_funcs = []
     init_mappings = []
 
     def make_func(circ: QuantumCircuit, path, init):
-        return lambda : CircuitEnvWithInitialMapping(circ, path, hardware, init, L)
+        return lambda : CircuitEnvWithInitialMapping(circ, path, hardware, init, L, **kwargs)
 
     for path in circuit_paths:
         print(f'Path {path}')

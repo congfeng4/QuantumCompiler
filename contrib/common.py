@@ -1,5 +1,6 @@
 from qiskit.circuit import Qubit, QuantumCircuit
 from pathlib import Path
+import networkx as nx
 
 from qiskit.dagcircuit import DAGNode
 
@@ -54,3 +55,16 @@ def qubit_index_from_op(op: DAGNode):
 
 def qubit_index_from_swap(swap: TwoQubitGate):
     return swap.left._index, swap.right._index
+
+
+def non_adj_common_pairs(G):
+    """
+    返回所有不相邻且有公共邻居的点对（u, v），u < v
+    """
+    pairs = set()
+    # 遍历所有不相邻的点对
+    for u, v in nx.non_edges(G):
+        # 只要存在公共邻居就加入
+        if nx.common_neighbors(G, u, v):
+            pairs.add((u, v))
+    return pairs

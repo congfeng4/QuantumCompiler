@@ -21,7 +21,7 @@ def test_env(data: str):
         hardware_name = get_hardware_name(data)
         circuit = QuantumCircuit.from_qasm_file(str(circuit_path))
         hardware = IBMQHardwareArchitecture(hardware_name)
-        collector = TrajectoryCollector(N=hardware.qubit_number, L=10)
+        collector = TrajectoryCollector(hardware, L=10)
 
         init = get_initial_mapping(circuit, hardware, InitialMappingStrategy.IDENTITY)
         heuristic_algorithm(collector, circuit, init, hardware)

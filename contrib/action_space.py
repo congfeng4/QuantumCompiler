@@ -11,7 +11,7 @@ from qiskit.dagcircuit.dagcircuit import DAGNode
 from hamap import IBMQHardwareArchitecture
 from hamap.gates import TwoQubitGate, SwapTwoQubitGate, BridgeTwoQubitGate
 
-from contrib.common import EXE_INDEX, SWAP_INDEX, BRIDGE_INDEX
+from contrib.common import EXE_INDEX, SWAP_INDEX, BRIDGE_INDEX, non_adj_common_pairs
 
 logger = logging.getLogger("action_space")
 
@@ -59,7 +59,7 @@ class ActionSpace:
         _, q0, q1 = two_qubit_gate_to_tuple(swap, current_mapping, initial_mapping)
         if isinstance(swap, BridgeTwoQubitGate):
             inverse_mapping = {val: key for key, val in initial_mapping.items()}
-            find_middle(swap, hardware, initial_mapping, inverse_mapping)
+            find_middle(swap, hardware, initial_mapping, inverse_mapping) # Check this bridge is valid.
         assert ((q0, q1) in hardware.edges) == isinstance(swap, SwapTwoQubitGate)
         return self._encode(q0, q1)
 
@@ -105,3 +105,65 @@ class ActionSpaceCandsAndCost:
         if determistic:
             index = np.argmin(action)
 
+
+def check_symmetric(pairs: list[tuple[int, int]]):
+    for a, b in pairs:
+        assert (b, a) in pairs, f'{(a, b)}'
+
+
+def make_symmetric(pairs: set[tuple[int, int]]):
+    for a, b in list(pairs):
+        pairs.add((b, a))
+
+
+class ActionSpaceEdge:
+
+    def __init__(self, hardware: IBMQHardwareArchitecture):
+        self.N = hardware.qubit_number
+        swap_set = set(hardware.edges)
+        bridge_set = set(non_adj_common_pairs(hardware.to_undirected()))
+        make_symmetric(bridge_set)
+        self.action_list = sorted(swap_set | bridge_set)
+        check_symmetric(self.action_list)
+        assert len(self.action_list) == len(swap_set) + len(bridge_set), \
+            f'{len(swap_set)=} {len(bridge_set)=} {len(self.action_list)=}'
+        self.action_to_index = {act : i for i, act in enumerate(self.action_list)}
+
+    def __repr__(self):
+        return f'<{self.__class__.__name__}(Size={self.get_size()}, N^2={self.N ** 2})>'
+
+    def get_size(self):
+        return len(self.action_list)
+
+    def get_space(self):
+        return gym.spaces.Discrete(self.get_size())
+
+    def encode(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
+        _, q0, q1 = two_qubit_gate_to_tuple(swap, current_mapping, initial_mapping)
+        return self.action_to_index[(q0, q1)]
+
+    def decode(self, policy: int, initial_mapping,
+                         inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit],
+                         hardware: IBMQHardwareArchitecture):
+        left, right = self.action_list[policy]
+        swap_class = SWAP_INDEX if (left, right) in hardware.edges else BRIDGE_INDEX
+        if swap_class == SWAP_INDEX:
+            return SwapTwoQubitGate(inverse_current_mapping[left], inverse_current_mapping[right])
+
+        swap = BridgeTwoQubitGate(inverse_mapping[left], None, inverse_mapping[right])
+        swap._middle = find_middle(swap, hardware, initial_mapping, inverse_mapping)
+        return swap
+
+    def get_masks(self, swap_candidates: list[TwoQubitGate],
+                  current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
+        masks = np.zeros(self.get_size(), bool)
+        for swap in swap_candidates:
+            policy = self.encode(swap, current_mapping, initial_mapping)
+            masks[policy] = True
+        return masks
+
+
+if __name__ == '__main__':
+    hardware = IBMQHardwareArchitecture('Sycamore')
+    space = ActionSpaceEdge(hardware)
+    print(space)

@@ -57,4 +57,11 @@ def run_env():
 
 
 if __name__ == '__main__':
-    run_env()
+    # run_env()
+    hardware = IBMQHardwareArchitecture('Sycamore')
+    hardware = hardware.to_undirected()
+    N2 = hardware.number_of_nodes() ** 2
+    E = len(hardware.edges)
+    E2 = len(non_adj_common_pairs(hardware))
+    EnE2 = E + E2
+    print(EnE2 / N2)

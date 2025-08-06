@@ -1,4 +1,5 @@
 from typing import Any, SupportsFloat
+from enum import Enum
 
 import gymnasium as gym
 import numpy as np
@@ -10,7 +11,7 @@ from qiskit.circuit import Qubit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGNode
 
-from contrib.common import qknob_metrics, get_hardware_name
+from contrib.common import qknob_metrics
 from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy, ha_baseline
 from contrib.expert import PretrainEnv, TrajectoryCollector, rollout_expert_trajectory, \
     heuristic_algorithm
@@ -23,15 +24,17 @@ from hamap.layer import QuantumLayer, update_layer
 from hamap.mapping import _adapt_quantum_circuit_and_mapping_arity, _create_empty_dagcircuit_from_existing
 from hamap import IBMQHardwareArchitecture, mapping_to_str
 
-import torch
-import torch.nn.functional as F
-
 import logging
 
 from hamap.swap import get_all_swap_bridge_candidates
 
 logger = logging.getLogger("contrib.env")
 
+
+class RewardMode(Enum):
+    NEG_HEURISTIC_COST = 0
+    GATE_NUM_COST = 1
+    MIXED_GATE_NUM_AND_HEURISTIC_COST = 2
 
 class CircuitEnvWithInitialMapping(PretrainEnv):
 
@@ -40,13 +43,17 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                  circuit_path: str,
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
-                 L: int):
-        super().__init__(N=hardware.qubit_number, L=L)
+                 L: int,
+                 reward_mode: RewardMode,
+                 look_ahead_depth: int):
+        super().__init__(hardware, L=L)
         self.input_circuit= input_circuit
         self.circuit_path = circuit_path
         self.hardware = hardware
         self.initial_mapping = initial_mapping
         self.distance_matrix = get_distance_matrix_swap_number_and_error(self.hardware)
+        self.reward_mode = reward_mode
+        self.look_ahead_depth = look_ahead_depth
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
@@ -82,7 +89,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         self.metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
         self.metrics.update(total_cost=float(self.total_cost))
         for key, value in self.metrics_baseline.items():
-            self.metrics[key] -= value
+            self.metrics[key + '_diff'] = self.metrics[key] - value
 
     def apply_swap_action(self, best_swap_qubits: TwoQubitGate):
         trans_mapping = self.trans_mapping
@@ -155,7 +162,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
             hardware=self.hardware, front_layer=self.front_layer, topological_nodes=self.topological_nodes,
             current_node_index=self.current_node_index, current_mapping=self.current_mapping,
             initial_mapping=self.initial_mapping, trans_mapping=self.trans_mapping,
-            distance_matrix=self.distance_matrix, tentative_gate=swap,
+            distance_matrix=self.distance_matrix, tentative_gate=swap, look_ahead_depth=self.look_ahead_depth
         )
 
     def step(
@@ -176,7 +183,15 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         # -cost can converge model quickly on startup but rebound later.
         # num_exe - 3 converge slowly but will not rebound.
         # TODO: an annealing scheme needed
-        reward = -0.6 * cost + (num_exe - 3) * 0.4
+        if self.reward_mode == RewardMode.MIXED_GATE_NUM_AND_HEURISTIC_COST:
+            reward = -0.6 * cost + (num_exe - 3) * 0.4
+        elif self.reward_mode == RewardMode.GATE_NUM_COST:
+            reward = num_exe - 3
+        elif self.reward_mode == RewardMode.NEG_HEURISTIC_COST:
+            reward = -cost
+        else:
+            raise ValueError(self.reward_mode)
+
         done = not self.front_layer
         info = {}
         if done:
@@ -185,11 +200,18 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
             print(f'Game ends {self.metrics}')
         return self._get_obs(), reward, done, False, info
 
+    def get_candidates(self):
+        return get_all_swap_bridge_candidates(self.front_layer, self.hardware, self.initial_mapping, self.current_mapping,
+                                              self.trans_mapping, self.explored_mappings)
+
     def action_masks(self):
-        masks = np.zeros((self.num_qubits, self.num_qubits), dtype=bool)
-        self.swap_masks(masks)
-        self.bridge_masks(masks)
-        return masks.reshape(-1).tolist()
+        return self.action.get_masks(
+            swap_candidates=self.get_candidates(), current_mapping=self.current_mapping, initial_mapping=self.initial_mapping,
+        )
+        # masks = np.zeros((self.num_qubits, self.num_qubits), dtype=bool)
+        # self.swap_masks(masks)
+        # self.bridge_masks(masks)
+        # return masks.reshape(-1).tolist()
 
     def bridge_masks(self, masks):
         trans_mapping = self.trans_mapping

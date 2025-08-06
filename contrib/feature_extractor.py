@@ -98,37 +98,49 @@ class HardwareAwareQubitEmbedding(nn.Module):
                  qubit_embed: str = "param",
                  qubit_embedding_dim: int = 32,
                  hidden_channels: int = 32,
-                 conv_mode: DenseGNNType = DenseGNNType.GCN_CONV):
+                 qubit_embed_mode: QubitEmbeddingMode = QubitEmbeddingMode.DISTANCE_MATRIX_MLP):
         super().__init__()
         self.hardware = hardware
         self.edge_index = from_networkx(hardware).edge_index
-        self.num_qubits = hardware.qubit_number
+        self.num_qubits: int = hardware.qubit_number
         self.distance_matrix = torch.tensor(get_distance_matrix_swap_number_and_error(hardware), dtype=torch.float32)
         self.qubit_embed_class = QUBIT_EMBED[qubit_embed]
         self.output_channels = qubit_embedding_dim
+        self.qubit_embed_mode = qubit_embed_mode
 
-        # 1. 逻辑比特嵌入（随映射变化）
-        self.qubit_embedding = self.qubit_embed_class(self.num_qubits, qubit_embedding_dim)
-
-        # self.gnn = GraphSAGE(
-        #     in_channels=qubit_embedding_dim,
-        #     out_channels=qubit_embedding_dim,
-        #     hidden_channels=hidden_channels,
-        #     num_layers=3,
-        # )
-        self.linear = nn.Linear(self.num_qubits, qubit_embedding_dim)
+        if qubit_embed_mode == QubitEmbeddingMode.GNN_EDGE_INDEX:
+            # 1. 逻辑比特嵌入（随映射变化）
+            self.qubit_embedding = self.qubit_embed_class(self.num_qubits, qubit_embedding_dim)
+            self.gnn = GraphSAGE(
+                in_channels=qubit_embedding_dim,
+                out_channels=qubit_embedding_dim,
+                hidden_channels=hidden_channels,
+                num_layers=3,
+            )
+        elif qubit_embed_mode == QubitEmbeddingMode.DISTANCE_MATRIX_MLP:
+            self.mlp = nn.Sequential(
+                nn.Linear(self.num_qubits, qubit_embedding_dim),
+                nn.ReLU(),
+                nn.Linear(qubit_embedding_dim, qubit_embedding_dim),
+            )
 
     def forward(self, physical2log: torch.LongTensor):
         # physical2log: [B, N]  每行是一个排列，表示物理->逻辑的映射
         B, N = physical2log.shape
-        # physical2log = torch.arange(self.num_qubits)  # [B, N]
-        node_feat = self.distance_matrix.expand(B, -1, -1)
-        # 1) 逻辑嵌入（按物理节点顺序取逻辑比特的嵌入）
-        ha_embed = self.linear(node_feat)
-        # node_feat = self.qubit_embedding(physical2log)  # [B, N, D]
-        # 2) 过 GNN
-        # ha_embed = self.gnn(node_feat, self.edge_index) # [B, N, D]
-        return ha_embed
+        if self.qubit_embed_mode == QubitEmbeddingMode.DISTANCE_MATRIX_MLP:
+            # physical2log = torch.arange(self.num_qubits)  # [B, N]
+            node_feat = self.distance_matrix.expand(B, -1, -1)
+            # 1) 逻辑嵌入（按物理节点顺序取逻辑比特的嵌入）
+            ha_embed = self.linear(node_feat)
+            # 2) 过 GNN
+            return ha_embed
+
+        if self.qubit_embed_mode == QubitEmbeddingMode.GNN_EDGE_INDEX:
+            node_feat = self.qubit_embedding(physical2log)  # [B, N, D]
+            ha_embed = self.gnn(node_feat, self.edge_index) # [B, N, D]
+            return ha_embed
+
+        raise ValueError(self.qubit_embed_mode)
 
 
 class GateSeqEncoder(nn.Module):
@@ -258,12 +270,12 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
 
     def __init__(self, observation_space, hardware: IBMQHardwareArchitecture,
                  feature_dim: int, mode: str = 'gru', nhead: int = 8, num_layers: int = 2,
-                 conv_mode = DenseGNNType.GCN_CONV, num_heads: int = 2):
+                 qubit_embed_mode: QubitEmbeddingMode = QubitEmbeddingMode.DISTANCE_MATRIX_MLP):
         super().__init__(observation_space, features_dim=feature_dim)
         dim = feature_dim // 2
         self.qubit_embed = HardwareAwareQubitEmbedding(hardware, qubit_embedding_dim=dim,
                                                        hidden_channels=feature_dim,
-                                                       conv_mode=conv_mode)
+                                                       qubit_embed_mode=qubit_embed_mode)
         self.gate_seq_encoder = GateSeqEncoder(feature_dim)
         self.circuit_encoder = SequenceEncoder(self.gate_seq_encoder.output_channels, mode=mode,
                                                nhead=nhead, num_layers=num_layers)
