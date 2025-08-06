@@ -120,8 +120,8 @@ class HardwareAwareQubitEmbedding(nn.Module):
         elif qubit_embed_mode == QubitEmbeddingMode.DISTANCE_MATRIX_MLP:
             self.mlp = nn.Sequential(
                 nn.Linear(self.num_qubits, qubit_embedding_dim),
-                nn.ReLU(),
-                nn.Linear(qubit_embedding_dim, qubit_embedding_dim),
+                # nn.ReLU(),
+                # nn.Linear(qubit_embedding_dim, qubit_embedding_dim),
             )
 
     def forward(self, physical2log: torch.LongTensor):
@@ -158,6 +158,8 @@ class GateSeqEncoder(nn.Module):
 
         self.mlp = nn.Sequential(
             nn.Linear(embed_dim, embed_dim),
+            # nn.ReLU(),
+            # nn.Linear(embed_dim, embed_dim),
         )
 
     def forward(self, gate_seq: torch.LongTensor, qubit_embed: torch.FloatTensor):

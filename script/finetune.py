@@ -15,18 +15,19 @@ def run_env():
     bs = 128
     ns = 1000
     embed_dim = 128
-    L = 32
+    L = 8
     ent_coef = 0.01
 
-    circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits/').glob('*.qasm'))
+    circuit_list = list(Path('../data/53Q_gate_Sycamore/circuits/').glob('*.qasm'))
     # random.shuffle(circuit_list)
     result_dir = Path('../result/action_space_edge')
     result_dir.mkdir(parents=True, exist_ok=True)
 
-    hardware = IBMQHardwareArchitecture('Tokyo')
-    # circuit_path = '../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_1_25_1.5_no.1.qasm'
+    hardware = IBMQHardwareArchitecture('Sycamore')
 
     for circuit_path in circuit_list:
+        circuit_path = '../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_1_25_1.5_no.1.qasm'
+
         env = create_vec_env_from_circuits([str(circuit_path)], hardware, num=1, add_sabre=True,
                                            add_random=False, L=L)
         circuit_name = Path(circuit_path).stem
@@ -54,7 +55,7 @@ def run_env():
         metrics = env.get_attr('metrics', 0)
         print(circuit_name, 'HA & PPO', metrics)
         metrics_file.write_text(json.dumps(metrics))
-
+        break
 
 if __name__ == '__main__':
     run_env()

@@ -44,8 +44,8 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
                  L: int,
-                 reward_mode: RewardMode = RewardMode.MIXED_GATE_NUM_AND_HEURISTIC_COST,
-                 look_ahead_depth: int = 20,
+                 reward_mode: RewardMode = RewardMode.GATE_NUM_COST,
+                 look_ahead_depth: int = 5,
                  look_ahead_weight: float = 0.5):
         super().__init__(hardware, L=L)
         self.input_circuit= input_circuit
@@ -89,7 +89,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
         self.metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
-        self.metrics.update(total_cost=float(self.total_cost))
+        self.metrics.update(total_cost=round(float(self.total_cost), 2))
         for key, value in self.metrics_baseline.items():
             self.metrics[key + '_diff'] = round(self.metrics[key] - value, 2)
 
