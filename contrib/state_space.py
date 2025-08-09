@@ -1,16 +1,13 @@
 """
-Helper function to convert states
+State space encoding.
 """
-import random
 
 import gymnasium as gym
 import numpy as np
 from qiskit.circuit import Qubit
 from qiskit.dagcircuit import DAGNode
 
-from contrib.common import SWAP_INDEX, BRIDGE_INDEX
 from hamap import IBMQHardwareArchitecture
-from hamap.gates import TwoQubitGate, BridgeTwoQubitGate
 from hamap.heuristics import _gate_op_cost
 from hamap.layer import QuantumLayer
 

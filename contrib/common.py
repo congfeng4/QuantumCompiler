@@ -29,7 +29,7 @@ def qknob_metrics(in_cirt: QuantumCircuit, out_cirt: QuantumCircuit | DAGCircuit
 
 
 def show_mapping(mapping: dict[Qubit, int]):
-    return {bit._index:int(idx) for bit, idx in mapping.items()}
+    return {bit._index: int(idx) for bit, idx in mapping.items()}
 
 
 def get_hardware_name(data_name: str):

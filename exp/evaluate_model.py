@@ -6,7 +6,7 @@ from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy, run_ha
 from contrib.seed import set_all_seeds
 import pandas as pd
 
-from script.maskable_ppo import create_vec_env_from_circuits
+from contrib.maskable_ppo import create_vec_env_from_circuits
 
 
 def evaluate_model_and_baseline(

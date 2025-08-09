@@ -1,9 +1,6 @@
-import json
-import random
-
 from pathlib import Path
 from contrib.environs import *
-from script.maskable_ppo import create_vec_env_from_circuits, run_maskable_ppo
+from contrib.maskable_ppo import create_vec_env_from_circuits, run_maskable_ppo
 import optuna
 
 

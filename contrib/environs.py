@@ -12,11 +12,12 @@ from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGNode
 
 from contrib.common import qknob_metrics
-from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy, ha_baseline
-from contrib.expert import PretrainEnv, TrajectoryCollector, rollout_expert_trajectory, \
-    heuristic_algorithm
+from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy, ha_baseline
+from contrib.expert import TrajectoryCollector, rollout_expert_trajectory, heuristic_algorithm
 from contrib.seed import set_all_seeds
 from contrib.common import get_cnot_num
+from contrib.action_space import ActionSpaceEdge
+from contrib.state_space import StateSpace
 
 from hamap.distance_matrix import get_distance_matrix_swap_number_and_error, get_distance_matrix_swap_number
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
@@ -32,6 +33,23 @@ from hamap.swap import get_all_swap_bridge_candidates
 logger = logging.getLogger("contrib.env")
 
 
+class BaseCircuitEnv(gym.Env):
+    """
+    An env that lets the model determine the gate state (Executable or not).
+    """
+
+    def __init__(self, hardware: IBMQHardwareArchitecture, L: int = 10):
+        super().__init__()
+        self.N = N = hardware.qubit_number
+        self.L = L
+
+        self.action = ActionSpaceEdge(hardware)
+        self.state = StateSpace(N, L)
+
+        self.action_space = self.action.get_space()
+        self.observation_space = self.state.get_space()
+
+
 class RewardMode(Enum):
     HEURISTIC_COST = 0
     GATE_NUM_COST = 1
@@ -41,7 +59,7 @@ class RewardMode(Enum):
     METRICS_EXP = 5
 
 
-class CircuitEnvWithInitialMapping(PretrainEnv):
+class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
     def __init__(self,
                  input_circuit: QuantumCircuit,
@@ -49,12 +67,12 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
                  L: int,
-                 reward_mode: RewardMode = RewardMode.GATE_NUM_AND_SIMPLE_COST,
-                 look_ahead_depth: int = 10,
+                 reward_mode: RewardMode = RewardMode.HEURISTIC_COST,
+                 look_ahead_depth: int = 5,
                  look_ahead_weight: float = 0.5,
                  tau: float = 1):
         super().__init__(hardware, L=L)
-        self.input_circuit= input_circuit
+        self.input_circuit = input_circuit
         self.circuit_path = circuit_path
         self.hardware = hardware
         self.initial_mapping = initial_mapping
@@ -93,7 +111,8 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         return self._get_obs(), {}
 
     def _get_obs(self):
-        return self.state.encode(self.front_layer, self.topological_nodes[self.current_node_index:], self.current_mapping)
+        return self.state.encode(self.front_layer, self.topological_nodes[self.current_node_index:],
+                                 self.current_mapping)
 
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
@@ -122,7 +141,8 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
             # print("brige gate is :", best_swap_qubits.left, best_swap_qubits.middle, best_swap_qubits.right)
             pass
         self.explored_mappings.add(mapping_to_str(self.current_mapping))
-        if not best_swap_qubits.apply(self.resulting_dag_quantum_circuit, self.front_layer, self.initial_mapping, trans_mapping):
+        if not best_swap_qubits.apply(self.resulting_dag_quantum_circuit, self.front_layer, self.initial_mapping,
+                                      trans_mapping):
             return False
         self.update_front_layer()
         return True
@@ -180,7 +200,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         )
 
     def step(
-        self, policy: int
+            self, policy: int
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         inverse_current_mapping = {val: key for key, val in self.current_mapping.items()}
         best_swap_qubits = self.action.decode(policy, self.initial_mapping,
@@ -232,7 +252,8 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         return self._get_obs(), reward, done, False, info
 
     def get_candidates(self):
-        return get_all_swap_bridge_candidates(self.front_layer, self.hardware, self.initial_mapping, self.current_mapping,
+        return get_all_swap_bridge_candidates(self.front_layer, self.hardware, self.initial_mapping,
+                                              self.current_mapping,
                                               self.trans_mapping, self.explored_mappings)
 
     def get_score(self):
@@ -275,7 +296,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                 for _, potential_target_index in self.hardware.out_edges(potential_middle_index):
                     if potential_target_index == target_index:
                         # two_qubit_gate = BridgeTwoQubitGate(
-                        #     inverse_trans_mapping[initial_mapping[control]],
+                        #     inverse_trans_mappiang[initial_mapping[control]],
                         #     inverse_mapping[potential_middle_index],
                         #     inverse_trans_mapping[initial_mapping[target]],
                         # )
@@ -300,7 +321,6 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
 
 
 gym.register("CircuitEnv", "contrib.environs:CircuitEnvWithInitialMapping")
-
 
 if __name__ == '__main__':
     set_all_seeds()

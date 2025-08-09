@@ -5,7 +5,8 @@ import torch
 from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import VecEnv
 
-GLOBAL_SEED = 42          # 统一只改这一行即可
+GLOBAL_SEED = 42  # 统一只改这一行即可
+
 
 def set_all_seeds(seed: int = GLOBAL_SEED, env=None):
     """把全局随机源全部锁死，可选把已建 VecEnv 也一次性 seed。"""

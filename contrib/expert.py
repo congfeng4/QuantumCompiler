@@ -1,3 +1,6 @@
+"""
+Collect expert trajectories for validation of our environment.
+"""
 import pickle
 import random
 from collections import defaultdict, Counter
@@ -17,7 +20,6 @@ from qiskit.converters.dag_to_circuit import dag_to_circuit
 from qiskit.dagcircuit.dagcircuit import DAGNode
 
 from contrib.common import qknob_metrics
-from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
 from contrib.state_space import StateSpace
 from contrib.action_space import ActionSpace, ActionSpaceEdge
 
@@ -36,8 +38,8 @@ from imitation.data.types import DictObs
 
 from pathlib import Path
 
-
 logger = logging.getLogger("hamap.swap")
+
 
 
 class TrajectoryCollector:
@@ -137,49 +139,33 @@ class TrajectoryCollector:
         return f'Collected {total}, prefix {self.prefix}, {minlen=}, {maxlen=}, {avglen=}'
 
 
-class PretrainEnv(gym.Env):
-    """
-    An env that lets the model determine the gate state (Executable or not).
-    """
-
-    def __init__(self, hardware: IBMQHardwareArchitecture, L: int = 10):
-        super().__init__()
-        self.N = N = hardware.qubit_number
-        self.L = L
-
-        self.action = ActionSpaceEdge(hardware)
-        self.state = StateSpace(N, L)
-
-        self.action_space = self.action.get_space()
-        self.observation_space = self.state.get_space()
-
-
 def heuristic_algorithm(
-    collector: TrajectoryCollector,
-    quantum_circuit: QuantumCircuit,
-    initial_mapping: ty.Dict[Qubit, int],
-    hardware: IBMQHardwareArchitecture,
-    swap_cost_heuristic: ty.Callable[
-        [
-            IBMQHardwareArchitecture,  # Hardware information
-            QuantumLayer,  # Current front layer
-            ty.List[DAGNode],  # Topologically sorted list of nodes
-            int,  # Index of the first non-processed gate.
-            ty.Dict[Qubit, int],  # The mapping before applying the tested SWAP/Bridge
-            ty.Dict[Qubit, int],  # The initial mapping
-            ty.Dict[Qubit, int],  # The trans mapping
-            numpy.ndarray,  # The distance matrix between each qubits
-            TwoQubitGate,  # The SWAP/Bridge we want to rank
-        ],
-        float,
-    ] = sabre_heuristic,
-    get_candidates: ty.Callable[
-        [QuantumLayer, IBMQHardwareArchitecture, ty.Dict[Qubit, int], ty.Dict[Qubit, int], ty.Dict[Qubit, int], ty.Set[str],],
-        ty.List[TwoQubitGate],
-    ] = get_all_swap_bridge_candidates,
-    get_distance_matrix: ty.Callable[
-        [IBMQHardwareArchitecture], numpy.ndarray
-    ] = get_distance_matrix_swap_number_and_error,
+        collector: TrajectoryCollector,
+        quantum_circuit: QuantumCircuit,
+        initial_mapping: ty.Dict[Qubit, int],
+        hardware: IBMQHardwareArchitecture,
+        swap_cost_heuristic: ty.Callable[
+            [
+                IBMQHardwareArchitecture,  # Hardware information
+                QuantumLayer,  # Current front layer
+                ty.List[DAGNode],  # Topologically sorted list of nodes
+                int,  # Index of the first non-processed gate.
+                ty.Dict[Qubit, int],  # The mapping before applying the tested SWAP/Bridge
+                ty.Dict[Qubit, int],  # The initial mapping
+                ty.Dict[Qubit, int],  # The trans mapping
+                numpy.ndarray,  # The distance matrix between each qubits
+                TwoQubitGate,  # The SWAP/Bridge we want to rank
+            ],
+            float,
+        ] = sabre_heuristic,
+        get_candidates: ty.Callable[
+            [QuantumLayer, IBMQHardwareArchitecture, ty.Dict[Qubit, int], ty.Dict[Qubit, int], ty.Dict[Qubit, int],
+             ty.Set[str], ],
+            ty.List[TwoQubitGate],
+        ] = get_all_swap_bridge_candidates,
+        get_distance_matrix: ty.Callable[
+            [IBMQHardwareArchitecture], numpy.ndarray
+        ] = get_distance_matrix_swap_number_and_error,
 ) -> ty.Tuple[QuantumCircuit, ty.Dict[Qubit, int]]:
     collector.begin_trajectory()
 
@@ -263,13 +249,13 @@ def heuristic_algorithm(
                 best_swap_qubits = SwapTwoQubitGate(
                     swap_control, swap_target
                 )
-                #print("swap gates is :", best_swap_qubits.left, best_swap_qubits.right)
+                # print("swap gates is :", best_swap_qubits.left, best_swap_qubits.right)
                 trans_mapping[best_swap_qubits.left], trans_mapping[best_swap_qubits.right] = (
                     trans_mapping[best_swap_qubits.right],
                     trans_mapping[best_swap_qubits.left],
                 )
             else:
-                #print("brige gate is :", best_swap_qubits.left, best_swap_qubits.middle, best_swap_qubits.right)
+                # print("brige gate is :", best_swap_qubits.left, best_swap_qubits.middle, best_swap_qubits.right)
                 pass
             explored_mappings.add(mapping_to_str(current_mapping))
             best_swap_qubits.apply(resulting_dag_quantum_circuit, front_layer, initial_mapping, trans_mapping)
@@ -288,7 +274,7 @@ def heuristic_algorithm(
     return resulting_circuit, current_mapping
 
 
-def rollout_expert_trajectory(env: PretrainEnv, trajectory: Trajectory):
+def rollout_expert_trajectory(env: gym.Env, trajectory: Trajectory):
     """
     Rollout the expert's trajectory on an enviroment.
     """
@@ -305,17 +291,18 @@ def rollout_expert_trajectory(env: PretrainEnv, trajectory: Trajectory):
     return info['metrics']
 
 
-
 if __name__ == '__main__':
+    from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
+
     hardware = IBMQHardwareArchitecture('tokyo')
 
     collector_train = TrajectoryCollector(hardware, L=10,
-                                    outdir=Path('../result/pretrain/ha'),
-                                    prefix='20Q_gate_Tokyo_train')
+                                          outdir=Path('../result/pretrain/ha'),
+                                          prefix='20Q_gate_Tokyo_train')
 
     collector_val = TrajectoryCollector(hardware, L=10,
-                                    outdir=Path('../result/pretrain/ha'),
-                                    prefix='20Q_gate_Tokyo_val')
+                                        outdir=Path('../result/pretrain/ha'),
+                                        prefix='20Q_gate_Tokyo_val')
 
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
     random.seed(22)

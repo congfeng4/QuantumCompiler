@@ -2,9 +2,9 @@ from qiskit import QuantumCircuit
 
 from hamap import (
     ha_mapping,  # Bridge selection performed with a
-                 # different algorithm than the one described in the paper.
+    # different algorithm than the one described in the paper.
     ha_mapping_paper_compliant,  # Bridge selection using the exact same algorithm
-                                 # described in the paper.
+    # described in the paper.
     IBMQHardwareArchitecture,
 )
 

@@ -16,7 +16,6 @@ from hamap import (
 )
 from contrib.common import show_mapping, qknob_metrics
 
-
 if __name__ == '__main__':
     max_steps = 1000
 

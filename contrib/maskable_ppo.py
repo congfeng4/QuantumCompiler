@@ -17,24 +17,23 @@ from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
 from stable_baselines3.common.vec_env import VecEnv, VecMonitor, DummyVecEnv
 
 from contrib.environs import *
-from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor, get_policy_kwargs
-from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy
+from contrib.feature_extractor import get_policy_kwargs
+from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
 from contrib.metrics_callback import CustomMetricsCallback
 from contrib.seed import set_all_seeds
-
 
 M = int(1e6)
 
 
 def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwareArchitecture,
                                  num: int = 1, add_sabre: bool = True, add_random: bool = False,
-                                 add_simulated_anealing = False,
+                                 add_simulated_anealing=False,
                                  L: int = 10, **kwargs
                                  ):
     vec_funcs = []
 
     def make_func(circ: QuantumCircuit, path, init):
-        return lambda : CircuitEnvWithInitialMapping(circ, path, hardware, init, L, **kwargs)
+        return lambda: CircuitEnvWithInitialMapping(circ, path, hardware, init, L, **kwargs)
 
     for path in circuit_paths:
         print(f'Path {path}')
@@ -138,19 +137,19 @@ def run_maskable_ppo(
 
 
 def run_vec_env(
-    bs = 128,
-    ns = 1000,
-    embed_dim = 128,
-    L = 15,
-    ent_coef = 0.01,
-    num_train = 199,
-    hardware_name = 'tokyo',
-    data_name = '20Q_gate_Tokyo',
-    mode = 'gru',
-    output_dirname='maskable_ppo_v3_pretrain',
-    pretrain: bool = False,
-    swap_only: bool = False,
-    total_timesteps: int = int(1e10),
+        bs=128,
+        ns=1000,
+        embed_dim=128,
+        L=15,
+        ent_coef=0.01,
+        num_train=199,
+        hardware_name='tokyo',
+        data_name='20Q_gate_Tokyo',
+        mode='gru',
+        output_dirname='maskable_ppo_v3_pretrain',
+        pretrain: bool = False,
+        swap_only: bool = False,
+        total_timesteps: int = int(1e10),
 ):
     hardware = IBMQHardwareArchitecture(hardware_name)
     circuit_list = list(Path(f'../data/{data_name}/circuits').glob('*.qasm'))
@@ -212,8 +211,6 @@ def evaluate_all(model, hardware, circuit_list, log_name: str, L: int, **kwargs)
     results = dict(results=results, config=kwargs)
     with open(result_file, 'w') as f:
         f.write(json.dumps(jsons.dump(results), indent=4, ensure_ascii=False))
-
-
 
 
 if __name__ == '__main__':

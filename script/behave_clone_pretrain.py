@@ -6,9 +6,8 @@ import torch.nn
 
 from imitation.algorithms import bc
 
-from script.maskable_ppo import create_vec_env_from_circuits
-from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor, get_policy
-from contrib.expert import PretrainEnv, TrajectoryCollector
+from contrib.feature_extractor import get_policy
+from contrib.expert import BaseCircuitEnv, TrajectoryCollector
 import shutil
 from imitation.util import logger as imit_logger
 
@@ -27,15 +26,15 @@ def main():
 
     hardware = IBMQHardwareArchitecture('tokyo')
     rng = np.random.default_rng(0)
-    env = PretrainEnv(hardware, L=16)
+    env = BaseCircuitEnv(hardware, L=16)
 
     train_trans = TrajectoryCollector(hardware, L=10,
-                                          outdir=Path('../result/pretrain/ha'),
-                                          prefix='20Q_gate_Tokyo_train').load()
+                                      outdir=Path('../result/pretrain/ha'),
+                                      prefix='20Q_gate_Tokyo_train').load()
 
     val_trans = TrajectoryCollector(hardware, L=10,
-                                        outdir=Path('../result/pretrain/ha'),
-                                        prefix='20Q_gate_Tokyo_val').load()
+                                    outdir=Path('../result/pretrain/ha'),
+                                    prefix='20Q_gate_Tokyo_val').load()
 
     loss_calc = BehaviorCloningLossCalculator(0, 0)
     embed_dim = 128

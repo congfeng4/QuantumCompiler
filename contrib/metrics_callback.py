@@ -1,5 +1,4 @@
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
-from stable_baselines3.common.callbacks import BaseCallback
 
 
 def average_metrics(metrics_list):

@@ -1,5 +1,4 @@
-from script.maskable_ppo import run_vec_env
-
+from contrib.maskable_ppo import run_vec_env
 
 if __name__ == '__main__':
     run_vec_env(

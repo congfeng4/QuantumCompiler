@@ -1,17 +1,18 @@
+"""
+Action space encoding
+"""
 import logging
-from functools import cached_property
 from typing import Optional
 
 import gymnasium as gym
 import numpy as np
 
 from qiskit.circuit.quantumregister import Qubit
-from qiskit.dagcircuit.dagcircuit import DAGNode
 
 from hamap import IBMQHardwareArchitecture
 from hamap.gates import TwoQubitGate, SwapTwoQubitGate, BridgeTwoQubitGate
 
-from contrib.common import EXE_INDEX, SWAP_INDEX, BRIDGE_INDEX, non_adj_common_pairs
+from contrib.common import SWAP_INDEX, BRIDGE_INDEX, non_adj_common_pairs
 from hamap.heuristics import sabre_heuristic
 
 logger = logging.getLogger("action_space")
@@ -47,7 +48,7 @@ class ActionSpace:
 
     def get_space(self):
         N = self.N
-        return gym.spaces.Discrete(N*N)
+        return gym.spaces.Discrete(N * N)
 
     def get_size(self):
         return self.N * self.N
@@ -60,7 +61,7 @@ class ActionSpace:
         _, q0, q1 = two_qubit_gate_to_tuple(swap, current_mapping, initial_mapping)
         if isinstance(swap, BridgeTwoQubitGate):
             inverse_mapping = {val: key for key, val in initial_mapping.items()}
-            find_middle(swap, hardware, initial_mapping, inverse_mapping) # Check this bridge is valid.
+            find_middle(swap, hardware, initial_mapping, inverse_mapping)  # Check this bridge is valid.
         assert ((q0, q1) in hardware.edges) == isinstance(swap, SwapTwoQubitGate)
         return self._encode(q0, q1)
 
@@ -70,8 +71,8 @@ class ActionSpace:
         return left, right
 
     def decode(self, policy: int, initial_mapping,
-                         inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit],
-                         hardware: IBMQHardwareArchitecture):
+               inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit],
+               hardware: IBMQHardwareArchitecture):
         left, right = self._decode(policy)
         swap_class = SWAP_INDEX if (left, right) in hardware.edges else BRIDGE_INDEX
         if swap_class == SWAP_INDEX:
@@ -128,7 +129,7 @@ class ActionSpaceEdge:
         check_symmetric(self.action_list)
         assert len(self.action_list) == len(swap_set) + len(bridge_set), \
             f'{len(swap_set)=} {len(bridge_set)=} {len(self.action_list)=}'
-        self.action_to_index = {act : i for i, act in enumerate(self.action_list)}
+        self.action_to_index = {act: i for i, act in enumerate(self.action_list)}
 
     def __repr__(self):
         ratio = round(self.get_size() / self.N ** 2, 2)
@@ -145,8 +146,8 @@ class ActionSpaceEdge:
         return self.action_to_index[(q0, q1)]
 
     def decode(self, policy: int, initial_mapping,
-                         inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit],
-                         hardware: IBMQHardwareArchitecture):
+               inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit],
+               hardware: IBMQHardwareArchitecture):
         left, right = self.action_list[policy]
         swap_class = SWAP_INDEX if (left, right) in hardware.edges else BRIDGE_INDEX
         if swap_class == SWAP_INDEX:

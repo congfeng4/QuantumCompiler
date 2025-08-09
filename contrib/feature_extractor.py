@@ -28,6 +28,7 @@ class QubitEmbedding(nn.Module):
     """
     Encoe one qubit.
     """
+
     def __init__(self, num_qubits: int, embedding_dim: int):
         super().__init__()
         self.num_qubits = num_qubits
@@ -57,6 +58,7 @@ QUBIT_EMBED = {
     'onehot': OnehotQubitEmbedding,
     'param': LearnableQubitEmbedding,
 }
+
 
 def inverse_permutation_batched(p: torch.Tensor) -> torch.Tensor:
     """
@@ -140,7 +142,7 @@ class HardwareAwareQubitEmbedding(nn.Module):
 
         if self.qubit_embed_mode == QubitEmbeddingMode.GNN_EDGE_INDEX:
             node_feat = self.qubit_embedding(physical2log)  # [B, N, D]
-            ha_embed = self.gnn(node_feat, self.edge_index) # [B, N, D]
+            ha_embed = self.gnn(node_feat, self.edge_index)  # [B, N, D]
             return ha_embed
 
         raise ValueError(self.qubit_embed_mode)
@@ -152,6 +154,7 @@ class GateSeqEncoder(nn.Module):
     1. Lookup the qubit embeddings given each pair of logical qubits of a gate.
     2. Concat the qubit embeddings and send to a shared MLP to obtain the embedding of a gate.
     """
+
     def __init__(self,
                  input_dim: int,
                  embed_dim: int,
@@ -218,7 +221,7 @@ class SequenceEncoder(nn.Module):
             self.rnn = nn.GRU(in_dim, in_dim, num_layers=num_layers, batch_first=True, bidirectional=False)
         elif mode == 'lstm':
             self.rnn = nn.LSTM(in_dim, in_dim, num_layers=num_layers, batch_first=True, bidirectional=False)
-        else:   # Transformer
+        else:  # Transformer
             encoder_layer = nn.TransformerEncoderLayer(
                 d_model=in_dim, nhead=nhead, dim_feedforward=in_dim * 2, batch_first=True
             )
@@ -240,8 +243,8 @@ class SequenceEncoder(nn.Module):
             _, h_last = self.rnn(packed)
             # h_last: (1, B, hidden) for GRU, (h_n, c_n) for LSTM
             state = h_last[-1] if self.mode == 'gru' else h_last[0][-1]
-            return state                    # (B, hidden)
-        else:   # Transformer
+            return state  # (B, hidden)
+        else:  # Transformer
             x = self.pos_enc(x)  # [B, L, F]
             B = x.shape[0]
             # 1. 构造 key_padding_mask
@@ -258,7 +261,7 @@ class SequenceEncoder(nn.Module):
             denom = mask_float.sum(dim=1, keepdim=True).clamp_min(1e-8)  # [B, 1, 1]
             state = (x_enc * mask_float).sum(dim=1, keepdim=False) / denom.squeeze(1)  # [B, F]
 
-            return state                  # (B, in_dim)
+            return state  # (B, in_dim)
 
 
 class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
@@ -280,8 +283,8 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
         mapping = obs['mapping'].long()  # [B, N] Logical to physical mapping
         qubit_embed = self.qubit_embed(mapping)  # Logical + Physical qubit embed [B, N, D]
 
-        gate_seq = obs['gate_seq'].long() # [B, S, 2] Gate seq of qubit pairs. (padded)
-        gate_len = obs['gate_len'].long() # [B, 1] Gate seq len of each seq.
+        gate_seq = obs['gate_seq'].long()  # [B, S, 2] Gate seq of qubit pairs. (padded)
+        gate_len = obs['gate_len'].long()  # [B, 1] Gate seq len of each seq.
 
         gate_embed = self.gate_seq_encoder(gate_seq, qubit_embed)  # [B, S, D], D is embed_dim
         circuit_embed = self.circuit_encoder(gate_embed, gate_len)  # [B, D]
@@ -305,7 +308,7 @@ def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int = 128, 
     )
 
 
-def get_policy(env, hardware: IBMQHardwareArchitecture, embed_dim: int = 128,):
+def get_policy(env, hardware: IBMQHardwareArchitecture, embed_dim: int = 128, ):
     return ActorCriticPolicy(
         observation_space=env.observation_space,
         action_space=env.action_space,

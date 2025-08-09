@@ -6,7 +6,7 @@ from qiskit import QuantumCircuit
 
 from contrib.common import get_hardware_name, get_all_qknob_circuit_paths
 from contrib.environs import CircuitEnvWithInitialMapping
-from contrib.ha_traj import run_ha, InitialMappingStrategy, get_initial_mapping
+from contrib.initial_mapping import InitialMappingStrategy, get_initial_mapping
 from contrib.expert import TrajectoryCollector, heuristic_algorithm, rollout_expert_trajectory
 
 from hamap import IBMQHardwareArchitecture

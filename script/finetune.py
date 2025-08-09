@@ -1,14 +1,8 @@
 import json
 
-from sb3_contrib import MaskablePPO
-
-from contrib.ha_traj import ha_baseline
-from contrib.seed import set_all_seeds
-import random
-
 from pathlib import Path
 from contrib.environs import *
-from script.maskable_ppo import create_vec_env_from_circuits, run_maskable_ppo
+from contrib.maskable_ppo import create_vec_env_from_circuits, run_maskable_ppo
 
 
 def run_env():
@@ -54,6 +48,7 @@ def run_env():
         print(circuit_name, 'HA & PPO', metrics)
         metrics_file.write_text(json.dumps(metrics))
         break
+
 
 if __name__ == '__main__':
     run_env()

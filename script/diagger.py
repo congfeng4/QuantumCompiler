@@ -1,17 +1,15 @@
 import tempfile
 from pathlib import Path
 import numpy as np
-import gymnasium as gym
 from stable_baselines3.common.evaluation import evaluate_policy
 
 from imitation.algorithms import bc
 from imitation.algorithms.dagger import SimpleDAggerTrainer
 from imitation.policies.serialize import load_policy
-from imitation.util.util import make_vec_env
 
 from contrib.environs import RewardMode
 from hamap import IBMQHardwareArchitecture
-from script.maskable_ppo import create_vec_env_from_circuits
+from contrib.maskable_ppo import create_vec_env_from_circuits
 
 rng = np.random.default_rng(0)
 
@@ -23,12 +21,13 @@ env = create_vec_env_from_circuits([str(circuit_path)], hardware, num=1,
                                    add_simulated_anealing=False,
                                    add_random=False, L=16, reward_mode=RewardMode.HEURISTIC_COST)
 
+
 class ExpertPolicy:
 
     def __init__(self, ):
         pass
 
-    def predict(self,):
+    def predict(self, ):
         pass
 
 
