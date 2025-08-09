@@ -54,15 +54,14 @@ class RewardMode(Enum):
     HEURISTIC_COST = 0
     GATE_NUM_COST = 1
     GATE_NUM_AND_HEURISTIC_COST = 2
-    SIMPLE_COST = 3
-    GATE_NUM_AND_SIMPLE_COST = 4
-    METRICS_EXP = 5
 
 
 class BaselineMode(Enum):
     NONE = 0
-    SUBTRACT_MIN = 0
-    SUBTRACT_AVG =1
+    SUBTRACT_MIN = 1
+    SUBTRACT_AVG =2
+    DIVIDE_MIN = 3
+    DIVIDE_AVG =4
 
 
 class CircuitEnvWithInitialMapping(BaseCircuitEnv):
@@ -74,9 +73,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  initial_mapping: dict[Qubit, int],
                  L: int,
                  reward_mode: RewardMode = RewardMode.HEURISTIC_COST,
-                 look_ahead_depth: int = 5,
+                 look_ahead_depth: int = 20,
                  look_ahead_weight: float = 0.5,
-                 tau: float = 1,
                  baseline_mode: BaselineMode = BaselineMode.SUBTRACT_MIN):
         super().__init__(hardware, L=L)
         self.input_circuit = input_circuit
@@ -87,7 +85,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.reward_mode = reward_mode
         self.look_ahead_depth = look_ahead_depth
         self.look_ahead_weight = look_ahead_weight
-        self.tau = tau
         self.baseline_mode = baseline_mode
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
@@ -215,6 +212,10 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             return h_cost - self.min_cost
         if self.baseline_mode == BaselineMode.SUBTRACT_AVG:
             return h_cost - self.avg_cost
+        if self.baseline_mode == BaselineMode.DIVIDE_AVG:
+            return h_cost / self.avg_cost
+        if self.baseline_mode == BaselineMode.DIVIDE_MIN:
+            return h_cost / self.min_cost
         return h_cost
 
     def step(
@@ -235,7 +236,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
         self.invalid_actions = 0
         num_exe = self.update()
-        gate_num_cost = 3 - num_exe
+        gate_num_cost = 1
 
         # IMPORTANT: two terms have different effects:
         # -cost can converge model quickly on startup but rebound later.

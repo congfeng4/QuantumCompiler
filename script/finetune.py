@@ -10,16 +10,16 @@ if __name__ == '__main__':
     bs = 128
     ns = 1000
     embed_dim = 128
-    L = 8
+    L = 24
     ent_coef = 0.01
-    output_dirname = 'hcost_baseline'
-    baseline_mode = BaselineMode.SUBTRACT_AVG
+    output_dirname = 'hcost_baseline_tokyo_depth'
+    baseline_mode = BaselineMode.SUBTRACT_MIN
     reward_mode = RewardMode.HEURISTIC_COST
-    gamma = 0.99
+    gamma = 0
 
-    circuit_list = list(Path('../data/53Q_gate_Sycamore/circuits/').glob('*.qasm'))
+    circuit_list = list(Path('../data/20Q_depth_Tokyo/circuits/').glob('*.qasm'))
     circuit_path = circuit_list[0]
-    hardware = IBMQHardwareArchitecture('Sycamore')
+    hardware = IBMQHardwareArchitecture('Tokyo')
 
     env = create_vec_env_from_circuits([str(circuit_path)], hardware, num=1, add_sabre=True, L=L,
                                        baseline_mode=baseline_mode, reward_mode=reward_mode)
