@@ -193,7 +193,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.update_circuit_cost()
         old_cost = self.update_circuit_cost()
         # The cost of a circuit is a potential function of the state.
-        reward = old_cost - self.circuit_cost * self.gamma - 0.01 # Immediate reward := distance.
+        # F(s', s) = gamma * phi(s') - phi(s)
+        reward = self.circuit_cost * self.gamma - old_cost - 0.01
         done = not self.front_layer
         info = {}
         if done:

@@ -10,13 +10,13 @@ if __name__ == '__main__':
     bs = 128
     ns = 1000
     embed_dim = 128
-    L = 128
+    L = 32
     ent_coef = 0.01
-    output_dirname = 'hcost_baseline_tokyo_gate'
+    output_dirname = 'pbrs_tokyo_gate'
     baseline_mode = BaselineMode.DIVIDE_AVG
     reward_mode = RewardMode.GATE_NUM_AND_HEURISTIC_COST
     gamma = 0.99
-
+    total_timesteps = 80_000
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits/').glob('*.qasm'))
     # circuit_path = circuit_list[0]
     hardware = IBMQHardwareArchitecture('Tokyo')
@@ -26,8 +26,7 @@ if __name__ == '__main__':
                                            baseline_mode=baseline_mode, reward_mode=reward_mode)
         circuit_name = Path(circuit_path).stem
 
-        log_name = (f'Q={circuit_name}-B={bs}-NS={ns}-E={ent_coef}-D={embed_dim}-L={L}-'
-                    f'BM={baseline_mode.value}-RM={reward_mode.value}-GA={gamma}')
+        log_name = f'Q={circuit_name}-B={bs}-NS={ns}-E={ent_coef}-D={embed_dim}-L={L}'
 
         metrics = env.get_attr('metrics_baseline', 0)
         print(circuit_name, 'HA', metrics)
@@ -43,7 +42,7 @@ if __name__ == '__main__':
             seqlen=L,
             mode='gru',
             ent_coef=ent_coef,
-            total_timesteps=40_000,
+            total_timesteps=total_timesteps,
             output_dirname=output_dirname,
             early_stop=False,
         )
