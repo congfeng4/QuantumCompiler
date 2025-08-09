@@ -28,10 +28,10 @@ M = int(1e6)
 
 def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwareArchitecture,
                                  num: int = 1, add_sabre: bool = True, add_random: bool = False,
+                                 add_simulated_anealing = False,
                                  L: int = 10, **kwargs
                                  ):
     vec_funcs = []
-    init_mappings = []
 
     def make_func(circ: QuantumCircuit, path, init):
         return lambda : CircuitEnvWithInitialMapping(circ, path, hardware, init, L, **kwargs)
@@ -44,12 +44,14 @@ def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwar
             if add_random:
                 init = get_initial_mapping(qc, hardware, InitialMappingStrategy.RANDOM)
                 vec_funcs.append(make_func(qc, path, init))
-                init_mappings.append(init)
 
             if add_sabre:
                 init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
                 vec_funcs.append(make_func(qc, path, init))
-                init_mappings.append(init)
+
+            if add_simulated_anealing:
+                init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SIMULATE_ANNEALING)
+                vec_funcs.append(make_func(qc, path, init))
 
     print(f'Create env with {len(circuit_paths)} circuits')
     # SubProcVecEnv一开始就内存爆炸了💥

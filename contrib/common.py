@@ -2,7 +2,7 @@ from qiskit.circuit import Qubit, QuantumCircuit
 from pathlib import Path
 import networkx as nx
 
-from qiskit.dagcircuit import DAGNode
+from qiskit.dagcircuit import DAGNode, DAGCircuit
 
 from hamap.gates import TwoQubitGate
 
@@ -14,16 +14,16 @@ SWAP_INDEX = 0
 BRIDGE_INDEX = 1
 
 
-def get_cnot_num(cirt: QuantumCircuit):
+def get_cnot_num(cirt: QuantumCircuit | DAGCircuit):
     count = cirt.count_ops()
     return count.get('cx', 0) + 3 * count.get('swap', 0)
 
 
-def qknob_metrics(in_cirt: QuantumCircuit, out_cirt: QuantumCircuit):
-    depth_ratio = round(out_cirt.depth() / in_cirt.depth(), 2)
+def qknob_metrics(in_cirt: QuantumCircuit, out_cirt: QuantumCircuit | DAGCircuit):
+    depth_ratio = out_cirt.depth() / in_cirt.depth()
     in_cx_num = get_cnot_num(in_cirt)
     out_cx_num = get_cnot_num(out_cirt)
-    cx_ratio = round(out_cx_num / in_cx_num, 2)
+    cx_ratio = out_cx_num / in_cx_num
     num_swap = out_cirt.count_ops().get('swap', 0)
     return dict(depth_ratio=depth_ratio, cx_ratio=cx_ratio, num_swap=num_swap)
 

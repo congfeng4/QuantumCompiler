@@ -12,6 +12,7 @@ from hamap import IBMQHardwareArchitecture
 from hamap.gates import TwoQubitGate, SwapTwoQubitGate, BridgeTwoQubitGate
 
 from contrib.common import EXE_INDEX, SWAP_INDEX, BRIDGE_INDEX, non_adj_common_pairs
+from hamap.heuristics import sabre_heuristic
 
 logger = logging.getLogger("action_space")
 
@@ -162,6 +163,14 @@ class ActionSpaceEdge:
             policy = self.encode(swap, current_mapping, initial_mapping)
             masks[policy] = True
         return masks.tolist()
+
+    # def get_masks(self, swap_candidates: list[TwoQubitGate],
+    #               current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
+    #     masks = np.zeros(self.get_size(), bool)
+    #     for swap in swap_candidates:
+    #         policy = self.encode(swap, current_mapping, initial_mapping)
+    #         masks[policy] = sabre_heuristic()
+    #     return masks.tolist()
 
 
 if __name__ == '__main__':

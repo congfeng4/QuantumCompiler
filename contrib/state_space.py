@@ -9,7 +9,9 @@ from qiskit.circuit import Qubit
 from qiskit.dagcircuit import DAGNode
 
 from contrib.common import SWAP_INDEX, BRIDGE_INDEX
+from hamap import IBMQHardwareArchitecture
 from hamap.gates import TwoQubitGate, BridgeTwoQubitGate
+from hamap.heuristics import _gate_op_cost
 from hamap.layer import QuantumLayer
 
 
@@ -56,3 +58,15 @@ class StateSpace:
             gate_len += 1
 
         return dict(mapping=mapping, gate_seq=gate_seq, gate_len=gate_len)
+
+    def get_cost(self, front_layer: QuantumLayer, gates: list[DAGNode], current_mapping: dict[Qubit, int],
+                 distance_matrix: np.ndarray, hardware: IBMQHardwareArchitecture):
+        gate_len = 0
+        cost = 0
+        for op in front_layer.ops + gates:
+            if gate_len >= self.L:
+                break
+            gate_len += 1
+            cost += _gate_op_cost(op, distance_matrix, current_mapping, hardware)
+
+        return cost / gate_len if gate_len else 0

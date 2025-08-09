@@ -3,15 +3,11 @@ from pathlib import Path
 
 import numpy as np
 import torch.nn
-import torch as th
 
 from imitation.algorithms import bc
-from stable_baselines3.common.evaluation import evaluate_policy
-from stable_baselines3.common.policies import ActorCriticPolicy
 
-from contrib.environs import make_circuit_env
+from script.maskable_ppo import create_vec_env_from_circuits
 from contrib.feature_extractor import HierarchicalCircuitFeaturesExtractor, get_policy
-from contrib.ha_traj import InitialMappingStrategy
 from contrib.expert import PretrainEnv, TrajectoryCollector
 import shutil
 from imitation.util import logger as imit_logger
@@ -31,13 +27,13 @@ def main():
 
     hardware = IBMQHardwareArchitecture('tokyo')
     rng = np.random.default_rng(0)
-    env = PretrainEnv(N=hardware.qubit_number, L=10)
+    env = PretrainEnv(hardware, L=16)
 
-    train_trans = TrajectoryCollector(N=hardware.qubit_number, L=10, K=50,
+    train_trans = TrajectoryCollector(hardware, L=10,
                                           outdir=Path('../result/pretrain/ha'),
                                           prefix='20Q_gate_Tokyo_train').load()
 
-    val_trans = TrajectoryCollector(N=hardware.qubit_number, L=10, K=50,
+    val_trans = TrajectoryCollector(hardware, L=10,
                                         outdir=Path('../result/pretrain/ha'),
                                         prefix='20Q_gate_Tokyo_val').load()
 

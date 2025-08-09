@@ -16,8 +16,9 @@ from contrib.ha_traj import get_initial_mapping, InitialMappingStrategy, ha_base
 from contrib.expert import PretrainEnv, TrajectoryCollector, rollout_expert_trajectory, \
     heuristic_algorithm
 from contrib.seed import set_all_seeds
+from contrib.common import get_cnot_num
 
-from hamap.distance_matrix import get_distance_matrix_swap_number_and_error
+from hamap.distance_matrix import get_distance_matrix_swap_number_and_error, get_distance_matrix_swap_number
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
 from hamap.heuristics import sabre_heuristic
 from hamap.layer import QuantumLayer, update_layer
@@ -32,9 +33,13 @@ logger = logging.getLogger("contrib.env")
 
 
 class RewardMode(Enum):
-    NEG_HEURISTIC_COST = 0
+    HEURISTIC_COST = 0
     GATE_NUM_COST = 1
-    MIXED_GATE_NUM_AND_HEURISTIC_COST = 2
+    GATE_NUM_AND_HEURISTIC_COST = 2
+    SIMPLE_COST = 3
+    GATE_NUM_AND_SIMPLE_COST = 4
+    METRICS_EXP = 5
+
 
 class CircuitEnvWithInitialMapping(PretrainEnv):
 
@@ -44,18 +49,20 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
                  L: int,
-                 reward_mode: RewardMode = RewardMode.GATE_NUM_COST,
-                 look_ahead_depth: int = 5,
-                 look_ahead_weight: float = 0.5):
+                 reward_mode: RewardMode = RewardMode.GATE_NUM_AND_SIMPLE_COST,
+                 look_ahead_depth: int = 10,
+                 look_ahead_weight: float = 0.5,
+                 tau: float = 1):
         super().__init__(hardware, L=L)
         self.input_circuit= input_circuit
         self.circuit_path = circuit_path
         self.hardware = hardware
         self.initial_mapping = initial_mapping
-        self.distance_matrix = get_distance_matrix_swap_number_and_error(self.hardware)
+        self.distance_matrix = get_distance_matrix_swap_number(self.hardware)
         self.reward_mode = reward_mode
         self.look_ahead_depth = look_ahead_depth
         self.look_ahead_weight = look_ahead_weight
+        self.tau = tau
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
@@ -81,6 +88,8 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
 
         self.update_front_layer()
         self.update()
+        self.current_depth = self.resulting_dag_quantum_circuit.depth()
+        self.current_cnot = get_cnot_num(self.resulting_dag_quantum_circuit)
         return self._get_obs(), {}
 
     def _get_obs(self):
@@ -89,9 +98,9 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
         self.metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
-        self.metrics.update(total_cost=round(float(self.total_cost), 2))
+        self.metrics.update(total_cost=self.total_cost)
         for key, value in self.metrics_baseline.items():
-            self.metrics[key + '_diff'] = round(self.metrics[key] - value, 2)
+            self.metrics[key + '_diff'] = self.metrics[key] - value
 
     def apply_swap_action(self, best_swap_qubits: TwoQubitGate):
         trans_mapping = self.trans_mapping
@@ -146,6 +155,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
                 self.update_front_layer()
             else:
                 break
+        # self.metrics = qknob_metrics(self.input_circuit, self.resulting_dag_quantum_circuit)
         return num_executed_cnot
 
     @property
@@ -154,6 +164,7 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
 
     def step_invalid(self):
         # Invalid Actions
+        print('invalid')
         self.invalid_actions += 1
         if self.invalid_actions >= 100:
             return self._get_obs(), -0.1, False, True, {}
@@ -175,23 +186,38 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         best_swap_qubits = self.action.decode(policy, self.initial_mapping,
                                               inverse_current_mapping,
                                               self.inverse_mapping, self.hardware)
-        cost = self.heuristic_cost(best_swap_qubits)
-        self.total_cost += cost
+        h_cost = self.heuristic_cost(best_swap_qubits)
+        self.total_cost += h_cost
         if not self.apply_swap_action(best_swap_qubits):
             return self.step_invalid()
-
+        simple_cost = self.state.get_cost(self.front_layer, self.topological_nodes[self.current_node_index:],
+                                          self.current_mapping, self.distance_matrix, self.hardware)
         self.invalid_actions = 0
         num_exe = self.update()
+        gate_num_cost = 3 - num_exe
+
         # IMPORTANT: two terms have different effects:
         # -cost can converge model quickly on startup but rebound later.
         # num_exe - 3 converge slowly but will not rebound.
         # TODO: an annealing scheme needed
-        if self.reward_mode == RewardMode.MIXED_GATE_NUM_AND_HEURISTIC_COST:
-            reward = -cost +  -0.0001
+        if self.reward_mode == RewardMode.GATE_NUM_AND_HEURISTIC_COST:
+            reward = -h_cost - gate_num_cost
         elif self.reward_mode == RewardMode.GATE_NUM_COST:
-            reward = num_exe - 3
-        elif self.reward_mode == RewardMode.NEG_HEURISTIC_COST:
-            reward = -cost
+            reward = -gate_num_cost
+        elif self.reward_mode == RewardMode.HEURISTIC_COST:
+            reward = -h_cost
+        elif self.reward_mode == RewardMode.SIMPLE_COST:
+            reward = -simple_cost
+        elif self.reward_mode == RewardMode.GATE_NUM_AND_SIMPLE_COST:
+            reward = -simple_cost - gate_num_cost
+        elif self.reward_mode == RewardMode.METRICS_EXP:
+            # metrics = qknob_metrics(self.input_circuit, self.resulting_dag_quantum_circuit)
+            # reward = np.exp(-metrics['cx_ratio'] - metrics['depth_ratio'])
+            new_depth = self.resulting_dag_quantum_circuit.depth()
+            new_cnot = get_cnot_num(self.resulting_dag_quantum_circuit)
+            reward = -(new_depth - self.current_depth) - (new_cnot - self.current_cnot)
+            self.current_depth = new_depth
+            self.current_cnot = new_cnot
         else:
             raise ValueError(self.reward_mode)
 
@@ -199,6 +225,8 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
         info = {}
         if done:
             self.finalize_result()
+            metrics = self.metrics
+            reward += np.exp(-metrics['cx_ratio'] - metrics['depth_ratio'])
             info['metrics'] = self.metrics
             print(f'Game ends {self.metrics}')
         return self._get_obs(), reward, done, False, info
@@ -206,6 +234,14 @@ class CircuitEnvWithInitialMapping(PretrainEnv):
     def get_candidates(self):
         return get_all_swap_bridge_candidates(self.front_layer, self.hardware, self.initial_mapping, self.current_mapping,
                                               self.trans_mapping, self.explored_mappings)
+
+    def get_score(self):
+        scores = np.zeros((self.action.get_size(),), np.float32)
+        for swap in self.get_candidates():
+            cost = self.heuristic_cost(swap)
+            idx = self.action.encode(swap, self.current_mapping, self.initial_mapping)
+            scores[idx] = np.exp(-cost / self.tau)
+        return scores
 
     def action_masks(self):
         # return self.action.get_masks(

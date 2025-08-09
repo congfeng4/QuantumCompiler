@@ -41,6 +41,6 @@ class CustomMetricsCallback(MaskableEvalCallback):
         metrics = average_metrics(metrics_env)
         if metrics:
             for key, value in metrics.items():
-                self.logger.record(f"custom/{key}", value)
+                self.logger.record(f"custom/{key}", round(value, 2))
 
         return True
