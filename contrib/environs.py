@@ -15,11 +15,11 @@ from contrib.common import qknob_metrics, readable_float_dict
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy, ha_baseline
 from contrib.expert import TrajectoryCollector, rollout_expert_trajectory, heuristic_algorithm
 from contrib.seed import set_all_seeds
-from contrib.common import get_cnot_num
+from contrib.common import get_cnot_num, get_distance_matrix
 from contrib.action_space import ActionSpaceEdge
 from contrib.state_space import StateSpace
+from contrib.reward_space import RewardMode, RewardSpace, BaselineMode, get_circuit_cost
 
-from hamap.distance_matrix import get_distance_matrix_swap_number_and_error, get_distance_matrix_swap_number
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
 from hamap.heuristics import sabre_heuristic
 from hamap.layer import QuantumLayer, update_layer
@@ -50,21 +50,6 @@ class BaseCircuitEnv(gym.Env):
         self.observation_space = self.state.get_space()
 
 
-class RewardMode(Enum):
-    HEURISTIC_COST = 0
-    GATE_NUM_COST = 1
-    GATE_NUM_AND_HEURISTIC_COST = 2
-
-
-class BaselineMode(Enum):
-    NONE = 0
-    SUBTRACT_MIN = 1
-    SUBTRACT_AVG =2
-    DIVIDE_MIN = 3
-    DIVIDE_AVG =4
-    MINMAX = 5
-
-
 class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
     def __init__(self,
@@ -73,20 +58,15 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
                  L: int,
-                 reward_mode: RewardMode = RewardMode.HEURISTIC_COST,
-                 look_ahead_depth: int = 16,
-                 look_ahead_weight: float = 0.5,
-                 baseline_mode: BaselineMode = BaselineMode.SUBTRACT_MIN):
+                 gamma: float = 0.99,
+                 **kwargs):
         super().__init__(hardware, L=L)
         self.input_circuit = input_circuit
         self.circuit_path = circuit_path
         self.hardware = hardware
         self.initial_mapping = initial_mapping
-        self.distance_matrix = get_distance_matrix_swap_number(self.hardware)
-        self.reward_mode = reward_mode
-        self.look_ahead_depth = look_ahead_depth
-        self.look_ahead_weight = look_ahead_weight
-        self.baseline_mode = baseline_mode
+        self.distance_matrix = get_distance_matrix(self.hardware)
+        self.gamma = gamma
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
@@ -107,16 +87,17 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.trans_mapping = self.initial_mapping.copy()
         self.explored_mappings = set()
         self.inverse_mapping = {val: key for key, val in self.initial_mapping.items()}
-        self.total_cost = 0
-        self.normalized_total_cost = 0
-        self.swap_candidates = None
-        self.min_cost = self.max_cost = self.avg_cost = None
-
+        self.circuit_cost = None
         self.update_front_layer()
         self.update()
-        self.current_depth = self.resulting_dag_quantum_circuit.depth()
-        self.current_cnot = get_cnot_num(self.resulting_dag_quantum_circuit)
+        self.update_circuit_cost()
         return self._get_obs(), {}
+
+    def update_circuit_cost(self):
+        old_cost = self.circuit_cost
+        self.circuit_cost = get_circuit_cost(self.front_layer, self.topological_nodes[self.current_node_index:],
+                                             self.current_mapping, self.distance_matrix, self.hardware)
+        return old_cost
 
     def _get_obs(self):
         return self.state.encode(self.front_layer, self.topological_nodes[self.current_node_index:],
@@ -125,7 +106,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
         self.metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
-        self.metrics.update(total_cost=self.total_cost, normalized_total_cost=self.normalized_total_cost)
         for key, value in self.metrics_baseline.items():
             self.metrics[key + '_diff'] = self.metrics[key] - value
 
@@ -195,32 +175,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         print('invalid')
         self.invalid_actions += 1
         if self.invalid_actions >= 100:
-            return self._get_obs(), -0.1, False, True, {}
-        return self._get_obs(), -0.1, False, False, {}
-
-    def heuristic_cost(self, swap: TwoQubitGate):
-        return sabre_heuristic(
-            hardware=self.hardware, front_layer=self.front_layer, topological_nodes=self.topological_nodes,
-            current_node_index=self.current_node_index, current_mapping=self.current_mapping,
-            initial_mapping=self.initial_mapping, trans_mapping=self.trans_mapping,
-            distance_matrix=self.distance_matrix, tentative_gate=swap, look_ahead_depth=self.look_ahead_depth,
-            look_ahead_weight=self.look_ahead_weight,
-        )
-
-    def normalize_h_cost(self, h_cost: float):
-        # IMPORTANT: subtract baseline from heuristic cost can stablize late-term training. No explosion!
-        if self.baseline_mode == BaselineMode.SUBTRACT_MIN:
-            return h_cost - self.min_cost
-        if self.baseline_mode == BaselineMode.SUBTRACT_AVG:
-            return h_cost - self.avg_cost
-        if self.baseline_mode == BaselineMode.DIVIDE_AVG:
-            return h_cost / self.avg_cost
-        if self.baseline_mode == BaselineMode.DIVIDE_MIN:
-            return h_cost / self.min_cost
-        if self.baseline_mode == BaselineMode.MINMAX:
-            base = self.max_cost - self.min_cost
-            return 0 if base == 0 else (h_cost - self.min_cost) / base
-        return h_cost
+            return self._get_obs(), 0, False, True, {}
+        return self._get_obs(), -len(self.topological_nodes), False, False, {}
 
     def step(
             self, policy: int
@@ -229,39 +185,22 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         best_swap_qubits = self.action.decode(policy, self.initial_mapping,
                                               inverse_current_mapping,
                                               self.inverse_mapping, self.hardware)
-        raw_h_cost = self.heuristic_cost(best_swap_qubits)
-        normalized_h_cost = self.normalize_h_cost(raw_h_cost)
-        self.total_cost += raw_h_cost
-        self.normalized_total_cost += normalized_h_cost
-        h_cost = raw_h_cost if self.baseline_mode == BaselineMode.NONE else normalized_h_cost
-
         if not self.apply_swap_action(best_swap_qubits):
             return self.step_invalid()
 
         self.invalid_actions = 0
-        num_exe = self.update()
-        gate_num_cost = 0.01
-
-        # IMPORTANT: two terms have different effects:
-        # -cost can converge model quickly on startup but rebound later.
-        # num_exe - 3 converge slowly but will not rebound.
-        # TODO: an annealing scheme needed
-        if self.reward_mode == RewardMode.GATE_NUM_AND_HEURISTIC_COST:
-            reward = -h_cost - gate_num_cost
-        elif self.reward_mode == RewardMode.GATE_NUM_COST:
-            reward = -gate_num_cost
-        elif self.reward_mode == RewardMode.HEURISTIC_COST:
-            reward = -h_cost
-        else:
-            raise ValueError(self.reward_mode)
-
+        self.update()
+        self.update_circuit_cost()
+        old_cost = self.update_circuit_cost()
+        # The cost of a circuit is a potential function of the state.
+        reward = old_cost - self.circuit_cost * self.gamma - 0.01 # Immediate reward := distance.
         done = not self.front_layer
         info = {}
         if done:
             self.finalize_result()
             metrics = self.metrics
-            reward += -metrics['cx_ratio'] - metrics['depth_ratio']
-            info['metrics'] = self.metrics
+            reward = len(self.topological_nodes)
+            info['metrics'] = metrics
             readable_metrics = readable_float_dict(self.metrics)
             print(f'Game ends {readable_metrics}')
         return self._get_obs(), reward, done, False, info
@@ -276,9 +215,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         costs = set()
         self.swap_masks(masks, costs)
         self.bridge_masks(masks, costs)
-        self.min_cost = min(costs)
-        self.max_cost = max(costs)
-        self.avg_cost = sum(costs) / len(costs)
         return masks.tolist()
 
     def bridge_masks(self, masks, costs: set[float]):
@@ -308,7 +244,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                             inverse_mapping[potential_middle_index],
                             inverse_trans_mapping[initial_mapping[target]],
                         )
-                        costs.add(self.heuristic_cost(two_qubit_gate))
                         # Not using assert! bridge has deplicates.
                         # assert not masks[control_index, target_index], (control_index, target_index, masks[control_index, target_index])
                         masks[self.action.action_to_index[control_index, target_index]] = True
@@ -330,7 +265,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                 two_qubit_gate = SwapTwoQubitGate(
                     inverse_mapping[source], inverse_mapping[sink]
                 )
-                costs.add(self.heuristic_cost(two_qubit_gate))
 
 
 

@@ -8,6 +8,7 @@ from hamap._cli.compare_initial_mappings import get_mapping_cost, get_initial_ma
     initial_mapping_from_sabre, wrap_iterative_mapping_algorithm
 
 from hamap import IBMQHardwareArchitecture
+from hamap.distance_matrix import get_distance_matrix_swap_number
 from hamap.mapping import ha_mapping
 
 
@@ -35,7 +36,8 @@ def ha_baseline(qc: QuantumCircuit, hardware: IBMQHardwareArchitecture, initial_
     """
     Run HA baseline and return QKNOB metrics.
     """
-    mapped_circuit, final_mapping = ha_mapping(qc, initial_mapping, hardware)
+    mapped_circuit, final_mapping = ha_mapping(qc, initial_mapping, hardware,
+                                               get_distance_matrix=get_distance_matrix_swap_number)
     metrics = qknob_metrics(qc, mapped_circuit)
 
     return metrics

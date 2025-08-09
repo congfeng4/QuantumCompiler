@@ -1,7 +1,7 @@
 import json
 
 from pathlib import Path
-from contrib.common import IBMQHardwareArchitecture
+from contrib.common import IBMQHardwareArchitecture, get_cnot_num
 from contrib.environs import BaselineMode, RewardMode
 from contrib.maskable_ppo import create_vec_env_from_circuits, run_maskable_ppo
 
@@ -10,7 +10,7 @@ if __name__ == '__main__':
     bs = 128
     ns = 1000
     embed_dim = 128
-    L = 32
+    L = 128
     ent_coef = 0.01
     output_dirname = 'hcost_baseline_tokyo_gate'
     baseline_mode = BaselineMode.DIVIDE_AVG

@@ -4,6 +4,7 @@ import networkx as nx
 
 from qiskit.dagcircuit import DAGNode, DAGCircuit
 
+from hamap.distance_matrix import get_distance_matrix_swap_number, get_distance_matrix_swap_number_and_error
 from hamap.gates import TwoQubitGate
 from hamap.hardware import IBMQHardwareArchitecture
 
@@ -13,6 +14,9 @@ NUM_ACTIONS = 2
 EXE_INDEX = None
 SWAP_INDEX = 0
 BRIDGE_INDEX = 1
+
+
+get_distance_matrix = get_distance_matrix_swap_number_and_error
 
 
 def get_cnot_num(cirt: QuantumCircuit | DAGCircuit):

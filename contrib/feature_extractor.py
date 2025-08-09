@@ -6,10 +6,11 @@ from enum import Enum
 
 from torch_geometric.nn import GraphSAGE
 from torch_geometric.utils import from_networkx
-from hamap.distance_matrix import get_distance_matrix_swap_number
 from hamap.hardware import IBMQHardwareArchitecture
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch_geometric as pyg
+
+from contrib.common import get_distance_matrix
 
 
 class DenseGNNType(Enum):
@@ -110,7 +111,7 @@ class HardwareAwareQubitEmbedding(nn.Module):
         self.hardware = hardware
         self.edge_index = from_networkx(hardware).edge_index
         self.num_qubits: int = hardware.qubit_number
-        self.distance_matrix = torch.tensor(get_distance_matrix_swap_number(hardware), dtype=torch.float32)
+        self.distance_matrix = torch.tensor(get_distance_matrix(hardware), dtype=torch.float32)
         self.distance_matrix = normalize_distance_matrix(self.distance_matrix)
         self.qubit_embed_class = QUBIT_EMBED[qubit_embed]
         self.output_channels = qubit_embedding_dim

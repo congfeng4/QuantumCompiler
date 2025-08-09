@@ -19,9 +19,11 @@ from qiskit.converters.circuit_to_dag import circuit_to_dag
 from qiskit.converters.dag_to_circuit import dag_to_circuit
 from qiskit.dagcircuit.dagcircuit import DAGNode
 
-from contrib.common import qknob_metrics
+from contrib.common import qknob_metrics, get_distance_matrix
+from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
 from contrib.state_space import StateSpace
 from contrib.action_space import ActionSpace, ActionSpaceEdge
+from contrib.reward_space import get_circuit_cost
 
 from hamap.distance_matrix import (
     get_distance_matrix_swap_number_and_error,
@@ -104,9 +106,9 @@ class TrajectoryCollector:
         act_key = 'swap' if isinstance(swap, SwapTwoQubitGate) else 'bridge'
         self.action_count[act_key] += 1
 
-    # def add_action(self, candidates_with_cost, current_mapping, initial_mapping):
-    #     action = self.act_space.encode(candidates_with_cost, current_mapping, initial_mapping)
-    #     self.current_traj['acts'].append(action)
+    def add_reward(self, rew: float):
+        print(f'Reward {rew}')
+        self.current_traj['rews'].append(rew)
 
     def save(self):
         self.outdir.mkdir(parents=True, exist_ok=True)
@@ -187,7 +189,6 @@ def heuristic_algorithm(
     )
     trans_mapping = initial_mapping.copy()
     front_layer_len = []
-    swap_candidates = []
 
     # Start of the iterative algorithm
     while not front_layer.is_empty():
@@ -241,6 +242,9 @@ def heuristic_algorithm(
                 candidates_with_cost.append((potential_swap, cost))
             # Add action
             collector.add_action(best_swap_qubits, current_mapping, initial_mapping)
+            collector.add_reward(get_circuit_cost(front_layer, topological_nodes[current_node_index:], current_mapping,
+                                                  distance_matrix, hardware))
+
             # We now have our best SWAP/Bridge, let's perform it!
             current_mapping = best_swap_qubits.update_mapping(current_mapping)
             if isinstance(best_swap_qubits, SwapTwoQubitGate):
@@ -292,43 +296,21 @@ def rollout_expert_trajectory(env: gym.Env, trajectory: Trajectory):
 
 
 if __name__ == '__main__':
-    from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
-
     hardware = IBMQHardwareArchitecture('tokyo')
 
-    collector_train = TrajectoryCollector(hardware, L=10,
+    collector = TrajectoryCollector(hardware, L=10,
                                           outdir=Path('../result/pretrain/ha'),
-                                          prefix='20Q_gate_Tokyo_train')
-
-    collector_val = TrajectoryCollector(hardware, L=10,
-                                        outdir=Path('../result/pretrain/ha'),
-                                        prefix='20Q_gate_Tokyo_val')
+                                          prefix='20Q_gate_Tokyo')
 
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
-    random.seed(22)
     random.shuffle(circuit_list)
-    T_train = 8
-    T_val = 2
 
-    for i in range(T_train):
-        qc = QuantumCircuit.from_qasm_file(str(circuit_list[i]))
-        init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
-        heuristic_algorithm(
-            collector=collector_train,
-            quantum_circuit=qc,
-            initial_mapping=init,
-            hardware=hardware,
-        )
-    collector_train.save()
-
-    for i in range(T_val):
-        qc = QuantumCircuit.from_qasm_file(str(circuit_list[T_train + i]))
-        init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
-        heuristic_algorithm(
-            collector=collector_val,
-            quantum_circuit=qc,
-            initial_mapping=init,
-            hardware=hardware,
-        )
-
-    collector_val.save()
+    qc = QuantumCircuit.from_qasm_file(str(circuit_list[0]))
+    init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
+    heuristic_algorithm(
+        collector=collector,
+        quantum_circuit=qc,
+        initial_mapping=init,
+        hardware=hardware,
+        # get_distance_matrix=get_distance_matrix,
+    )
