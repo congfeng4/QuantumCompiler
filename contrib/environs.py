@@ -11,7 +11,7 @@ from qiskit.circuit import Qubit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGNode
 
-from contrib.common import qknob_metrics
+from contrib.common import qknob_metrics, readable_float_dict
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy, ha_baseline
 from contrib.expert import TrajectoryCollector, rollout_expert_trajectory, heuristic_algorithm
 from contrib.seed import set_all_seeds
@@ -59,6 +59,12 @@ class RewardMode(Enum):
     METRICS_EXP = 5
 
 
+class BaselineMode(Enum):
+    NONE = 0
+    SUBTRACT_MIN = 0
+    SUBTRACT_AVG =1
+
+
 class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
     def __init__(self,
@@ -70,7 +76,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  reward_mode: RewardMode = RewardMode.HEURISTIC_COST,
                  look_ahead_depth: int = 5,
                  look_ahead_weight: float = 0.5,
-                 tau: float = 1):
+                 tau: float = 1,
+                 baseline_mode: BaselineMode = BaselineMode.SUBTRACT_MIN):
         super().__init__(hardware, L=L)
         self.input_circuit = input_circuit
         self.circuit_path = circuit_path
@@ -81,6 +88,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.look_ahead_depth = look_ahead_depth
         self.look_ahead_weight = look_ahead_weight
         self.tau = tau
+        self.baseline_mode = baseline_mode
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
@@ -102,7 +110,9 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.explored_mappings = set()
         self.inverse_mapping = {val: key for key, val in self.initial_mapping.items()}
         self.total_cost = 0
+        self.normalized_total_cost = 0
         self.swap_candidates = None
+        self.min_cost = self.max_cost = self.avg_cost = None
 
         self.update_front_layer()
         self.update()
@@ -117,7 +127,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
         self.metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
-        self.metrics.update(total_cost=self.total_cost)
+        self.metrics.update(total_cost=self.total_cost, normalized_total_cost=self.normalized_total_cost)
         for key, value in self.metrics_baseline.items():
             self.metrics[key + '_diff'] = self.metrics[key] - value
 
@@ -199,6 +209,14 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             look_ahead_weight=self.look_ahead_weight,
         )
 
+    def normalize_h_cost(self, h_cost: float):
+        # IMPORTANT: subtract baseline from heuristic cost can stablize late-term training. No explosion!
+        if self.baseline_mode == BaselineMode.SUBTRACT_MIN:
+            return h_cost - self.min_cost
+        if self.baseline_mode == BaselineMode.SUBTRACT_AVG:
+            return h_cost - self.avg_cost
+        return h_cost
+
     def step(
             self, policy: int
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
@@ -206,12 +224,15 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         best_swap_qubits = self.action.decode(policy, self.initial_mapping,
                                               inverse_current_mapping,
                                               self.inverse_mapping, self.hardware)
-        h_cost = self.heuristic_cost(best_swap_qubits)
-        self.total_cost += h_cost
+        raw_h_cost = self.heuristic_cost(best_swap_qubits)
+        normalized_h_cost = self.normalize_h_cost(raw_h_cost)
+        self.total_cost += raw_h_cost
+        self.normalized_total_cost += normalized_h_cost
+        h_cost = raw_h_cost if self.baseline_mode == BaselineMode.NONE else normalized_h_cost
+
         if not self.apply_swap_action(best_swap_qubits):
             return self.step_invalid()
-        simple_cost = self.state.get_cost(self.front_layer, self.topological_nodes[self.current_node_index:],
-                                          self.current_mapping, self.distance_matrix, self.hardware)
+
         self.invalid_actions = 0
         num_exe = self.update()
         gate_num_cost = 3 - num_exe
@@ -226,18 +247,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             reward = -gate_num_cost
         elif self.reward_mode == RewardMode.HEURISTIC_COST:
             reward = -h_cost
-        elif self.reward_mode == RewardMode.SIMPLE_COST:
-            reward = -simple_cost
-        elif self.reward_mode == RewardMode.GATE_NUM_AND_SIMPLE_COST:
-            reward = -simple_cost - gate_num_cost
-        elif self.reward_mode == RewardMode.METRICS_EXP:
-            # metrics = qknob_metrics(self.input_circuit, self.resulting_dag_quantum_circuit)
-            # reward = np.exp(-metrics['cx_ratio'] - metrics['depth_ratio'])
-            new_depth = self.resulting_dag_quantum_circuit.depth()
-            new_cnot = get_cnot_num(self.resulting_dag_quantum_circuit)
-            reward = -(new_depth - self.current_depth) - (new_cnot - self.current_cnot)
-            self.current_depth = new_depth
-            self.current_cnot = new_cnot
         else:
             raise ValueError(self.reward_mode)
 
@@ -248,7 +257,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             metrics = self.metrics
             reward += np.exp(-metrics['cx_ratio'] - metrics['depth_ratio'])
             info['metrics'] = self.metrics
-            print(f'Game ends {self.metrics}')
+            readable_metrics = readable_float_dict(self.metrics)
+            print(f'Game ends {readable_metrics}')
         return self._get_obs(), reward, done, False, info
 
     def get_candidates(self):
@@ -256,29 +266,22 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                                               self.current_mapping,
                                               self.trans_mapping, self.explored_mappings)
 
-    def get_score(self):
-        scores = np.zeros((self.action.get_size(),), np.float32)
-        for swap in self.get_candidates():
-            cost = self.heuristic_cost(swap)
-            idx = self.action.encode(swap, self.current_mapping, self.initial_mapping)
-            scores[idx] = np.exp(-cost / self.tau)
-        return scores
-
     def action_masks(self):
-        # return self.action.get_masks(
-        #     swap_candidates=self.get_candidates(), current_mapping=self.current_mapping, initial_mapping=self.initial_mapping,
-        # )
         masks = np.zeros(self.action.get_size(), dtype=bool)
-        self.swap_masks(masks)
-        self.bridge_masks(masks)
+        costs = set()
+        self.swap_masks(masks, costs)
+        self.bridge_masks(masks, costs)
+        self.min_cost = min(costs)
+        self.max_cost = max(costs)
+        self.avg_cost = sum(costs) / len(costs)
         return masks.tolist()
 
-    def bridge_masks(self, masks):
+    def bridge_masks(self, masks, costs: set[float]):
         trans_mapping = self.trans_mapping
         initial_mapping = self.initial_mapping
 
         inverse_trans_mapping = {val: key for key, val in trans_mapping.items()}
-        # inverse_mapping = {val: key for key, val in initial_mapping.items()}
+        inverse_mapping = {val: key for key, val in initial_mapping.items()}
         for op in self.front_layer.ops:
             if len(op.qargs) < 2:
                 # We just pass 1 qubit gates because they do not participate in the
@@ -295,21 +298,22 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             for _, potential_middle_index in self.hardware.out_edges(control_index):
                 for _, potential_target_index in self.hardware.out_edges(potential_middle_index):
                     if potential_target_index == target_index:
-                        # two_qubit_gate = BridgeTwoQubitGate(
-                        #     inverse_trans_mappiang[initial_mapping[control]],
-                        #     inverse_mapping[potential_middle_index],
-                        #     inverse_trans_mapping[initial_mapping[target]],
-                        # )
+                        two_qubit_gate = BridgeTwoQubitGate(
+                            inverse_trans_mapping[initial_mapping[control]],
+                            inverse_mapping[potential_middle_index],
+                            inverse_trans_mapping[initial_mapping[target]],
+                        )
+                        costs.add(self.heuristic_cost(two_qubit_gate))
                         # Not using assert! bridge has deplicates.
                         # assert not masks[control_index, target_index], (control_index, target_index, masks[control_index, target_index])
                         masks[self.action.action_to_index[control_index, target_index]] = True
 
-    def swap_masks(self, masks):
+    def swap_masks(self, masks, costs: set[float]):
         # First compute all the qubits involved in the given layer
         qubits_involved_in_front_layer = set()
         for op in self.front_layer.ops:
             qubits_involved_in_front_layer.update(op.qargs)
-        # inverse_mapping = {val: key for key, val in self.current_mapping.items()}
+        inverse_mapping = {val: key for key, val in self.current_mapping.items()}
         # Then for all the possible links that involve at least one of the qubits used by
         # the gates in the given layer, add this link as a possible SWAP.
         # all_swaps = list()
@@ -318,6 +322,11 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             # For all the links that involve the current qubit.
             for source, sink in self.hardware.out_edges(qubit_index):
                 masks[self.action.action_to_index[source, sink]] = True
+                two_qubit_gate = SwapTwoQubitGate(
+                    inverse_mapping[source], inverse_mapping[sink]
+                )
+                costs.add(self.heuristic_cost(two_qubit_gate))
+
 
 
 gym.register("CircuitEnv", "contrib.environs:CircuitEnvWithInitialMapping")

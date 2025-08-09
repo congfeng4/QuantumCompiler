@@ -5,6 +5,7 @@ import networkx as nx
 from qiskit.dagcircuit import DAGNode, DAGCircuit
 
 from hamap.gates import TwoQubitGate
+from hamap.hardware import IBMQHardwareArchitecture
 
 RESULT_DIR = Path(__file__).parent.parent / 'result'
 
@@ -68,3 +69,6 @@ def non_adj_common_pairs(G):
         if nx.common_neighbors(G, u, v):
             pairs.add((u, v))
     return pairs
+
+def readable_float_dict(data: dict[str, float], places: int = 2):
+    return {k : round(v, places) for k, v in data.items()}

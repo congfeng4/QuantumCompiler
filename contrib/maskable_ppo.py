@@ -10,13 +10,14 @@ from pathlib import Path
 
 import jsons
 import pandas as pd
+from contrib.common import QuantumCircuit, IBMQHardwareArchitecture
 from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
 from stable_baselines3.common.vec_env import VecEnv, VecMonitor, DummyVecEnv
 
-from contrib.environs import *
+from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.feature_extractor import get_policy_kwargs
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
 from contrib.metrics_callback import CustomMetricsCallback
@@ -26,9 +27,11 @@ M = int(1e6)
 
 
 def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwareArchitecture,
-                                 num: int = 1, add_sabre: bool = True, add_random: bool = False,
+                                 num: int = 1, L: int = 10,
+                                 add_sabre: bool = True,
+                                 add_random: bool = False,
                                  add_simulated_anealing=False,
-                                 L: int = 10, **kwargs
+                                 **kwargs,
                                  ):
     vec_funcs = []
 
@@ -70,6 +73,7 @@ def run_maskable_ppo(
         ent_coef: float = 0.01,
         eval_env: VecEnv = None,
         eval_freq: int = 1_000,
+        gamma: float = 0.99,
         pretrain: Path = None,
         early_stop: bool = True,
         **kwargs,
@@ -113,6 +117,7 @@ def run_maskable_ppo(
         batch_size=batch_size,
         tensorboard_log=log_dir,
         verbose=1,
+        gamma=gamma,
         ent_coef=ent_coef,
         policy_kwargs=get_policy_kwargs(
             hardware, embed_dim, mode
