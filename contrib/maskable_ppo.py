@@ -26,7 +26,7 @@ from contrib.seed import set_all_seeds
 M = int(1e6)
 
 
-def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwareArchitecture,
+def create_vec_env_from_circuits(circuit_paths: list[QuantumCircuit], hardware: IBMQHardwareArchitecture,
                                  num: int = 1, L: int = 10,
                                  add_sabre: bool = True,
                                  add_random: bool = False,
@@ -35,25 +35,22 @@ def create_vec_env_from_circuits(circuit_paths: list[str], hardware: IBMQHardwar
                                  ):
     vec_funcs = []
 
-    def make_func(circ: QuantumCircuit, path, init):
-        return lambda: CircuitEnvWithInitialMapping(circ, path, hardware, init, L, **kwargs)
+    def make_func(circ: QuantumCircuit, init):
+        return lambda: CircuitEnvWithInitialMapping(circ, hardware, init, L, **kwargs)
 
-    for path in circuit_paths:
-        print(f'Path {path}')
-        qc = QuantumCircuit.from_qasm_file(path)
-
+    for qc in circuit_paths:
         for i in range(num):
             if add_random:
                 init = get_initial_mapping(qc, hardware, InitialMappingStrategy.RANDOM)
-                vec_funcs.append(make_func(qc, path, init))
+                vec_funcs.append(make_func(qc, init))
 
             if add_sabre:
                 init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
-                vec_funcs.append(make_func(qc, path, init))
+                vec_funcs.append(make_func(qc, init))
 
             if add_simulated_anealing:
                 init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SIMULATE_ANNEALING)
-                vec_funcs.append(make_func(qc, path, init))
+                vec_funcs.append(make_func(qc, init))
 
     print(f'Create env with {len(circuit_paths)} circuits')
     # SubProcVecEnv一开始就内存爆炸了💥

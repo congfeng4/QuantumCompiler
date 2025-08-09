@@ -54,7 +54,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
     def __init__(self,
                  input_circuit: QuantumCircuit,
-                 circuit_path: str,
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
                  L: int,
@@ -62,7 +61,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  **kwargs):
         super().__init__(hardware, L=L)
         self.input_circuit = input_circuit
-        self.circuit_path = circuit_path
         self.hardware = hardware
         self.initial_mapping = initial_mapping
         self.distance_matrix = get_distance_matrix(self.hardware)
@@ -96,7 +94,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
     def update_circuit_cost(self):
         old_cost = self.circuit_cost
         self.circuit_cost = get_circuit_cost(self.front_layer, self.topological_nodes[self.current_node_index:],
-                                             self.current_mapping, self.distance_matrix, self.hardware)
+                                             self.current_mapping, self.distance_matrix, self.hardware, maxlen=self.L)
         return old_cost
 
     def _get_obs(self):

@@ -96,8 +96,8 @@ class RewardSpace:
 
 
 def get_circuit_cost(front_layer: QuantumLayer, gates: list[DAGNode], current_mapping: dict[Qubit, int],
-                    distance_matrix: np.ndarray, hardware: IBMQHardwareArchitecture):
+                    distance_matrix: np.ndarray, hardware: IBMQHardwareArchitecture, maxlen: int = -1):
     cost = 0
-    for op in front_layer.ops + gates:
+    for op in (front_layer.ops + gates)[:maxlen]:
         cost += _gate_op_cost(op, distance_matrix, current_mapping, hardware)
     return cost
