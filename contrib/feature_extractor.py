@@ -130,6 +130,8 @@ class HardwareAwareQubitEmbedding(nn.Module):
                 nn.Linear(self.num_qubits, qubit_embedding_dim),
                 nn.ReLU(),
                 nn.Linear(qubit_embedding_dim, qubit_embedding_dim),
+                # nn.ReLU(),
+                # nn.Linear(qubit_embedding_dim, qubit_embedding_dim),
             )
 
     def forward(self, physical2log: torch.LongTensor):
@@ -161,6 +163,12 @@ class GateSeqEncoder(nn.Module):
                  ):
         super().__init__()
         self.output_channels = embed_dim
+        self.mlp = nn.Sequential(
+            nn.Identity()
+            # nn.Linear(input_dim, embed_dim),
+            # nn.ReLU(),
+            # nn.Linear(embed_dim, embed_dim),
+        )
 
     def forward(self, gate_seq: torch.LongTensor, qubit_embed: torch.FloatTensor):
         """
@@ -192,7 +200,8 @@ class GateSeqEncoder(nn.Module):
         e0 = e0.reshape(B, S, -1)
         e1 = e1.reshape(B, S, -1)
         gate_vec = torch.cat([e0, e1], dim=-1)  # (B, S, 2*D)
-        return gate_vec
+        gate_emb = self.mlp(gate_vec.reshape(B*S, -1)).reshape(B, S, -1)
+        return gate_emb
 
 
 class PositionalEncoding(nn.Module):

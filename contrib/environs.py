@@ -62,6 +62,7 @@ class BaselineMode(Enum):
     SUBTRACT_AVG =2
     DIVIDE_MIN = 3
     DIVIDE_AVG =4
+    MINMAX = 5
 
 
 class CircuitEnvWithInitialMapping(BaseCircuitEnv):
@@ -73,7 +74,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  initial_mapping: dict[Qubit, int],
                  L: int,
                  reward_mode: RewardMode = RewardMode.HEURISTIC_COST,
-                 look_ahead_depth: int = 20,
+                 look_ahead_depth: int = 16,
                  look_ahead_weight: float = 0.5,
                  baseline_mode: BaselineMode = BaselineMode.SUBTRACT_MIN):
         super().__init__(hardware, L=L)
@@ -216,6 +217,9 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             return h_cost / self.avg_cost
         if self.baseline_mode == BaselineMode.DIVIDE_MIN:
             return h_cost / self.min_cost
+        if self.baseline_mode == BaselineMode.MINMAX:
+            base = self.max_cost - self.min_cost
+            return 0 if base == 0 else (h_cost - self.min_cost) / base
         return h_cost
 
     def step(
@@ -236,7 +240,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
         self.invalid_actions = 0
         num_exe = self.update()
-        gate_num_cost = 1
+        gate_num_cost = 0.01
 
         # IMPORTANT: two terms have different effects:
         # -cost can converge model quickly on startup but rebound later.
@@ -256,7 +260,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         if done:
             self.finalize_result()
             metrics = self.metrics
-            reward += np.exp(-metrics['cx_ratio'] - metrics['depth_ratio'])
+            reward += -metrics['cx_ratio'] - metrics['depth_ratio']
             info['metrics'] = self.metrics
             readable_metrics = readable_float_dict(self.metrics)
             print(f'Game ends {readable_metrics}')
