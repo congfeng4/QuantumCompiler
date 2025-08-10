@@ -293,3 +293,5 @@ pip-selfcheck.json
 /log*
 *.trans
 best_model.zip
+.vscode
+__MACOSX

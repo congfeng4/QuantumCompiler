@@ -1,5 +1,5 @@
-from typing import Iterator, Optional, Self
-
+from typing import Iterator, Optional, TypeVar
+Self = TypeVar("Self")
 
 class Node:
     """
@@ -13,7 +13,7 @@ class Node:
     @classmethod
     def null(cls) -> Self:
         return cls(None)
-    
+
     @property
     def is_null(self) -> bool:
         return self.__val is None
@@ -24,7 +24,7 @@ class Node:
 
     def __repr__(self) -> str:
         return str(self.__val) if not self.is_null else "NULL-NODE"
-    
+
     def __eq__(self, other) -> bool:
         if not isinstance(other, Node):
             return False
@@ -33,17 +33,17 @@ class Node:
         if self.__val != other.__val:
             return False
         return True
-    
+
     def __gt__(self, other: Self) -> bool:
         return self.__val > other.__val
-    
+
     def __lt__(self, other: Self) -> bool:
         return self.__val < other.__val
-    
+
     def __hash__(self) -> int:
         val = self.__val if not self.is_null else -1
         return hash(val)
-    
+
 
 class Edge:
     """
@@ -69,7 +69,7 @@ class Edge:
     def __repr__(self) -> str:
         src, dst = self.__val
         return f"{src}-{dst}" if not self.is_null else "NULL-EDGE"
-    
+
     def __eq__(self, other) -> bool:
         if not isinstance(other, Edge):
             return False
@@ -78,10 +78,10 @@ class Edge:
         if self.__val not in (other.__val, other.__val[::-1]):
             return False
         return True
-    
+
     def __hash__(self) -> int:
         val = self.__val[0].val + self.__val[1].val if not self.is_null else -1
         return hash(val)
-    
+
     def __iter__(self) -> Iterator[Node]:
         return iter(self.__val)

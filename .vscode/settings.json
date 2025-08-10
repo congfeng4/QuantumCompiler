@@ -1,9 +1,0 @@
-{
-    "grammarly.selectors": [
-        {
-            "language": "markdown",
-            "scheme": "file",
-            "pattern": "/Users/fengcong/Desktop/0810-summary/summary.md"
-        }
-    ]
-}

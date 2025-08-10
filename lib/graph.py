@@ -2,7 +2,8 @@ import itertools as it
 import random as rd
 
 from rustworkx import PyGraph
-from typing import Optional, Self, Sequence
+from typing import Iterator, Optional, TypeVar, Sequence
+Self = TypeVar("Self")
 
 from .graph_data import Edge, Node
 
@@ -16,19 +17,19 @@ class Graph:
     __name: str
     __i2n: dict[int, Node] # index-to-node map
     __n2i: dict[Node, int] # node-to-index map
-    
+
     def __init__(self, pygraph: PyGraph, name: str = "graph"):
 
         if pygraph.has_parallel_edges():
             raise ValueError("graph contains parallel edges")
         if not all(isinstance(node, Node) for node in pygraph.nodes()):
             raise ValueError("graph nodes must be of type Node")
-        
+
         self.__pygraph = pygraph
         self.__name = name
         self.__i2n = {index: pygraph[index] for index in pygraph.node_indices()}
         self.__n2i = {pygraph[index]: index for index in pygraph.node_indices()}
-    
+
     @classmethod
     def from_edges(cls, edges: list[tuple[int, int]]) -> Self:
         """
@@ -37,7 +38,7 @@ class Graph:
 
         Params:
         - `edges`: the list of edges to instantiate the graph from
-        
+
         Returns:
         - a graph with provided edge list
         """
@@ -53,50 +54,50 @@ class Graph:
         pygraph.add_nodes_from(new_nodes)
         n2i = {pygraph[index]: index for index in pygraph.node_indices()}
         pygraph.add_edges_from([(n2i[src], n2i[dst], Edge(src, dst)) for src, dst in new_edges])
-        
+
         return cls(pygraph)
-    
+
     def __eq__(self, other: Self) -> bool:
         return set(self.nodes) == set(other.nodes) and set(self.edges) == set(other.edges)
-    
+
     def __getitem__(self, key: int | Node) -> Node | int:
         return self.__i2n[key] if isinstance(key, int) else self.__n2i[key]
-    
+
     def __repr__(self) -> str:
         return "Graph(\n" + \
             f"  nodes: {self.nodes}\n" + \
             f"  edges: {self.edges}\n" + \
         ")"
-    
+
     @property
     def name(self) -> str:
         return self.__name
-    
+
     @property
     def nodes(self) -> list[Node]:
         return self.__pygraph.nodes()
-    
+
     @property
     def num_nodes(self) -> int:
         return self.__pygraph.num_nodes()
-    
+
     @property
     def num_edges(self) -> int:
         return self.__pygraph.num_edges()
-    
+
     @property
     def edges(self) -> list[Edge]:
         return self.__pygraph.edges()
-    
+
     def pygraph(self) -> PyGraph:
         return self.__pygraph
-    
+
     def copy(self) -> Self:
         return Graph(self.__pygraph.copy())
-    
+
     def add_node(self, node: Node) -> None:
         self.add_nodes([node])
-    
+
     def add_nodes(self, nodes: Sequence[Node]) -> None:
         indices = self.__pygraph.add_nodes_from(nodes)
         for node, index in zip(nodes, indices):
@@ -122,7 +123,7 @@ class Graph:
 
     def remove_edge(self, edge: Edge) -> None:
         self.remove_edges([edge])
-    
+
     def remove_edges(self, edges: Sequence[Edge]) -> None:
         self.__pygraph.remove_edges_from([
             (self[src], self[dst]) for src, dst in edges
@@ -130,22 +131,22 @@ class Graph:
 
     def has_node(self, node: Node) -> bool:
         return node in self.__n2i
-    
+
     def has_edge(self, src: Node, dst: Node) -> bool:
         if not (self.has_node(src) and self.has_node(dst)):
             return False
         return self.__pygraph.has_edge(self[src], self[dst])
-    
+
     def neighbours(self, node: Node) -> list[Node]:
         return [self[index] for index in self.__pygraph.neighbors(self[node])]
-    
+
     def incident_edges(self, src: Node) -> list[Edge]:
         return [Edge(src, dst) for dst in self.neighbours(src)]
-    
+
     def random_subgraph(self, num_edges: int) -> Self:
         """
         Generate a random edge-induced subgraph with the specified number of edges.
-        
+
         Params:
         - `num_edges`: number of edges in the generated subgraph
 
@@ -154,10 +155,10 @@ class Graph:
         """
         edges = [(self[src], self[dst]) for src, dst in rd.sample(self.edges, num_edges)]
         return Graph(self.__pygraph.edge_subgraph(edges))
-    
+
     def random_nodes(self, num_nodes: int, include_all: bool = False) -> list[Node]:
         """
-        Randomly pick nodes from this graph with replacement. 
+        Randomly pick nodes from this graph with replacement.
 
         Params:
         - `num_nodes`: number of nodes to sample
@@ -169,7 +170,7 @@ class Graph:
         """
         if include_all and num_nodes < self.num_nodes:
             raise ValueError("cannot ensure every node is included with given num_nodes")
-        
+
         nodes = []
         if include_all:
             nodes += rd.sample(self.nodes, self.num_nodes)
@@ -177,10 +178,10 @@ class Graph:
         nodes += rd.choices(self.nodes, k = num_nodes)
 
         return nodes
-    
+
     def random_edges(self, num_edges: int, include_all: bool = True) -> list[Edge]:
         """
-        Randomly pick edges from this graph with replacement. 
+        Randomly pick edges from this graph with replacement.
 
         Params:
         - `n`: number of edges to sample
@@ -192,7 +193,7 @@ class Graph:
         """
         if include_all and num_edges < self.num_edges:
             raise ValueError("cannot ensure every edge is included with given num_edges")
-        
+
         edges = []
         if include_all:
             edges += rd.sample(self.edges, self.num_edges)
@@ -200,7 +201,7 @@ class Graph:
         edges += rd.choices(self.edges, k = num_edges)
 
         return edges
-    
+
     def permute(self, src: Node, dst: Node, inplace: bool = False) -> Optional[Self]:
         """
         Permute nodes src and dst on this graph.
@@ -215,7 +216,7 @@ class Graph:
         """
         if isinstance(src, int) or isinstance(dst, int):
             raise ValueError("src and dst should be of type Node")
-        
+
         # Do not permute if neither src nor dst exists in graph
         if not (self.has_node(src) or self.has_node(dst)):
             return self.copy() if not inplace else None
@@ -229,20 +230,20 @@ class Graph:
         if not this.has_node(src):
             this.add_node(src)
             src_is_external = True
-        
+
         dst_is_external = False
         if not this.has_node(dst):
             this.add_node(dst)
             dst_is_external = True
-        
+
         # Obtain neighbours of src and dst
         src_neighbors = set(this.neighbours(src)) - {dst}
         dst_neighbors = set(this.neighbours(dst)) - {src}
-        
+
         # Disconnect u and v from their neighbours
         this.remove_edges([Edge(src, ngb) for ngb in src_neighbors])
         this.remove_edges([Edge(dst, ngb) for ngb in dst_neighbors])
-        
+
         # Connect u to v's neighbours and v to u's neighbours
         this.add_edges([Edge(dst, ngb) for ngb in src_neighbors])
         this.add_edges([Edge(src, ngb) for ngb in dst_neighbors])
@@ -255,7 +256,7 @@ class Graph:
 
         if not inplace:
             return this
-    
+
     def union(self, other: Self, inplace: bool = False) -> Optional[Self]:
         """
         Construct the union graph of this graph and the other graph.
@@ -263,21 +264,21 @@ class Graph:
         Params:
         - `other`: graph to union with this graph
         - `inplace`: if True then the union is performed direcly on this graph
-        
+
         Returns:
         - union graph if `inplace` is False
         """
         this = self
         if not inplace:
             this = this.copy()
-        
+
         # Add union of nodes and edges
         this.add_nodes(list(set(other.nodes) - set(this.nodes)))
         this.add_edges(other.edges)
 
         if not inplace:
             return this
-        
+
     def __or__(self, other: Self) -> Self:
         return self.union(other)
 

@@ -1,12 +1,12 @@
-from typing import Iterator, Optional, Self
-
+from typing import Iterator, Optional, TypeVar
+Self = TypeVar("Self")
 from .graph import Graph
 from .permutation import Permutation
 
 
 class Glink:
     """
-    A class representing a glink. 
+    A class representing a glink.
     """
     __perm: Permutation
     __graph: Graph
@@ -29,11 +29,11 @@ class Glink:
     @property
     def perm(self) -> Permutation:
         return self.__perm
-    
+
     @property
     def next(self) -> Optional[Self]:
         return self.__next
-    
+
     def link_to(self, glink: Self):
         self.__next = glink
 
@@ -73,11 +73,11 @@ class GlinkChain:
     @property
     def head(self) -> Glink:
         return self.__head
-    
+
     @property
     def tail(self) -> Glink:
         return self.__tail
-    
+
     def glinks(self) -> Iterator[Glink]:
         """
         Iterate through each glink in the chain.
