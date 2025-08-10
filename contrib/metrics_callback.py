@@ -1,4 +1,7 @@
+from sb3_contrib import MaskablePPO
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
+from sb3_contrib.common.maskable.evaluation import evaluate_policy
+from stable_baselines3.common.callbacks import BaseCallback
 
 
 def average_metrics(metrics_list):
@@ -18,28 +21,24 @@ def average_metrics(metrics_list):
     return avg_metrics
 
 
-class CustomMetricsCallback(MaskableEvalCallback):
-    """
-    A custom callback that derives from ``BaseCallback``.
+class MetricEvalCallback(BaseCallback):
+    model: MaskablePPO
 
-    :param verbose: Verbosity level: 0 for no output, 1 for info messages, 2 for debug messages
-    """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, eval_env, eval_freq=10000, n_eval_episodes=10):
+        super().__init__()
+        self.eval_env = eval_env
+        self.eval_freq = eval_freq
+        self.n_eval_episodes = n_eval_episodes
 
     def _on_step(self) -> bool:
-        """
-        This method is called after each call to `env.step()`.
+        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
+            metrics_list = []
+            for _ in range(self.n_eval_episodes):  # 必须重复多次，早期单次eval的方差很大。
+                evaluate_policy(self.model, self.eval_env, n_eval_episodes=1, use_masking=True, deterministic=False)
+                metrics = self.eval_env.get_attr('metrics', range(self.eval_env.num_envs))[0]
+                metrics_list.append(metrics)
 
-        For a vectorized env, this is called after the `step` of all environments.
-
-        :return: (bool) If the callback returns False, training is aborted early.
-        """
-        metrics_env = self.eval_env.get_attr("metrics", range(self.eval_env.num_envs))
-        metrics = average_metrics(metrics_env)
-        if metrics:
-            for key, value in metrics.items():
-                self.logger.record(f"custom/{key}", round(value, 2))
+            for key, value in average_metrics(metrics_list).items():
+                self.logger.record(f"eval/{key}", round(value, 2))
 
         return True

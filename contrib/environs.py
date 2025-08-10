@@ -18,7 +18,7 @@ from contrib.seed import set_all_seeds
 from contrib.common import get_cnot_num, get_distance_matrix
 from contrib.action_space import ActionSpaceEdge
 from contrib.state_space import StateSpace
-from contrib.reward_space import RewardMode, RewardSpace, BaselineMode, get_circuit_cost
+from contrib.reward_space import get_circuit_cost
 
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
 from hamap.heuristics import sabre_heuristic
@@ -58,6 +58,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  initial_mapping: dict[Qubit, int],
                  L: int,
                  gamma: float = 0.99,
+                 step_penalty: float = 1,
                  **kwargs):
         super().__init__(hardware, L=L)
         self.input_circuit = input_circuit
@@ -65,6 +66,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.initial_mapping = initial_mapping
         self.distance_matrix = get_distance_matrix(self.hardware)
         self.gamma = gamma
+        self.step_penalty = step_penalty
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
@@ -192,13 +194,16 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         old_cost = self.update_circuit_cost()
         # The cost of a circuit is a potential function of the state.
         # F(s', s) = gamma * phi(s') - phi(s)
-        reward = self.circuit_cost * self.gamma - old_cost - 0.01
+        reward = self.circuit_cost * self.gamma - old_cost - self.step_penalty
         done = not self.front_layer
         info = {}
         if done:
             self.finalize_result()
             metrics = self.metrics
-            reward = len(self.topological_nodes)
+            # reward = len(self.topological_nodes)
+            # xx ratio have a lower bound of 1. +2 to make the lower bound 0
+            # So reward is [0, 1] * |Gates|
+            reward = len(self.topological_nodes) * np.exp(-metrics['cx_ratio'] - metrics['depth_ratio'] + 2)
             info['metrics'] = metrics
             readable_metrics = readable_float_dict(self.metrics)
             print(f'Game ends {readable_metrics}')
@@ -281,5 +286,5 @@ if __name__ == '__main__':
     heuristic_algorithm(collector, circuit, init, hardware)
     traj = collector.trajectories[0]
     metrics = collector.metrics_list[0]
-    env = CircuitEnvWithInitialMapping(circuit, str(circuit_path), hardware, init, L=10)
+    env = CircuitEnvWithInitialMapping(circuit, hardware, init, L=10)
     metrics_env = rollout_expert_trajectory(env, traj)

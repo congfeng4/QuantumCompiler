@@ -20,7 +20,7 @@ from stable_baselines3.common.vec_env import VecEnv, VecMonitor, DummyVecEnv
 from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.feature_extractor import get_policy_kwargs
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
-from contrib.metrics_callback import CustomMetricsCallback
+from contrib.metrics_callback import MetricEvalCallback
 from contrib.seed import set_all_seeds
 
 M = int(1e6)
@@ -73,7 +73,7 @@ def run_maskable_ppo(
         gamma: float = 0.99,
         pretrain: Path = None,
         early_stop: bool = True,
-        **kwargs,
+        features_extractor_kwargs: dict = None,
 ):
     """
     ✅ Run MaskablePPO on a circuit and record the metrics.
@@ -86,6 +86,9 @@ def run_maskable_ppo(
     log_dir = f'../log/{output_dirname}'
     if embed_dim is None:
         embed_dim = hardware.qubit_number
+    if features_extractor_kwargs is None:
+        features_extractor_kwargs = {}
+
     eval_env = eval_env or VecMonitor(env)
 
     # 回调：连续 10 次评估无提升就停止
@@ -95,12 +98,16 @@ def run_maskable_ppo(
         verbose=1
     )
 
-    metrics_callback = CustomMetricsCallback(eval_env)
+    metrics_callback = MetricEvalCallback(
+        eval_env,
+        eval_freq=eval_freq,
+        n_eval_episodes=10,
+    )
 
     eval_callback = MaskableEvalCallback(
         eval_env,
         eval_freq=eval_freq,  # 每 10w 步评估一次
-        callback_after_eval=metrics_callback,
+        # callback_after_eval=metrics_callback,
         verbose=1,
         deterministic=False,
         use_masking=True,
@@ -117,7 +124,7 @@ def run_maskable_ppo(
         gamma=gamma,
         ent_coef=ent_coef,
         policy_kwargs=get_policy_kwargs(
-            hardware, embed_dim, mode,
+            hardware, embed_dim, mode, **features_extractor_kwargs
         ),
     ) if pretrain is None else MaskablePPO.load(pretrain, env)
     ppo.tensorboard_log = log_dir
@@ -127,7 +134,7 @@ def run_maskable_ppo(
         total_timesteps=total_timesteps,
         tb_log_name=log_name,
         progress_bar=True,
-        callback=[eval_callback],
+        callback=[eval_callback, metrics_callback],
     )
 
     print('Eval policy')
