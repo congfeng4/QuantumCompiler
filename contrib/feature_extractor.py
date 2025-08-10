@@ -161,15 +161,22 @@ class GateSeqEncoder(nn.Module):
     def __init__(self,
                  input_dim: int,
                  embed_dim: int,
+                 num_layers: int
                  ):
         super().__init__()
         self.output_channels = embed_dim
-        self.mlp = nn.Sequential(
-            nn.Identity()
-            # nn.Linear(input_dim, embed_dim),
-            # nn.ReLU(),
-            # nn.Linear(embed_dim, embed_dim),
-        )
+        if num_layers == 0:
+            self.mlp = nn.Identity()
+        elif num_layers == 1:
+            self.mlp = nn.Linear(input_dim, embed_dim)
+        elif num_layers == 2:
+            self.mlp = nn.Sequential(
+                nn.Linear(input_dim, embed_dim),
+                nn.ReLU(),
+                nn.Linear(embed_dim, embed_dim),
+            )
+        else:
+            raise ValueError(num_layers)
 
     def forward(self, gate_seq: torch.LongTensor, qubit_embed: torch.FloatTensor):
         """
@@ -278,13 +285,14 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
 
     def __init__(self, observation_space, hardware: IBMQHardwareArchitecture,
                  feature_dim: int, mode: str = 'gru', nhead: int = 2, num_layers: int = 4,
+                 gate_num_layers: int = 0,
                  qubit_embed_mode: QubitEmbeddingMode = QubitEmbeddingMode.DISTANCE_MATRIX_MLP):
         super().__init__(observation_space, features_dim=feature_dim)
         dim = feature_dim // 2
         self.qubit_embed = HardwareAwareQubitEmbedding(hardware, qubit_embedding_dim=dim,
                                                        hidden_channels=dim,
                                                        qubit_embed_mode=qubit_embed_mode)
-        self.gate_seq_encoder = GateSeqEncoder(self.qubit_embed.output_channels * 2, feature_dim)
+        self.gate_seq_encoder = GateSeqEncoder(self.qubit_embed.output_channels * 2, feature_dim, gate_num_layers)
         self.circuit_encoder = SequenceEncoder(self.gate_seq_encoder.output_channels, mode=mode,
                                                nhead=nhead, num_layers=num_layers)
 
@@ -302,7 +310,7 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
         return circuit_embed
 
 
-def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int = 128, mode: str = 'gru'):
+def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int = 128, mode: str = 'gru', **kwargs):
     return dict(
         activation_fn=torch.nn.ReLU,
         features_extractor_class=HierarchicalCircuitFeaturesExtractor,
@@ -310,6 +318,7 @@ def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int = 128, 
             hardware=hardware,
             feature_dim=embed_dim,
             mode=mode,
+            **kwargs,
         ),
         net_arch=dict(
             pi=[embed_dim, embed_dim, embed_dim],

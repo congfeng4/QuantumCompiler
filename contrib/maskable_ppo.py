@@ -10,7 +10,7 @@ from pathlib import Path
 
 import jsons
 import pandas as pd
-from contrib.common import QuantumCircuit, IBMQHardwareArchitecture
+from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_json
 from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
@@ -117,7 +117,7 @@ def run_maskable_ppo(
         gamma=gamma,
         ent_coef=ent_coef,
         policy_kwargs=get_policy_kwargs(
-            hardware, embed_dim, mode
+            hardware, embed_dim, mode,
         ),
     ) if pretrain is None else MaskablePPO.load(pretrain, env)
     ppo.tensorboard_log = log_dir
@@ -134,8 +134,9 @@ def run_maskable_ppo(
     evaluate_policy(ppo, eval_env, 1, deterministic=False, use_masking=True)
     indices = range(eval_env.num_envs)
     metrics = eval_env.get_attr('metrics', indices)
-    circuits = eval_env.get_attr('circuit_path', indices)
-    return metrics, circuits
+    metrics_file = output_dir + f'{log_name}/metrics.json'
+    write_json(metrics_file, metrics)
+    return metrics
 
 
 def run_vec_env(

@@ -1,3 +1,5 @@
+import json
+
 from qiskit.circuit import Qubit, QuantumCircuit
 from pathlib import Path
 import networkx as nx
@@ -79,3 +81,9 @@ def readable_float_dict(data: dict[str, float], places: int = 2):
     # Use float() to get rid of np.float32
     return {k : round(float(v), places) for k, v in data.items()}
 
+
+def write_json(out_file: Path | str, data):
+    if not isinstance(out_file, Path):
+        out_file = Path(out_file)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    out_file.write_text(json.dumps(data, indent=4, ensure_ascii=False))
