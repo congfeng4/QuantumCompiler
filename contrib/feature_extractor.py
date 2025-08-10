@@ -255,7 +255,7 @@ class SequenceEncoder(nn.Module):
         return:   (B, hidden)     定长状态向量
         """
         if self.mode in ['gru', 'lstm']:
-            lengths = lengths.view(-1).long()
+            lengths = lengths.view(-1).long().cpu()
             packed = pack_padded_sequence(
                 x, lengths, batch_first=True, enforce_sorted=False
             )

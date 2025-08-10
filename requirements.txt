@@ -36,7 +36,7 @@ hf-xet==1.1.5
 huggingface-hub==0.33.4
 huggingface-sb3==3.0
 idna==3.10
-imitation==1.0.1
+imitation
 iniconfig==2.1.0
 ipykernel==6.29.5
 ipython==9.4.0
