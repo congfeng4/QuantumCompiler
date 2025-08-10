@@ -203,7 +203,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             # reward = len(self.topological_nodes)
             # xx ratio have a lower bound of 1. +2 to make the lower bound 0
             # So reward is [0, 1] * |Gates|
-            reward = len(self.topological_nodes) * np.exp(-metrics['cx_ratio'] - metrics['depth_ratio'] + 2)
+            reward = len(self.topological_nodes) * (1 + np.exp(-metrics['cx_ratio'] - metrics['depth_ratio'] + 2))
             info['metrics'] = metrics
             readable_metrics = readable_float_dict(self.metrics)
             print(f'Game ends {readable_metrics}')

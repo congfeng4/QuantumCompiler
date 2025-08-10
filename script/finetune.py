@@ -30,7 +30,6 @@ if __name__ == '__main__':
         if gate_len > max_gatelen:
             print(f'Skip {circuit_path} len {gate_len}')
             continue
-        # for l in np.arange(0.5, 1, 0.2):
         l = 1
         L = int(gate_len * l)
         print(f'{circuit_path} len {gate_len} l {l} L {L}')
