@@ -16,7 +16,7 @@ if __name__ == '__main__':
     embed_dim = 128
     ent_coef = 0.01
     max_gatelen = 100
-    output_dirname = f'Tokyo_len100'
+    output_dirname = f'Tokyo_len100plus'
     gamma = 0.99
     gate_num_layers = 0
     total_timesteps = 100_000
@@ -31,7 +31,7 @@ if __name__ == '__main__':
     for circuit_path in circuit_list:
         qc = QuantumCircuit.from_qasm_file(str(circuit_path))
         gate_len = get_cnot_num(qc)
-        if gate_len > max_gatelen:
+        if gate_len <= max_gatelen:
             print(f'Skip {circuit_path} len {gate_len}')
             continue
         l = 1

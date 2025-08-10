@@ -16,17 +16,16 @@ if __name__ == '__main__':
     embed_dim = 128
     ent_coef = 0.01
     max_gatelen = 100
-    output_dirname = f'Tokyo_len100'
+    output_dirname = f'Sycamore_len100'
     gamma = 0.99
     gate_num_layers = 0
     total_timesteps = 100_000
-    step_penalty = 0.1
-    
-    circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits/').glob('*.qasm')) + \
-        list(Path('../data/20Q_depth_Tokyo/circuits/').glob('*.qasm'))
+
+    circuit_list = list(Path('../data/53Q_gate_Sycamore/circuits/').glob('*.qasm')) + \
+        list(Path('../data/53Q_depth_Sycamore/circuits/').glob('*.qasm'))
 
     random.shuffle(circuit_list)
-    hardware = IBMQHardwareArchitecture('Tokyo')
+    hardware = IBMQHardwareArchitecture('Sycamore')
 
     for circuit_path in circuit_list:
         qc = QuantumCircuit.from_qasm_file(str(circuit_path))
@@ -37,10 +36,10 @@ if __name__ == '__main__':
         l = 1
         L = int(gate_len * l)
         print(f'{circuit_path} len {gate_len} l {l} L {L}')
-        env = create_vec_env_from_circuits([qc], hardware, num=1, add_sabre=True, L=L, step_penalty=step_penalty)
+        env = create_vec_env_from_circuits([qc], hardware, num=1, add_sabre=True, L=L)
         circuit_name = Path(circuit_path).stem
 
-        log_name = f'Q={circuit_name}-B={bs}-NS={ns}-E={ent_coef}-D={embed_dim}-L={L}-SP={step_penalty}'
+        log_name = f'Q={circuit_name}-B={bs}-NS={ns}-E={ent_coef}-D={embed_dim}-L={L}'
 
         metrics = env.get_attr('metrics_baseline', 0)
         print(circuit_name, 'HA', metrics, )
