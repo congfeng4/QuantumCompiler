@@ -1,6 +1,7 @@
 import torch
 from stable_baselines3.common.policies import ActorCriticPolicy
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+from stable_baselines3.common.utils import get_device
 from torch import nn
 from enum import Enum
 
@@ -106,12 +107,13 @@ class HardwareAwareQubitEmbedding(nn.Module):
                  qubit_embed: str = "param",
                  qubit_embedding_dim: int = 32,
                  hidden_channels: int = 32,
+                 device = 'cpu',
                  qubit_embed_mode: QubitEmbeddingMode = QubitEmbeddingMode.DISTANCE_MATRIX_MLP):
         super().__init__()
         self.hardware = hardware
         self.edge_index = from_networkx(hardware).edge_index
         self.num_qubits: int = hardware.qubit_number
-        self.distance_matrix = torch.tensor(get_distance_matrix(hardware), dtype=torch.float32)
+        self.distance_matrix = torch.tensor(get_distance_matrix(hardware), dtype=torch.float32, device=device)
         self.distance_matrix = normalize_distance_matrix(self.distance_matrix)
         self.qubit_embed_class = QUBIT_EMBED[qubit_embed]
         self.output_channels = qubit_embedding_dim
@@ -285,12 +287,12 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
 
     def __init__(self, observation_space, hardware: IBMQHardwareArchitecture,
                  feature_dim: int, mode: str = 'gru', nhead: int = 2, num_layers: int = 4,
-                 gate_num_layers: int = 0,
+                 gate_num_layers: int = 0, device = 'cpu',
                  qubit_embed_mode: QubitEmbeddingMode = QubitEmbeddingMode.DISTANCE_MATRIX_MLP):
         super().__init__(observation_space, features_dim=feature_dim)
         dim = feature_dim // 2
         self.qubit_embed = HardwareAwareQubitEmbedding(hardware, qubit_embedding_dim=dim,
-                                                       hidden_channels=dim,
+                                                       hidden_channels=dim, device=device,
                                                        qubit_embed_mode=qubit_embed_mode)
         self.gate_seq_encoder = GateSeqEncoder(self.qubit_embed.output_channels * 2, feature_dim, gate_num_layers)
         self.circuit_encoder = SequenceEncoder(self.gate_seq_encoder.output_channels, mode=mode,
@@ -310,7 +312,8 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
         return circuit_embed
 
 
-def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int = 128, mode: str = 'gru', **kwargs):
+def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int = 128, mode: str = 'gru', device = 'auto',
+                      **kwargs):
     return dict(
         activation_fn=torch.nn.ReLU,
         features_extractor_class=HierarchicalCircuitFeaturesExtractor,
@@ -318,6 +321,7 @@ def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int = 128, 
             hardware=hardware,
             feature_dim=embed_dim,
             mode=mode,
+            device=get_device(device),
             **kwargs,
         ),
         net_arch=dict(
