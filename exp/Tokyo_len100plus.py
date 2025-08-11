@@ -21,7 +21,7 @@ if __name__ == '__main__':
     gate_num_layers = 0
     total_timesteps = 100_000
     step_penalty = 0.1
-    
+
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits/').glob('*.qasm')) + \
         list(Path('../data/20Q_depth_Tokyo/circuits/').glob('*.qasm'))
 
@@ -34,7 +34,7 @@ if __name__ == '__main__':
         if gate_len <= max_gatelen:
             print(f'Skip {circuit_path} len {gate_len}')
             continue
-        l = 1
+        l = 0.5
         L = int(gate_len * l)
         print(f'{circuit_path} len {gate_len} l {l} L {L}')
         env = create_vec_env_from_circuits([qc], hardware, num=1, add_sabre=True, L=L, step_penalty=step_penalty)

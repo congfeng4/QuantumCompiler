@@ -1,0 +1,10 @@
+[
+    {
+        "depth_ratio": 1.5,
+        "cx_ratio": 2.466666666666667,
+        "num_swap": 15,
+        "depth_ratio_diff": 0.1964285714285714,
+        "cx_ratio_diff": 0.20000000000000018,
+        "num_swap_diff": -2
+    }
+]
