@@ -10,6 +10,8 @@ from qiskit import QuantumCircuit
 from qiskit.circuit import Qubit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGNode
+from sb3_contrib.common.maskable.evaluation import evaluate_policy
+from stable_baselines3.common.base_class import BaseAlgorithm
 
 from contrib.common import qknob_metrics, readable_float_dict
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy, ha_baseline
@@ -57,8 +59,9 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
                  L: int,
+                 max_ep_len: int = None,
+                 reward_shaping_weight: float = 1,
                  gamma: float = 0.99,
-                 step_penalty: float = 1,
                  **kwargs):
         super().__init__(hardware, L=L)
         self.input_circuit = input_circuit
@@ -66,7 +69,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.initial_mapping = initial_mapping
         self.distance_matrix = get_distance_matrix(self.hardware)
         self.gamma = gamma
-        self.step_penalty = step_penalty
+        self.reward_shaping_weight = reward_shaping_weight
+        self.max_ep_len = max_ep_len or 10
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
@@ -87,17 +91,18 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.trans_mapping = self.initial_mapping.copy()
         self.explored_mappings = set()
         self.inverse_mapping = {val: key for key, val in self.initial_mapping.items()}
-        self.circuit_cost = None
+        self.state_potential = None
         self.update_front_layer()
         self.update()
-        self.update_circuit_cost()
+        self.update_state_potential()
         return self._get_obs(), {}
 
-    def update_circuit_cost(self):
-        old_cost = self.circuit_cost
-        self.circuit_cost = get_circuit_cost(self.front_layer, self.topological_nodes[self.current_node_index:],
-                                             self.current_mapping, self.distance_matrix, self.hardware, maxlen=self.L)
-        return old_cost
+    def update_state_potential(self):
+        old_potential = self.state_potential
+        # Phi(s) = - cost(s)
+        self.state_potential = -get_circuit_cost(self.front_layer, self.topological_nodes[self.current_node_index:],
+                                                self.current_mapping, self.distance_matrix, self.hardware, maxlen=self.L)
+        return old_potential
 
     def _get_obs(self):
         return self.state.encode(self.front_layer, self.topological_nodes[self.current_node_index:],
@@ -163,7 +168,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                 self.update_front_layer()
             else:
                 break
-        # self.metrics = qknob_metrics(self.input_circuit, self.resulting_dag_quantum_circuit)
         return num_executed_cnot
 
     @property
@@ -190,23 +194,20 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
         self.invalid_actions = 0
         self.update()
-        self.update_circuit_cost()
-        old_cost = self.update_circuit_cost()
+        prev_potential = self.update_state_potential()
         # The cost of a circuit is a potential function of the state.
         # F(s', s) = gamma * phi(s') - phi(s)
-        reward = self.circuit_cost * self.gamma - old_cost - self.step_penalty
+        rs = self.state_potential * self.gamma - prev_potential
+        reward = self.reward_shaping_weight * rs - 1
         done = not self.front_layer
         info = {}
-        if done:
-            self.finalize_result()
-            metrics = self.metrics
-            # reward = len(self.topological_nodes)
-            # xx ratio have a lower bound of 1. +2 to make the lower bound 0
-            # So reward is [0, 1] * |Gates|
-            reward = len(self.topological_nodes) * (np.exp(-metrics['cx_ratio'] - metrics['depth_ratio'] + 2))
-            info['metrics'] = metrics
-            readable_metrics = readable_float_dict(self.metrics)
-            print(f'Game ends {readable_metrics}')
+        if not done:
+            return self._get_obs(), reward, done, False, info
+
+        self.finalize_result()
+        reward += self.max_ep_len + 3
+        readable_metrics = readable_float_dict(self.metrics)
+        print(f'Game ends {readable_metrics}')
         return self._get_obs(), reward, done, False, info
 
     def get_candidates(self):
@@ -269,7 +270,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                 two_qubit_gate = SwapTwoQubitGate(
                     inverse_mapping[source], inverse_mapping[sink]
                 )
-
 
 
 gym.register("CircuitEnv", "contrib.environs:CircuitEnvWithInitialMapping")

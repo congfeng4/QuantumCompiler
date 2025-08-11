@@ -57,6 +57,12 @@ def create_vec_env_from_circuits(circuit_paths: list[QuantumCircuit], hardware: 
     return VecMonitor(DummyVecEnv(vec_funcs))
 
 
+def get_max_ep_len(env, model):
+    episode_rewards, episode_lengths = evaluate_policy(model, env, deterministic=False, use_masking=True,
+                                            return_episode_rewards=True)
+    return max(episode_lengths)
+
+
 def run_maskable_ppo(
         env: VecEnv,
         hardware: IBMQHardwareArchitecture,
@@ -129,6 +135,10 @@ def run_maskable_ppo(
     ) if pretrain is None else MaskablePPO.load(pretrain, env)
     ppo.tensorboard_log = log_dir
     print(f'Model loaded: {ppo}')
+
+    # max_ep_len = get_max_ep_len(env, ppo)
+    # env.set_attr("max_ep_len", max_ep_len)
+    # print(f'Max ep len: {max_ep_len}')
 
     ppo.learn(
         total_timesteps=total_timesteps,
