@@ -7,6 +7,7 @@ import json
 import os
 import random
 from pathlib import Path
+from typing import Callable
 
 import jsons
 import pandas as pd
@@ -20,7 +21,7 @@ from stable_baselines3.common.vec_env import VecEnv, VecMonitor, DummyVecEnv
 from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.feature_extractor import get_policy_kwargs
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
-from contrib.metrics_callback import MetricEvalCallback
+from contrib.metrics_callback import MetricEvalCallback, evaluate_policy_for_metrics
 from contrib.seed import set_all_seeds
 
 M = int(1e6)
@@ -61,6 +62,37 @@ def get_max_ep_len(env, model):
     episode_rewards, episode_lengths = evaluate_policy(model, env, deterministic=False, use_masking=True,
                                             return_episode_rewards=True)
     return max(episode_lengths)
+
+
+def linear_schedule(initial_value: float) -> Callable[[float], float]:
+    def func(progress_remaining: float) -> float:
+        return progress_remaining * initial_value
+    return func
+
+
+def multistep_schedule(initial: float, milestones=None, gamma=0.3):
+    """milestones 用 progress_remaining 的阈值"""
+    if milestones is None:
+        milestones = [0.5, 0.75]
+
+    def func(p: float) -> float:
+        factor = 1.0
+        for m in milestones:
+            if p <= m:
+                factor *= gamma
+        return initial * factor
+    return func
+
+
+def piecewise_linear(initial: float, plateau: float = 0.5, final: float = 0.01):
+    """plateau 前不变，之后线性降到 final"""
+    def func(p: float) -> float:
+        if p >= plateau:
+            return initial
+        else:
+            slope = (final - initial) / plateau
+            return initial + slope * (p - plateau)
+    return func
 
 
 def run_maskable_ppo(
@@ -124,6 +156,8 @@ def run_maskable_ppo(
         policy="MultiInputPolicy",
         env=env,
         n_steps=n_steps,
+        learning_rate=piecewise_linear(3e-4, plateau=0.6, final=0),  # 防止后期不稳定
+        clip_range=piecewise_linear(0.2, plateau=0.6, final=0),  # 防止后期不稳定
         batch_size=batch_size,
         tensorboard_log=log_dir,
         verbose=1,
@@ -148,9 +182,7 @@ def run_maskable_ppo(
     )
 
     print('Eval policy')
-    evaluate_policy(ppo, eval_env, 1, deterministic=False, use_masking=True)
-    indices = range(eval_env.num_envs)
-    metrics = eval_env.get_attr('metrics', indices)
+    metrics = evaluate_policy_for_metrics(ppo, eval_env)
     metrics_file = output_dir + f'{log_name}/metrics.json'
     write_json(metrics_file, metrics)
     return metrics
@@ -190,7 +222,6 @@ def run_vec_env(
         hardware=hardware,
         batch_size=bs,
         n_steps=ns,
-        seqlen=L,
         embed_dim=embed_dim,
         ent_coef=ent_coef,
         output_dirname=output_dirname,
@@ -198,9 +229,7 @@ def run_vec_env(
         mode=mode,
         log_name=log_name,
         eval_env=None,
-        data_name=data_name,
         pretrain=pretrain_path,
-        swap_only=swap_only,
     )
     assert len(metrics) == num_train, (len(metrics), num_train)
     metrics_file = f'../result/{output_dirname}/{log_name}.xlsx'

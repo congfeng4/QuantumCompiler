@@ -21,6 +21,16 @@ def average_metrics(metrics_list):
     return avg_metrics
 
 
+def evaluate_policy_for_metrics(model, eval_env, n_eval_episodes=10):
+    metrics_list = []
+    for _ in range(n_eval_episodes):  # 必须重复多次，早期单次eval的方差很大。
+        evaluate_policy(model, eval_env, n_eval_episodes=1, use_masking=True, deterministic=False)
+        metrics = eval_env.get_attr('metrics')[0]
+        metrics_list.append(metrics)
+
+    return average_metrics(metrics_list)
+
+
 class MetricEvalCallback(BaseCallback):
     model: MaskablePPO
 
@@ -32,13 +42,9 @@ class MetricEvalCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
-            metrics_list = []
-            for _ in range(self.n_eval_episodes):  # 必须重复多次，早期单次eval的方差很大。
-                evaluate_policy(self.model, self.eval_env, n_eval_episodes=1, use_masking=True, deterministic=False)
-                metrics = self.eval_env.get_attr('metrics', range(self.eval_env.num_envs))[0]
-                metrics_list.append(metrics)
+            metrics = evaluate_policy_for_metrics(self.model, self.eval_env, self.n_eval_episodes)
 
-            for key, value in average_metrics(metrics_list).items():
+            for key, value in metrics.items():
                 self.logger.record(f"eval/{key}", round(value, 2))
 
         return True
