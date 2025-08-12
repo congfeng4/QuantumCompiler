@@ -187,7 +187,7 @@ def run_maskable_ppo(
 
     print('Eval policy')
     metrics = evaluate_policy_for_metrics(ppo, eval_env)
-    metrics_file = output_dir + f'{log_name}/metrics.json'
+    metrics_file = output_dir + f'/{log_name}/metrics.json'
     write_json(metrics_file, metrics)
     return metrics
 

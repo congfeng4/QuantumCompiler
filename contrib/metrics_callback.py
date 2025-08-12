@@ -45,6 +45,6 @@ class MetricEvalCallback(BaseCallback):
             metrics = evaluate_policy_for_metrics(self.model, self.eval_env, self.n_eval_episodes)
 
             for key, value in metrics.items():
-                self.logger.record(f"eval/{key}", round(value, 2))
+                self.logger.record(f"metric/{key}", round(value, 2))
 
         return True

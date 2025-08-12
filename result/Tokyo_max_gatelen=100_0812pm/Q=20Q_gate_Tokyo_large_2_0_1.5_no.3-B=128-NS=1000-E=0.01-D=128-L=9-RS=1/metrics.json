@@ -1,0 +1,20 @@
+{
+    "depth_ratio": 1.6122448979591837,
+    "cx_ratio": 2.066666666666667,
+    "swap_num": 15.0,
+    "bridge_num": 1.0,
+    "bridge_ratio": 0.0625,
+    "swap_ratio": 0.9375,
+    "qubit_num": 20.0,
+    "in_cx_num": 45.0,
+    "out_cx_num": 93.0,
+    "in_depth": 49.0,
+    "out_depth": 79.0,
+    "L": 9.0,
+    "depth_ratio_diff": 0.10204081632653073,
+    "depth_ratio_HA": 1.510204081632653,
+    "cx_ratio_diff": -0.06666666666666643,
+    "cx_ratio_HA": 2.1333333333333333,
+    "swap_num_diff": -2.0,
+    "swap_num_HA": 17.0
+}

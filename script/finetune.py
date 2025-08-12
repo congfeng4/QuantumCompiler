@@ -16,7 +16,7 @@ if __name__ == '__main__':
     embed_dim = 128
     ent_coef = 0.01
     max_gatelen = 100
-    output_dirname = f'short_Tokyo_fix_pbrs_L=0.2'
+    output_dirname = f'Tokyo_max_gatelen={max_gatelen}_0812pm'
     gamma = 0.99
     gate_num_layers = 0
     total_timesteps = 100_000

@@ -59,7 +59,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
                  L: int,
-                 max_ep_len: int = None,
                  reward_shaping_weight: float = 1,
                  gamma: float = 0.99,
                  **kwargs):
@@ -70,7 +69,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.distance_matrix = get_distance_matrix(self.hardware)
         self.gamma = gamma
         self.reward_shaping_weight = reward_shaping_weight
-        self.max_ep_len = max_ep_len or 10
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
@@ -83,6 +81,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
     def reset(self, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:
         super().reset(seed=seed)
+        self.bridge_num = 0
         self.invalid_actions = 0
         self.front_layer = QuantumLayer()
         self.current_node_index = 0
@@ -101,7 +100,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         old_potential = self.state_potential
         # Phi(s) = - cost(s)
         self.state_potential = -get_circuit_cost(self.front_layer, self.topological_nodes[self.current_node_index:],
-                                                self.current_mapping, self.distance_matrix, self.hardware, maxlen=self.L)
+                                                self.current_mapping, self.distance_matrix, self.hardware)
         return old_potential
 
     def _get_obs(self):
@@ -111,8 +110,19 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
         self.metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
+        self.metrics['bridge_num'] = self.bridge_num
+        total_actions = self.bridge_num + self.metrics['swap_num']
+        self.metrics['bridge_ratio'] = self.bridge_num / total_actions
+        self.metrics['swap_ratio'] = self.metrics['swap_num'] / total_actions
+        self.metrics['qubit_num'] = self.num_qubits
+        self.metrics['in_cx_num'] = get_cnot_num(self.input_circuit)
+        self.metrics['out_cx_num'] = get_cnot_num(self.resulting_circuit)
+        self.metrics['in_depth'] = self.input_circuit.depth()
+        self.metrics['out_depth'] = self.resulting_circuit.depth()
+        self.metrics['L'] = self.L
         for key, value in self.metrics_baseline.items():
             self.metrics[key + '_diff'] = self.metrics[key] - value
+            self.metrics[key + '_HA'] = value
 
     def apply_swap_action(self, best_swap_qubits: TwoQubitGate):
         trans_mapping = self.trans_mapping
@@ -131,6 +141,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                 trans_mapping[best_swap_qubits.left],
             )
         else:
+            self.bridge_num += 1
             # print("brige gate is :", best_swap_qubits.left, best_swap_qubits.middle, best_swap_qubits.right)
             pass
         self.explored_mappings.add(mapping_to_str(self.current_mapping))
@@ -205,7 +216,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             return self._get_obs(), reward, done, False, info
 
         self.finalize_result()
-        reward += self.max_ep_len + 3
+        reward += get_cnot_num(self.input_circuit)  # 用输入电路门数作为终端奖励Terminal Reward
         readable_metrics = readable_float_dict(self.metrics)
         print(f'Game ends {readable_metrics}')
         return self._get_obs(), reward, done, False, info
