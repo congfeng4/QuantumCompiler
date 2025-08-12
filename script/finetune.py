@@ -16,7 +16,7 @@ if __name__ == '__main__':
     embed_dim = 128
     ent_coef = 0.01
     max_gatelen = 100
-    output_dirname = f'short_Tokyo_fix_pbrs'
+    output_dirname = f'short_Tokyo_fix_pbrs_L=0.2'
     gamma = 0.99
     gate_num_layers = 0
     total_timesteps = 100_000
@@ -32,7 +32,7 @@ if __name__ == '__main__':
         if gate_len > max_gatelen:
             print(f'Skip {circuit_path} len {gate_len}')
             continue
-        l = 1
+        l = 0.2
         L = int(gate_len * l)
         print(f'{circuit_path} len {gate_len} l {l} L {L}')
         env = create_vec_env_from_circuits([qc], hardware, num=1, add_sabre=True, L=L,

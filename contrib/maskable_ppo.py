@@ -84,14 +84,17 @@ def multistep_schedule(initial: float, milestones=None, gamma=0.3):
     return func
 
 
-def piecewise_linear(initial: float, plateau: float = 0.5, final: float = 0.01):
-    """plateau 前不变，之后线性降到 final"""
+def piecewise_linear(initial: float, plateau: float = 0.5, final: float = 1e-5):
+    """
+    plateau 以内保持 initial，之后线性降到 final。
+    progress_remaining 从 1→0。
+    """
     def func(p: float) -> float:
-        if p >= plateau:
+        if p >= plateau:          # plateau 阶段（前期）
             return initial
-        else:
-            slope = (final - initial) / plateau
-            return initial + slope * (p - plateau)
+        else:                     # 下降阶段（后期）
+            slope = (initial - final) / plateau
+            return final + slope * p
     return func
 
 
@@ -156,8 +159,9 @@ def run_maskable_ppo(
         policy="MultiInputPolicy",
         env=env,
         n_steps=n_steps,
-        learning_rate=piecewise_linear(3e-4, plateau=0.6, final=0),  # 防止后期不稳定
-        clip_range=piecewise_linear(0.2, plateau=0.6, final=0),  # 防止后期不稳定
+        # plateau: Remaining steps.
+        learning_rate=piecewise_linear(3e-4, plateau=0.4, final=1e-5),  # 防止后期不稳定
+        clip_range=piecewise_linear(0.2, plateau=0.4, final=0.01),  # 防止后期不稳定
         batch_size=batch_size,
         tensorboard_log=log_dir,
         verbose=1,
