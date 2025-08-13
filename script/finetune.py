@@ -23,21 +23,20 @@ if __name__ == '__main__':
     hardware = IBMQHardwareArchitecture('Tokyo')
     mode = 'gru'
     reward_shaping_weight = 1
-    L = 6
-    output_dirname = f'Tokyo_all_L={L}_rs={reward_shaping_weight}'
+    output_dirname = f'Tokyo_short_L=all_rs={reward_shaping_weight}'
 
     for circuit_path in circuit_list:
         qc = QuantumCircuit.from_qasm_file(str(circuit_path))
         gate_len = get_cnot_num(qc)
-        # if gate_len <= max_gatelen:
-        #     print(f'Skip {circuit_path} len {gate_len}')
-        #     continue
+        if gate_len > max_gatelen:
+            print(f'Skip {circuit_path} len {gate_len}')
+            continue
+        L = gate_len
         print(f'{circuit_path} len {gate_len} L {L}')
         env = create_vec_env_from_circuits([qc], hardware, num=1, add_sabre=True, L=L,
                                            reward_shaping_weight=reward_shaping_weight)
         circuit_name = Path(circuit_path).stem
-
-        log_name = f'Q={circuit_name}-B={bs}-NS={ns}-E={ent_coef}-D={embed_dim}-L={L}-RS={reward_shaping_weight}'
+        log_name = f'Q={circuit_name}-B={bs}-NS={ns}-E={ent_coef}-D={embed_dim}-L={L}-RS={reward_shaping_weight}-CX={gate_len}'
 
         metrics = env.get_attr('metrics_baseline', 0)
         print(circuit_name, 'HA', metrics)
