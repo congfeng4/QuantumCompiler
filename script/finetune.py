@@ -19,6 +19,7 @@ if __name__ == '__main__':
             hardware='Tokyo',
             circuit_path=path,
             seqlen=8,
+            final_reward=100,
             output_dirname='short_20Q_seqlen',
             save_result=False,
         )

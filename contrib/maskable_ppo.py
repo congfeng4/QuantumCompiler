@@ -108,7 +108,7 @@ def run_maskable_ppo(
         n_steps: int = 1024,
         num_envs: int = 1,
         embed_dim: int = 128,
-        reward_shaping_weight: float = 1,
+        reward_shaping_weight: float = 10,
         final_reward: float = 10,
         init_strategy: InitialMappingStrategy = InitialMappingStrategy.SABRE,
         seqlen: int | float = 16,
