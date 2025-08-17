@@ -21,12 +21,12 @@ def average_metrics(metrics_list):
     return avg_metrics
 
 
-def evaluate_policy_for_metrics(model, eval_env, n_eval_episodes=10):
+def evaluate_policy_for_metrics(model, eval_env, n_eval_episodes=5):
     metrics_list = []
     for _ in range(n_eval_episodes):  # 必须重复多次，早期单次eval的方差很大。
         evaluate_policy(model, eval_env, n_eval_episodes=1, use_masking=True, deterministic=False)
-        metrics = eval_env.get_attr('metrics')[0]
-        metrics_list.append(metrics)
+        metrics = eval_env.get_attr('metrics')
+        metrics_list.extend(metrics)
 
     return average_metrics(metrics_list)
 

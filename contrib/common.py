@@ -86,4 +86,10 @@ def write_json(out_file: Path | str, data):
     if not isinstance(out_file, Path):
         out_file = Path(out_file)
     out_file.parent.mkdir(parents=True, exist_ok=True)
-    out_file.write_text(json.dumps(data, indent=4, ensure_ascii=False))
+    out_file.write_text(json.dumps(data, indent=4, ensure_ascii=False), encoding='utf8')
+
+
+def read_json(in_file: Path | str):
+    if not isinstance(in_file, Path):
+        in_file = Path(in_file)
+    return json.loads(in_file.read_text(encoding='utf8'))

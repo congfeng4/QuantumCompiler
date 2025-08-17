@@ -60,6 +60,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  initial_mapping: dict[Qubit, int],
                  L: int,
                  reward_shaping_weight: float = 1,
+                 final_reward: float = 10,
                  gamma: float = 0.99,
                  **kwargs):
         super().__init__(hardware, L=L)
@@ -69,6 +70,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.distance_matrix = get_distance_matrix(self.hardware)
         self.gamma = gamma
         self.reward_shaping_weight = reward_shaping_weight
+        self.final_reward = final_reward
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
@@ -114,12 +116,10 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         total_actions = self.bridge_num + self.metrics['swap_num']
         self.metrics['bridge_ratio'] = self.bridge_num / total_actions
         self.metrics['swap_ratio'] = self.metrics['swap_num'] / total_actions
-        self.metrics['qubit_num'] = self.num_qubits
         self.metrics['in_cx_num'] = get_cnot_num(self.input_circuit)
         self.metrics['out_cx_num'] = get_cnot_num(self.resulting_circuit)
         self.metrics['in_depth'] = self.input_circuit.depth()
         self.metrics['out_depth'] = self.resulting_circuit.depth()
-        self.metrics['L'] = self.L
         for key, value in self.metrics_baseline.items():
             self.metrics[key + '_diff'] = self.metrics[key] - value
             self.metrics[key + '_HA'] = value
@@ -216,7 +216,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             return self._get_obs(), reward, done, False, info
 
         self.finalize_result()
-        reward += get_cnot_num(self.input_circuit)  # 用输入电路门数作为终端奖励Terminal Reward
+        reward += self.final_reward
         readable_metrics = readable_float_dict(self.metrics)
         print(f'Game ends {readable_metrics}')
         return self._get_obs(), reward, done, False, info

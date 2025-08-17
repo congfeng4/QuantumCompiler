@@ -3,70 +3,70 @@
 至少需要用MaskablePPO，并且把Action Mask定义好。
 ☀️🌛🎉🖼🏊🏻🏓✈️🚗
 """
-import json
 import os
 import random
+import time
 from pathlib import Path
 from typing import Callable
 
 import jsons
-import pandas as pd
-from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_json
+from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_json, get_cnot_num, readable_float_dict, \
+    read_json
 from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
-from stable_baselines3.common.vec_env import VecEnv, VecMonitor, DummyVecEnv
+from stable_baselines3.common.vec_env import VecEnv, VecMonitor, DummyVecEnv, SubprocVecEnv
 
 from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.feature_extractor import get_policy_kwargs
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
 from contrib.metrics_callback import MetricEvalCallback, evaluate_policy_for_metrics
-from contrib.seed import set_all_seeds
-
-M = int(1e6)
 
 
-def create_vec_env_from_circuits(circuit_paths: list[QuantumCircuit], hardware: IBMQHardwareArchitecture,
-                                 num: int = 1, L: int = 10,
-                                 add_sabre: bool = True,
-                                 add_random: bool = False,
-                                 add_simulated_anealing=False,
-                                 **kwargs,
-                                 ):
+def create_vec_env_from_circuits(
+        circuit: QuantumCircuit, seqlen: int,
+        hardware: IBMQHardwareArchitecture,
+        init_strategy: InitialMappingStrategy,
+        num_envs: int = 1,
+        rs_weight: float = 1,
+        final_reward: float = 10,
+        gamma: float = 0.99,
+        **kwargs,
+):
+    assert num_envs >= 1
     vec_funcs = []
+    init = get_initial_mapping(circuit, hardware, init_strategy)
 
-    def make_func(circ: QuantumCircuit, init):
-        return lambda: CircuitEnvWithInitialMapping(circ, hardware, init, L, **kwargs)
+    def make_func():
+        return lambda: CircuitEnvWithInitialMapping(
+            input_circuit=circuit,
+            hardware=hardware,
+            initial_mapping=init,
+            L=seqlen,
+            reward_shaping_weight=rs_weight,
+            final_reward=final_reward,
+            gamma=gamma,
+        )
 
-    for qc in circuit_paths:
-        for i in range(num):
-            if add_random:
-                init = get_initial_mapping(qc, hardware, InitialMappingStrategy.RANDOM)
-                vec_funcs.append(make_func(qc, init))
+    for i in range(num_envs):
+        vec_funcs.append(make_func())
 
-            if add_sabre:
-                init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
-                vec_funcs.append(make_func(qc, init))
-
-            if add_simulated_anealing:
-                init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SIMULATE_ANNEALING)
-                vec_funcs.append(make_func(qc, init))
-
-    print(f'Create env with {len(circuit_paths)} circuits')
-    # SubProcVecEnv一开始就内存爆炸了💥
-    return VecMonitor(DummyVecEnv(vec_funcs))
+    print(f'Create env with {num_envs} circuits')
+    env_class = DummyVecEnv if num_envs == 1 else SubprocVecEnv
+    return VecMonitor(env_class(vec_funcs))
 
 
 def get_max_ep_len(env, model):
     episode_rewards, episode_lengths = evaluate_policy(model, env, deterministic=False, use_masking=True,
-                                            return_episode_rewards=True)
+                                                       return_episode_rewards=True)
     return max(episode_lengths)
 
 
 def linear_schedule(initial_value: float) -> Callable[[float], float]:
     def func(progress_remaining: float) -> float:
         return progress_remaining * initial_value
+
     return func
 
 
@@ -81,6 +81,7 @@ def multistep_schedule(initial: float, milestones=None, gamma=0.3):
             if p <= m:
                 factor *= gamma
         return initial * factor
+
     return func
 
 
@@ -89,55 +90,106 @@ def piecewise_linear(initial: float, plateau: float = 0.5, final: float = 1e-5):
     plateau 以内保持 initial，之后线性降到 final。
     progress_remaining 从 1→0。
     """
+
     def func(p: float) -> float:
-        if p >= plateau:          # plateau 阶段（前期）
+        if p >= plateau:  # plateau 阶段（前期）
             return initial
-        else:                     # 下降阶段（后期）
+        else:  # 下降阶段（后期）
             slope = (initial - final) / plateau
             return final + slope * p
+
     return func
 
 
 def run_maskable_ppo(
-        env: VecEnv,
-        hardware: IBMQHardwareArchitecture,
-        log_name: str,
-        batch_size: int = 256,
-        n_steps: int = 4000,
-        embed_dim: int = None,
-        total_timesteps: int = 40_0000,
+        hardware: IBMQHardwareArchitecture | str,
+        circuit_path: Path | str,
+        batch_size: int = 128,
+        n_steps: int = 1024,
+        num_envs: int = 1,
+        embed_dim: int = 128,
+        reward_shaping_weight: float = 1,
+        final_reward: float = 10,
+        init_strategy: InitialMappingStrategy = InitialMappingStrategy.SABRE,
+        seqlen: int | float = 16,
+        total_timesteps: int = 100_000,
         output_dirname: str = None,
         mode: str = 'gru',
         ent_coef: float = 0.01,
-        eval_env: VecEnv = None,
         eval_freq: int = 1_000,
         gamma: float = 0.99,
         pretrain: Path = None,
-        early_stop: bool = True,
         features_extractor_kwargs: dict = None,
+        save_result: bool = True,
+        skip_existing: bool = True,
 ):
     """
-    ✅ Run MaskablePPO on a circuit and record the metrics.
+    ✅ Run MaskablePPO on a circuit and return the metrics.
     """
     if output_dirname is None:
         output_dirname = 'maskable_ppo'
+
     output_dir = f'../result/{output_dirname}'
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
-    log_dir = f'../log/{output_dirname}'
-    if embed_dim is None:
-        embed_dim = hardware.qubit_number
+
     if features_extractor_kwargs is None:
         features_extractor_kwargs = {}
 
-    eval_env = eval_env or VecMonitor(env)
+    if isinstance(hardware, str):
+        hardware = IBMQHardwareArchitecture(hardware)
 
-    # 回调：连续 10 次评估无提升就停止
-    stop_callback = StopTrainingOnNoModelImprovement(
-        max_no_improvement_evals=20,
-        min_evals=5,  # 前 5 次评估不计数
-        verbose=1
+    qc = QuantumCircuit.from_qasm_file(str(circuit_path))
+    gate_len = get_cnot_num(qc)
+
+    if isinstance(seqlen, int):
+        seqlen = min(gate_len, seqlen)
+    elif isinstance(seqlen, float):
+        assert 0 < seqlen < 1
+        seqlen = int(seqlen * gate_len)
+
+    print(f'{circuit_path} {gate_len=} {seqlen=}')
+
+    env = create_vec_env_from_circuits(
+        circuit=qc,
+        hardware=hardware,
+        seqlen=seqlen,
+        init_strategy=init_strategy,
+        num_envs=num_envs,
+        rs_weight=reward_shaping_weight,
+        final_reward=final_reward,
+        gamma=gamma,
     )
+
+    config = dict(
+        circuit_path=str(circuit_path),
+        batch_size=batch_size,
+        n_steps=n_steps,
+        num_envs=num_envs,
+        embed_dim=embed_dim,
+        reward_shaping_weight=reward_shaping_weight,
+        final_reward=final_reward,
+        init_strategy=init_strategy.name,
+        seqlen=seqlen,
+        total_timesteps=total_timesteps,
+        mode=mode,
+        ent_coef=ent_coef,
+        gamma=gamma,
+        qubit_number=hardware.qubit_number,
+    )
+
+    circuit_name = Path(circuit_path).stem
+    log_name = f'Q={circuit_name}-CX={gate_len}-L={seqlen}-RS={reward_shaping_weight}-FR={final_reward}'
+    
+    log_dir = f'../log/{output_dirname}'
+    result_dir = f"../result/{output_dirname}"
+    best_model_path = output_dir + "/models/" + log_name
+    result_file = result_dir + f"/Q={circuit_name}-result.json"
+    if os.path.exists(result_file) and skip_existing:
+        print(f'Result exists: {result_file}')
+        return read_json(result_file)
+
+    eval_env = VecMonitor(env)
 
     metrics_callback = MetricEvalCallback(
         eval_env,
@@ -148,11 +200,11 @@ def run_maskable_ppo(
     eval_callback = MaskableEvalCallback(
         eval_env,
         eval_freq=eval_freq,  # 每 10w 步评估一次
-        # callback_after_eval=metrics_callback,
+        callback_after_eval=None,
         verbose=1,
         deterministic=False,
         use_masking=True,
-        best_model_save_path=output_dir + "/models/" + log_name,
+        best_model_save_path=best_model_path,
     )
 
     ppo = MaskablePPO(
@@ -174,98 +226,43 @@ def run_maskable_ppo(
     ppo.tensorboard_log = log_dir
     print(f'Model loaded: {ppo}')
 
-    # max_ep_len = get_max_ep_len(env, ppo)
-    # env.set_attr("max_ep_len", max_ep_len)
-    # print(f'Max ep len: {max_ep_len}')
-
+    learn_start = time.time()
     ppo.learn(
         total_timesteps=total_timesteps,
         tb_log_name=log_name,
         progress_bar=True,
         callback=[eval_callback, metrics_callback],
     )
+    learn_end = time.time()
 
     print('Eval policy')
     metrics = evaluate_policy_for_metrics(ppo, eval_env)
-    metrics_file = output_dir + f'/{log_name}/metrics.json'
-    write_json(metrics_file, metrics)
-    return metrics
+    metrics.update(train_time=learn_end - learn_start)
+    metrics = readable_float_dict(metrics)
+    result = jsons.dump(dict(config=config, metrics=metrics))
+    if save_result:
+        write_json(result_file, result)
+    return result
 
 
-def run_vec_env(
-        bs=128,
-        ns=1000,
-        embed_dim=128,
-        L=15,
-        ent_coef=0.01,
-        num_train=199,
-        hardware_name='tokyo',
-        data_name='20Q_gate_Tokyo',
-        mode='gru',
-        output_dirname='maskable_ppo_v3_pretrain',
-        pretrain: bool = False,
-        swap_only: bool = False,
-        total_timesteps: int = int(1e10),
-):
-    hardware = IBMQHardwareArchitecture(hardware_name)
-    circuit_list = list(Path(f'../data/{data_name}/circuits').glob('*.qasm'))
-    if num_train == -1:
-        num_train = len(circuit_list)
+def get_short_20Q_circuits(max_gatelen: int = 100):
+    circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits/').glob('*.qasm')) + list(
+        Path('../data/20Q_depth_Tokyo/circuits/').glob('*.qasm'))
     random.shuffle(circuit_list)
-    circuit_list = circuit_list[:num_train]
-    env = create_vec_env_from_circuits(list(map(str, circuit_list)), hardware, L=L, num=0, swap_only=swap_only)
-
-    log_name = f'{data_name}-B={bs}-NS={ns}-E={ent_coef}-M={mode}-D={embed_dim}-SO={swap_only}'
-    if pretrain:
-        pretrain_path = Path(f'../result/{output_dirname}/models/{log_name}/best_model.zip')
-    else:
-        pretrain_path = None
-
-    metrics, circuits = run_maskable_ppo(
-        env,
-        hardware=hardware,
-        batch_size=bs,
-        n_steps=ns,
-        embed_dim=embed_dim,
-        ent_coef=ent_coef,
-        output_dirname=output_dirname,
-        total_timesteps=total_timesteps,
-        mode=mode,
-        log_name=log_name,
-        eval_env=None,
-        pretrain=pretrain_path,
-    )
-    assert len(metrics) == num_train, (len(metrics), num_train)
-    metrics_file = f'../result/{output_dirname}/{log_name}.xlsx'
-    df = pd.DataFrame(data=metrics)
-    df['circuit'] = circuits
-    df.to_excel(metrics_file, index=False)
-    print(f'Results {metrics}')
-    print(f'Result saved to {metrics_file}')
-
-
-def evaluate_all(model, hardware, circuit_list, log_name: str, L: int, **kwargs):
-    result_file = f'../result/maskable_ppo/{log_name}.json'
-    results = []
-    init_strategy = InitialMappingStrategy.SABRE
-    kwargs.update(init=init_strategy.value)
-
     for circuit_path in circuit_list:
         qc = QuantumCircuit.from_qasm_file(str(circuit_path))
-        init = get_initial_mapping(qc, hardware, init_strategy)
-        env = CircuitEnvWithInitialMapping(qc, circuit_path, hardware, init, L)
-        evaluate_policy(model, env, n_eval_episodes=1, deterministic=False, use_masking=True)
-        result = dict(
-            circuit_path=circuit_path,
-            metrics=env.metrics,
-        )
-        results.append(result)
-
-    results = dict(results=results, config=kwargs)
-    with open(result_file, 'w') as f:
-        f.write(json.dumps(jsons.dump(results), indent=4, ensure_ascii=False))
+        gate_len = get_cnot_num(qc)
+        if gate_len > max_gatelen:
+            print(f'Skip {circuit_path} {gate_len=}')
+            continue
+        print(f'Get {circuit_path} {gate_len=}')
+        yield circuit_path
 
 
 if __name__ == '__main__':
-    set_all_seeds()
-    run_vec_env()
+    result = run_maskable_ppo(
+        hardware='Tokyo',
+        circuit_path=Path('../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_1_1_1.5_no.2.qasm'),
+        total_timesteps=100,
+        save_result=True,
+    )
