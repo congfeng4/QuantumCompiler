@@ -1,1 +1,1 @@
-PYTHONPATH=../:../src python Tokyo_len100plus.py
+PYTHONPATH=../:../src python finetune.py

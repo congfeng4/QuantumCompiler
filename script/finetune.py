@@ -9,8 +9,10 @@ def get_param_space(rs_weights: list[float], final_rewards: list[int], horizon_l
 
 if __name__ == '__main__':
     mode = 'gru'
-    seqlen = 0.1
-
+    seqlen = 32
+    num_envs = 32
+    n_steps = 1024
+    
     for path in get_short_20Q_circuits(min_gatelen=0, max_gatelen=9999):
     # path = '../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_1_5_1.5_no.3.qasm'
         run_maskable_ppo(
@@ -24,4 +26,7 @@ if __name__ == '__main__':
             save_result=True,
             skip_existing=True,
             total_timesteps=200_000,
+            batch_size=256,
+            num_envs=num_envs,
+            n_steps=n_steps // num_envs,
         )
