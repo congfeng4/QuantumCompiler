@@ -30,7 +30,7 @@ def create_vec_env_from_circuits(
         init_strategy: InitialMappingStrategy,
         num_envs: int = 1,
         rs_weight: float = 1,
-        final_reward: float = 10,
+        final_reward: float | str = 10,
         gamma: float = 0.99,
         **kwargs,
 ):
@@ -109,7 +109,7 @@ def run_maskable_ppo(
         num_envs: int = 1,
         embed_dim: int = 128,
         reward_shaping_weight: float = 10,
-        final_reward: float = 10,
+        final_reward: float | str = 10,
         init_strategy: InitialMappingStrategy = InitialMappingStrategy.SABRE,
         seqlen: int | float = 16,
         total_timesteps: int = 100_000,
@@ -122,6 +122,7 @@ def run_maskable_ppo(
         features_extractor_kwargs: dict = None,
         save_result: bool = True,
         skip_existing: bool = True,
+        n_eval_episodes: int = 10,
 ):
     """
     ✅ Run MaskablePPO on a circuit and return the metrics.
@@ -195,7 +196,7 @@ def run_maskable_ppo(
     metrics_callback = MetricEvalCallback(
         eval_env,
         eval_freq=eval_freq,
-        n_eval_episodes=10,
+        n_eval_episodes=n_eval_episodes,
     )
 
     eval_callback = MaskableEvalCallback(
@@ -206,6 +207,7 @@ def run_maskable_ppo(
         deterministic=False,
         use_masking=True,
         best_model_save_path=best_model_path,
+        n_eval_episodes=n_eval_episodes,
     )
 
     ppo = MaskablePPO(

@@ -218,7 +218,14 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             return self._get_obs(), reward, done, False, info
 
         self.finalize_result()
-        reward += self.final_reward
+        if isinstance(self.final_reward, (int, float)):
+            reward += self.final_reward
+        elif self.final_reward == 'metric':
+            normalized_cx_ratio = self.metrics['cx_ratio'] - 1
+            normalized_depth_ratio = self.metrics['depth_ratio'] - 1
+            reward -= self.reward_shaping_weight * (normalized_cx_ratio + normalized_depth_ratio)
+            # reward += 1 / normalized_cx_ratio
+            # reward += 1/ normalized_depth_ratio
         readable_metrics = readable_float_dict(self.metrics)
         print(f'Game ends {readable_metrics}')
         return self._get_obs(), reward, done, False, info

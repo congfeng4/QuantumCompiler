@@ -8,14 +8,16 @@ def get_param_space(rs_weights: list[float], final_rewards: list[int], horizon_l
 
 
 if __name__ == '__main__':
-    for path in get_short_20Q_circuits(min_gatelen=0, max_gatelen=9999):
-        run_maskable_ppo(
-            hardware='Tokyo',
-            circuit_path=path,
-            seqlen=64,
-            final_reward=100,
-            output_dirname='20Q_gate_seqlen=64_all',
-            save_result=True,
-            skip_existing=True,
-            total_timesteps=200_000,
-        )
+    # for path in get_short_20Q_circuits(min_gatelen=0, max_gatelen=9999):
+    path = '../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_1_5_1.5_no.3.qasm'
+    run_maskable_ppo(
+        hardware='Tokyo',
+        circuit_path=path,
+        seqlen=128,
+        final_reward=0,
+        output_dirname='20Q_gate_seqlen=128_all',
+        reward_shaping_weight=10,
+        save_result=True,
+        skip_existing=True,
+        total_timesteps=200_000,
+    )
