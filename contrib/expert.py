@@ -11,8 +11,13 @@ import numpy as np
 import typing as ty
 
 import numpy
-from imitation.data.rollout import flatten_trajectories
-from imitation.data.types import Trajectory, Transitions
+try:
+    from imitation.data.rollout import flatten_trajectories
+    from imitation.data.types import Trajectory, Transitions
+    from imitation.data.types import DictObs
+except ImportError:
+    pass
+
 from qiskit import QuantumCircuit
 from qiskit.circuit.quantumregister import Qubit
 from qiskit.converters.circuit_to_dag import circuit_to_dag
@@ -36,7 +41,6 @@ from hamap.mapping import _adapt_quantum_circuit_and_mapping_arity, _create_empt
 from hamap.mapping_to_str import mapping_to_str
 from hamap.swap import get_all_swap_bridge_candidates
 import logging
-from imitation.data.types import DictObs
 
 from pathlib import Path
 
@@ -125,7 +129,7 @@ class TrajectoryCollector:
 
         print(f'Save {len(self.trajectories)} Trajs ({len(transitions)} Trans) to {save_file}')
 
-    def load(self) -> Transitions:
+    def load(self) -> 'Transitions':
         save_file = self.outdir / f'{self.prefix}.trans'
         with save_file.open('rb') as f:
             trans = pickle.load(f)
@@ -278,7 +282,7 @@ def heuristic_algorithm(
     return resulting_circuit, current_mapping
 
 
-def rollout_expert_trajectory(env: gym.Env, trajectory: Trajectory):
+def rollout_expert_trajectory(env: gym.Env, trajectory: 'Trajectory'):
     """
     Rollout the expert's trajectory on an enviroment.
     """

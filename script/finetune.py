@@ -1,11 +1,4 @@
-import random
 import itertools
-from cgi import maxlen
-from pathlib import Path
-
-from qiskit import QuantumCircuit
-
-from contrib.common import get_cnot_num
 from contrib.maskable_ppo import run_maskable_ppo, get_short_20Q_circuits
 
 
