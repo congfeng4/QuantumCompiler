@@ -206,7 +206,7 @@ def run_maskable_ppo(
         verbose=1,
         deterministic=False,
         use_masking=True,
-        best_model_save_path=best_model_path,
+        # best_model_save_path=best_model_path,
         n_eval_episodes=n_eval_episodes,
     )
 

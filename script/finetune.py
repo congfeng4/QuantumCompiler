@@ -13,7 +13,7 @@ if __name__ == '__main__':
     run_maskable_ppo(
         hardware='Tokyo',
         circuit_path=path,
-        seqlen=128,
+        seqlen=16,
         final_reward=0,
         output_dirname='20Q_gate_seqlen=128_all',
         reward_shaping_weight=10,

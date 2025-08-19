@@ -1,5 +1,0 @@
-20Q_gate_Tokyo_large_2_3_1.5_no.7
-Game ends {'depth_ratio': 1.148936170212766, 'cx_ratio': 1.2523364485981308}
-        "depth_ratio": 2.4468085106382977,
-        "cx_ratio": 2.457943925233645
-

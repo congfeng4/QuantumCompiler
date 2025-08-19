@@ -18,7 +18,7 @@ SWAP_INDEX = 0
 BRIDGE_INDEX = 1
 
 
-get_distance_matrix = get_distance_matrix_swap_number
+get_distance_matrix = get_distance_matrix_swap_number_and_error
 
 
 def get_cnot_num(cirt: QuantumCircuit | DAGCircuit):
