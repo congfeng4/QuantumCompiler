@@ -179,7 +179,8 @@ def run_maskable_ppo(
     )
 
     circuit_name = Path(circuit_path).stem
-    log_name = f'Q={circuit_name}-CX={gate_len}-L={seqlen}-RS={reward_shaping_weight}-FR={final_reward}'
+    depth = qc.depth()
+    log_name = f'Q={circuit_name}-CX={gate_len}-D={depth}-L={seqlen}-RS={reward_shaping_weight}-FR={final_reward}'
     
     log_dir = f'../log/{output_dirname}'
     result_dir = f"../result/{output_dirname}"
@@ -245,14 +246,14 @@ def run_maskable_ppo(
     return result
 
 
-def get_short_20Q_circuits(max_gatelen: int = 100):
-    circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits/').glob('*.qasm')) + list(
-        Path('../data/20Q_depth_Tokyo/circuits/').glob('*.qasm'))
+def get_short_20Q_circuits(min_gatelen=10, max_gatelen: int = 100):
+    circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits/').glob('*.qasm'))
     random.shuffle(circuit_list)
+
     for circuit_path in circuit_list:
         qc = QuantumCircuit.from_qasm_file(str(circuit_path))
         gate_len = get_cnot_num(qc)
-        if gate_len > max_gatelen:
+        if not (min_gatelen <= gate_len <= max_gatelen):
             print(f'Skip {circuit_path} {gate_len=}')
             continue
         print(f'Get {circuit_path} {gate_len=}')

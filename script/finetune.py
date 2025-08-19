@@ -1,5 +1,6 @@
 import random
 import itertools
+from cgi import maxlen
 from pathlib import Path
 
 from qiskit import QuantumCircuit
@@ -14,12 +15,14 @@ def get_param_space(rs_weights: list[float], final_rewards: list[int], horizon_l
 
 
 if __name__ == '__main__':
-    for path in get_short_20Q_circuits():
+    for path in get_short_20Q_circuits(min_gatelen=0, max_gatelen=9999):
         run_maskable_ppo(
             hardware='Tokyo',
             circuit_path=path,
-            seqlen=8,
+            seqlen=64,
             final_reward=100,
-            output_dirname='short_20Q_seqlen',
-            save_result=False,
+            output_dirname='20Q_gate_seqlen=64_all',
+            save_result=True,
+            skip_existing=True,
+            total_timesteps=200_000,
         )

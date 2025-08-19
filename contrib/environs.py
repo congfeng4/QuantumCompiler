@@ -120,6 +120,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.metrics['out_cx_num'] = get_cnot_num(self.resulting_circuit)
         self.metrics['in_depth'] = self.input_circuit.depth()
         self.metrics['out_depth'] = self.resulting_circuit.depth()
+        self.metrics['in_depth_num_ratio'] = self.metrics['in_cx_num'] / self.metrics['in_depth']
+        self.metrics['out_depth_num_ratio'] = self.metrics['out_cx_num'] / self.metrics['out_depth']
         for key, value in self.metrics_baseline.items():
             self.metrics[key + '_diff'] = self.metrics[key] - value
             self.metrics[key + '_HA'] = value

@@ -1,0 +1,37 @@
+{
+    "config": {
+        "circuit_path": "../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_2_0_1.5_no.9.qasm",
+        "batch_size": 128,
+        "n_steps": 1024,
+        "num_envs": 1,
+        "embed_dim": 128,
+        "reward_shaping_weight": 10,
+        "final_reward": 100,
+        "init_strategy": "SABRE",
+        "seqlen": 16,
+        "total_timesteps": 100000,
+        "mode": "gru",
+        "ent_coef": 0.01,
+        "gamma": 0.99,
+        "qubit_number": 20
+    },
+    "metrics": {
+        "depth_ratio": 2.58,
+        "cx_ratio": 2.73,
+        "swap_num": 16.8,
+        "bridge_num": 9.2,
+        "bridge_ratio": 0.35,
+        "swap_ratio": 0.65,
+        "in_cx_num": 45.0,
+        "out_cx_num": 123.0,
+        "in_depth": 47.0,
+        "out_depth": 121.2,
+        "depth_ratio_diff": 0.43,
+        "depth_ratio_HA": 2.15,
+        "cx_ratio_diff": 0.27,
+        "cx_ratio_HA": 2.47,
+        "swap_num_diff": -4.2,
+        "swap_num_HA": 21.0,
+        "train_time": 615.78
+    }
+}
