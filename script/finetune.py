@@ -9,8 +9,8 @@ def get_param_space(rs_weights: list[float], final_rewards: list[int], horizon_l
 
 if __name__ == '__main__':
     mode = 'gru'
-    seqlen = 32
-    num_envs = 32
+    seqlen = 8
+    num_envs = 4
     n_steps = 1024
     
     for path in get_short_20Q_circuits(min_gatelen=0, max_gatelen=9999):
@@ -20,13 +20,13 @@ if __name__ == '__main__':
             circuit_path=path,
             seqlen=seqlen,
             final_reward='cx_num',
-            output_dirname=f'20Q_gate_seqlen={seqlen}_mode={mode}',
+            output_dirname=f'temp',
             reward_shaping_weight=10,
             mode=mode,
             save_result=True,
             skip_existing=True,
             total_timesteps=200_000,
-            batch_size=256,
+            batch_size=128,
             num_envs=num_envs,
             n_steps=n_steps // num_envs,
         )
