@@ -33,6 +33,10 @@ def get_cnot_num(cirt: QuantumCircuit | DAGCircuit):
     return count.get('cx', 0) + 3 * count.get('swap', 0)
 
 
+def get_circuit_depth(cirt: QuantumCircuit | DAGCircuit):
+    return cirt.depth()
+
+
 def qknob_metrics(in_cirt: QuantumCircuit, out_cirt: QuantumCircuit | DAGCircuit):
     depth_ratio = out_cirt.depth() / in_cirt.depth()
     in_cx_num = get_cnot_num(in_cirt)

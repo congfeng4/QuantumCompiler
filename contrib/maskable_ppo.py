@@ -7,8 +7,9 @@ import math
 import os
 import random
 import time
+from functools import cached_property
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional, Literal
 from pprint import pprint
 
 import jsons
@@ -16,7 +17,7 @@ import torch.cuda
 from stable_baselines3.common.env_util import make_vec_env
 
 from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_json, get_cnot_num, readable_float_dict, \
-    read_json, show_mapping, Qubit, Unit
+    read_json, show_mapping, Qubit, Unit, get_circuit_depth
 
 from sb3_contrib.ppo_mask import MaskablePPO
 from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
@@ -168,6 +169,7 @@ def run_maskable_ppo(
         save_model: bool = False,
         skip_existing: bool = True,
         n_eval_episodes: int = 10,
+        stop_if_no_improvement: bool = False,
 ):
     """
     ✅ Run MaskablePPO on a circuit and return the metrics.
@@ -263,8 +265,9 @@ def run_maskable_ppo(
 
     eval_callback = MaskableEvalCallback(
         eval_env,
-        eval_freq=eval_freq,  # 每 10w 步评估一次
-        callback_after_eval=None,
+        eval_freq=eval_freq,
+        callback_after_eval=StopTrainingOnNoModelImprovement(max_no_improvement_evals=10
+                                                             ) if stop_if_no_improvement else None,
         verbose=1,
         deterministic=False,
         use_masking=True,
@@ -308,21 +311,88 @@ def run_maskable_ppo(
     return result
 
 
-def get_circuits(dataname: str = None, num_circuits = None, min_gatelen=10, max_gatelen: int = 100):
-    if dataname is None:
-        dataname = '20Q_gate_Tokyo'
+class CircuitDataset:
 
-    circuit_list = list(Path(f'../data/{dataname}/circuits/').glob('*.qasm'))
-    random.shuffle(circuit_list)
-    if num_circuits is not None:  # Randomly sample some circuits.
-        circuit_list = circuit_list[:num_circuits]
+    def __init__(self, dataname: str, dataroot: Path = None):
+        if dataroot is None:
+            dataroot = Path('../data')
+        circuit_dir = dataroot / dataname / 'circuits/'
+        if not circuit_dir.exists():
+            raise FileNotFoundError(circuit_dir)
+        circuit_paths = list(circuit_dir.glob('*.qasm'))
+        random.shuffle(circuit_paths)
+        self.circuit_paths = circuit_paths
 
-    for circuit_path in circuit_list:
-        qc = QuantumCircuit.from_qasm_file(str(circuit_path))
-        gate_len = get_cnot_num(qc)
-        if not (min_gatelen <= gate_len <= max_gatelen):
-            print(f'Skip {circuit_path} {gate_len=}')
-            continue
-        print(f'Get {circuit_path} {gate_len=}')
-        yield circuit_path
+    @cached_property
+    def _circuits(self):
+        return [QuantumCircuit.from_qasm_file(str(p)) for p in self.circuit_paths]
+
+    def __len__(self):
+        return len(self.circuit_paths)
+
+    @cached_property
+    def depth_range(self):
+        return min(qc.depth() for qc in self._circuits), max(qc.depth() for qc in self._circuits)
+
+    @cached_property
+    def cx_num_range(self):
+        return min(get_cnot_num(qc) for qc in self._circuits), max(get_cnot_num(qc) for qc in self._circuits)
+
+    def sample(self, num_circuits=None, min_gatelen=10, max_gatelen=100):
+        """
+        按需迭代（yield）满足 CX 门数区间 [min_gatelen, max_gatelen] 的电路。
+        若 num_circuits 为 None，则持续返回直到遍历完所有电路。
+        """
+        count = 0
+        for qc, path in zip(self._circuits, self.circuit_paths):
+            cx = get_cnot_num(qc)
+            if min_gatelen <= cx <= max_gatelen:
+                yield path, cx
+                if num_circuits is not None:
+                    count += 1
+                    if count >= num_circuits:
+                        break
+
+    def plot_distribution(self, stats: Literal['cx', 'depth'],
+                             save_path: Optional[Path] = None,
+                             figsize: tuple = (8, 5),
+                             **sns_kwargs) -> None:
+        """
+        使用 seaborn 绘制数据集中所有电路的 CX 数量分布图。
+
+        Parameters
+        ----------
+        save_path : Path, optional
+            保存图片的路径；若为 None 则仅显示。
+        figsize : tuple, optional
+            画布大小。
+        **sns_kwargs
+            传给 seaborn.histplot 的额外关键字参数，如 bins, kde, color 等。
+        """
+        import seaborn as sns
+        import matplotlib.pyplot as plt
+        stats_map = dict(cx=dict(func=get_cnot_num, xlabel="Number of CNOT Gates", title="Distribution of CNOT Counts"),
+                         depth=dict(func=get_circuit_depth, xlabel='Circuit Depth', title='Distribution of Circuit Depth'))
+        entry = stats_map[stats]
+
+        # 收集 CX 数量
+        cx_counts = [entry['func'](qc) for qc in self._circuits]
+
+        # 默认 seaborn 样式
+        sns.set_theme(style="whitegrid")
+        plt.figure(figsize=figsize)
+        sns.histplot(cx_counts,
+                     binwidth=1,  # 每 1 个 CX 为一根柱
+                     color="steelblue",
+                     kde=True,
+                     edgecolor="black",
+                     **sns_kwargs)
+
+        plt.title(entry['title'])
+        plt.xlabel(entry['xlabel'])
+        plt.ylabel("Frequency")
+
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        plt.show()
 

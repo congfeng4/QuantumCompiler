@@ -1,9 +1,8 @@
-from contrib.common import Unit
-from contrib.maskable_ppo import run_maskable_ppo, get_circuits
-
+from contrib.common import Unit, get_cnot_num
+from contrib.maskable_ppo import run_maskable_ppo, CircuitDataset
 
 if __name__ == '__main__':
-    mode = 'transformer'
+    mode = 'gru'
     seqlen = 16
     num_envs = None
     n_steps = 16 * Unit.K
@@ -11,8 +10,10 @@ if __name__ == '__main__':
     batch_size = Unit.K
 
     num_epochs = 100
-    
-    for path in get_circuits(min_gatelen=200, max_gatelen=300):
+
+    dataset = CircuitDataset('20Q_depth_Tokyo')
+
+    for path in dataset.sample(num_circuits=10, min_gatelen=200, max_gatelen=300):
         run_maskable_ppo(
             hardware='Tokyo',
             circuit_path=path,
