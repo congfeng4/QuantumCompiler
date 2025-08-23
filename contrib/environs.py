@@ -202,10 +202,10 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         best_swap_qubits = self.action.decode(policy, self.initial_mapping,
                                               inverse_current_mapping,
                                               self.inverse_mapping, self.hardware)
-        old_depth = self.resulting_dag_quantum_circuit.depth()
+        # old_depth = self.resulting_dag_quantum_circuit.depth()
         if not self.apply_swap_action(best_swap_qubits):
             return self.step_invalid()
-        new_depth = self.resulting_dag_quantum_circuit.depth()
+        # new_depth = self.resulting_dag_quantum_circuit.depth()
         
         self.invalid_actions = 0
         self.update()
@@ -213,14 +213,14 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         # The cost of a circuit is a potential function of the state.
         # F(s', s) = gamma * phi(s') - phi(s)
         rs = self.state_potential * self.gamma - prev_potential
-        reward = self.reward_shaping_weight * rs - 3 - (new_depth - old_depth)
+        reward = self.reward_shaping_weight * rs - 1 #3 - (new_depth - old_depth)
         done = not self.front_layer
         info = {}
         if not done:
             return self._get_obs(), reward, done, False, info
 
         self.finalize_result()
-        reward += self.metrics['in_cx_num'] + self.metrics['in_depth']
+        reward += self.metrics['in_cx_num'] #+ self.metrics['in_depth']
 
         readable_metrics = readable_float_dict(self.metrics)
         print(f'Game ends {readable_metrics}')
