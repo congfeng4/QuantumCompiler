@@ -3,6 +3,7 @@
 至少需要用MaskablePPO，并且把Action Mask定义好。
 ☀️🌛🎉🖼🏊🏻🏓✈️🚗
 """
+import math
 import os
 import random
 import time
@@ -15,10 +16,9 @@ import torch.cuda
 from stable_baselines3.common.env_util import make_vec_env
 
 from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_json, get_cnot_num, readable_float_dict, \
-    read_json, show_mapping, Qubit
+    read_json, show_mapping, Qubit, Unit
+
 from sb3_contrib.ppo_mask import MaskablePPO
-from sb3_contrib.common.maskable.evaluation import evaluate_policy
-from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
 from stable_baselines3.common.vec_env import VecEnv, VecMonitor, DummyVecEnv, SubprocVecEnv
 
@@ -45,17 +45,6 @@ def average_metrics(metrics_list):
         avg_metrics[key] = sum(metric[key] for metric in metrics_list) / len(metrics_list)
 
     return avg_metrics
-
-
-# def evaluate_policy_for_metrics(model, eval_env, n_eval_episodes=10, deterministic=False):
-#     metrics_list = []
-    
-#     for _ in range(n_eval_episodes):  # 必须重复多次，早期单次eval的方差很大。
-#         evaluate_policy(model, eval_env, n_eval_episodes=1, use_masking=True, deterministic=deterministic)
-#         metrics = eval_env.get_attr('metrics')[0]
-#         metrics_list.append(metrics)
-
-#     return average_metrics(metrics_list)
 
 
 def evaluate_policy_for_metrics(model, eval_env):
@@ -161,9 +150,8 @@ def run_maskable_ppo(
         hardware: IBMQHardwareArchitecture | str,
         circuit_path: Path | str,
         batch_size: int = 128,
-        n_steps: int = 1024,  # How many steps each env will run.
-        num_envs: int = None,
-        scale_by_num_envs: bool = False,
+        n_steps: int = 32 * Unit.K,
+        eval_freq: int = Unit.K,
         embed_dim: int = 128,
         reward_shaping_weight: float = 10,
         final_reward: float | str = 10,
@@ -171,9 +159,8 @@ def run_maskable_ppo(
         seqlen: int | float = 16,
         num_epochs: int = 100,
         output_dirname: str = None,
-        mode: str = 'gru',
+        mode: str = 'transformer',
         ent_coef: float = 0.01,
-        eval_freq: int = 1_000,
         gamma: float = 0.99,
         pretrain: Path = None,
         features_extractor_kwargs: dict = None,
@@ -185,9 +172,10 @@ def run_maskable_ppo(
     """
     ✅ Run MaskablePPO on a circuit and return the metrics.
     """
-    if num_envs is None:
-        num_envs = max(os.cpu_count() // 8, os.cpu_count())
-        
+    num_envs = max(os.cpu_count() // 8, 8)
+    while n_steps % num_envs != 0:
+        num_envs += 1
+
     if output_dirname is None:
         output_dirname = 'maskable_ppo'
 
@@ -214,9 +202,8 @@ def run_maskable_ppo(
     init = get_initial_mapping(qc, hardware, init_strategy)
     use_subproc = torch.cuda.is_available()  # On GPU server, use subproc to make full use of GPUs.
 
-    if scale_by_num_envs:
-        eval_freq //= num_envs
-        n_steps //= num_envs
+    eval_freq //= num_envs
+    n_steps //= num_envs
 
     env = create_vec_env_from_circuits(
         circuit=qc,
@@ -277,11 +264,7 @@ def run_maskable_ppo(
         print(f'Result exists: {result_file}')
         return read_json(result_file)
 
-    metrics_callback = MetricEvalCallback(
-        eval_env,
-        eval_freq=eval_freq,
-        #n_eval_episodes=n_eval_episodes,
-    )
+    metrics_callback = MetricEvalCallback(eval_env=eval_env, eval_freq=eval_freq)
 
     eval_callback = MaskableEvalCallback(
         eval_env,
@@ -298,9 +281,6 @@ def run_maskable_ppo(
         policy="MultiInputPolicy",
         env=env,
         n_steps=n_steps,
-        # plateau: Remaining steps.
-        learning_rate=piecewise_linear(3e-4, plateau=0.4, final=1e-5),  # 防止后期不稳定
-        clip_range=piecewise_linear(0.2, plateau=0.4, final=0.01),  # 防止后期不稳定
         batch_size=batch_size,
         tensorboard_log=log_dir,
         verbose=1,

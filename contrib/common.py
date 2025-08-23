@@ -1,5 +1,5 @@
 import json
-
+from enum import IntEnum
 from qiskit.circuit import Qubit, QuantumCircuit
 from pathlib import Path
 import networkx as nx
@@ -16,6 +16,13 @@ NUM_ACTIONS = 2
 EXE_INDEX = None
 SWAP_INDEX = 0
 BRIDGE_INDEX = 1
+
+
+class Unit(IntEnum):
+    K = 1024
+    M = K * K
+    G = M * M
+    P = G * G
 
 
 get_distance_matrix = get_distance_matrix_swap_number_and_error
