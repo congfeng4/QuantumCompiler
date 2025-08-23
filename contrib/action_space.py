@@ -22,7 +22,7 @@ def find_middle(best_swap_qubits: BridgeTwoQubitGate, hardware, initial_mapping,
     control, target = best_swap_qubits.left, best_swap_qubits.right
     control_index = initial_mapping[control]
     target_index = initial_mapping[target]
-    # For each qubit q linked with control, check if target is linked with q.
+    # For each qubit q linked with control, check if the target is linked with q.
     for _, potential_middle_index in hardware.out_edges(control_index):
         for _, potential_target_index in hardware.out_edges(potential_middle_index):
             if potential_target_index == target_index:
@@ -83,31 +83,6 @@ class ActionSpace:
         return swap
 
 
-class ActionSpaceCandsAndCost:
-
-    def __init__(self, N: int):
-        self.N = N
-
-    def get_size(self):
-        return self.N * self.N
-
-    def get_space(self):
-        return gym.spaces.MultiBinary(self.get_size())
-
-    def encode(self, candidates_with_cost, current_mapping, initial_mapping):
-        action = np.zeros((self.N, self.N), np.float32)
-        # Swap and bridge
-        for swap, cost in candidates_with_cost:
-            _, q0, q1 = two_qubit_gate_to_tuple(swap, current_mapping, initial_mapping)
-            assert action[q0, q1] == 0, f"Conflict in action: {swap=} {q0=} {q1=}"
-            prob = np.exp(-cost)  # Map [0->inf] to [0, 1]
-        return action.reshape(-1)
-
-    def decode(self, action, determistic=True):
-        if determistic:
-            index = np.argmin(action)
-
-
 def check_symmetric(pairs: list[tuple[int, int]]):
     for a, b in pairs:
         assert (b, a) in pairs, f'{(a, b)}'
@@ -164,14 +139,6 @@ class ActionSpaceEdge:
             policy = self.encode(swap, current_mapping, initial_mapping)
             masks[policy] = True
         return masks.tolist()
-
-    # def get_masks(self, swap_candidates: list[TwoQubitGate],
-    #               current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
-    #     masks = np.zeros(self.get_size(), bool)
-    #     for swap in swap_candidates:
-    #         policy = self.encode(swap, current_mapping, initial_mapping)
-    #         masks[policy] = sabre_heuristic()
-    #     return masks.tolist()
 
 
 if __name__ == '__main__':

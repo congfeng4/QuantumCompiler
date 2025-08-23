@@ -90,7 +90,7 @@ def non_adj_common_pairs(G):
 
 def readable_float_dict(data: dict[str, float], places: int = 2):
     # Use float() to get rid of np.float32
-    return {k : round(float(v), places) for k, v in data.items()}
+    return {k: round(float(v), places) for k, v in data.items()}
 
 
 def write_json(out_file: Path | str, data):

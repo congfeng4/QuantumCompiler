@@ -28,7 +28,7 @@ class DenseGNNType(Enum):
 
 class QubitEmbedding(nn.Module):
     """
-    Encoe one qubit.
+    Encode one qubit.
     """
 
     def __init__(self, num_qubits: int, embedding_dim: int):

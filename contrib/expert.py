@@ -159,7 +159,7 @@ def heuristic_algorithm(
                 ty.Dict[Qubit, int],  # The mapping before applying the tested SWAP/Bridge
                 ty.Dict[Qubit, int],  # The initial mapping
                 ty.Dict[Qubit, int],  # The trans mapping
-                numpy.ndarray,  # The distance matrix between each qubits
+                numpy.ndarray,  # The distance matrix between each qubit
                 TwoQubitGate,  # The SWAP/Bridge we want to rank
             ],
             float,
@@ -216,9 +216,9 @@ def heuristic_algorithm(
             explored_mappings.clear()
         else:
             inverse_mapping = {val: key for key, val in initial_mapping.items()}
-            # We cannot execute any gate, that means that we should insert at least
+            # We cannot execute any gate, which means that we should insert at least
             # one SWAP/Bridge to make some gates executable.
-            # First list all the SWAPs/Bridges that may help us make some gates
+            # First, list all the SWAPs/Bridges that may help us make some gates
             # executable.
             swap_candidates = get_candidates(
                 front_layer, hardware, initial_mapping, current_mapping, trans_mapping, explored_mappings
@@ -284,7 +284,7 @@ def heuristic_algorithm(
 
 def rollout_expert_trajectory(env: gym.Env, trajectory: 'Trajectory'):
     """
-    Rollout the expert's trajectory on an enviroment.
+    Rollout the expert's trajectory in an environment.
     """
     env.reset()
     done = False

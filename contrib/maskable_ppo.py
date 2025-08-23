@@ -347,7 +347,7 @@ class CircuitDataset:
         for qc, path in zip(self._circuits, self.circuit_paths):
             cx = get_cnot_num(qc)
             if min_gatelen <= cx <= max_gatelen:
-                yield path, cx
+                yield path
                 if num_circuits is not None:
                     count += 1
                     if count >= num_circuits:

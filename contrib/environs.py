@@ -202,32 +202,25 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         best_swap_qubits = self.action.decode(policy, self.initial_mapping,
                                               inverse_current_mapping,
                                               self.inverse_mapping, self.hardware)
+        old_depth = self.resulting_dag_quantum_circuit.depth()
         if not self.apply_swap_action(best_swap_qubits):
             return self.step_invalid()
-
+        new_depth = self.resulting_dag_quantum_circuit.depth()
+        
         self.invalid_actions = 0
         self.update()
         prev_potential = self.update_state_potential()
         # The cost of a circuit is a potential function of the state.
         # F(s', s) = gamma * phi(s') - phi(s)
         rs = self.state_potential * self.gamma - prev_potential
-        reward = self.reward_shaping_weight * rs - 1
+        reward = self.reward_shaping_weight * rs - 3 - (new_depth - old_depth)
         done = not self.front_layer
         info = {}
         if not done:
             return self._get_obs(), reward, done, False, info
 
         self.finalize_result()
-        if isinstance(self.final_reward, (int, float)):
-            reward += self.final_reward
-        elif self.final_reward == 'metric':
-            normalized_cx_ratio = self.metrics['cx_ratio'] - 1
-            normalized_depth_ratio = self.metrics['depth_ratio'] - 1
-            reward -= self.reward_shaping_weight * (normalized_cx_ratio + normalized_depth_ratio)
-            # reward += 1 / normalized_cx_ratio
-            # reward += 1/ normalized_depth_ratio
-        elif self.final_reward == 'cx_num':
-            reward += self.metrics['in_cx_num']
+        reward += self.metrics['in_cx_num'] + self.metrics['in_depth']
 
         readable_metrics = readable_float_dict(self.metrics)
         print(f'Game ends {readable_metrics}')
@@ -263,7 +256,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             control, target = op.qargs
             control_index = initial_mapping[inverse_trans_mapping[initial_mapping[control]]]
             target_index = initial_mapping[inverse_trans_mapping[initial_mapping[target]]]
-            # For each qubit q linked with control, check if target is linked with q.
+            # For each qubit q linked with control, check if the target is linked with q.
             for _, potential_middle_index in self.hardware.out_edges(control_index):
                 for _, potential_target_index in self.hardware.out_edges(potential_middle_index):
                     if potential_target_index == target_index:
@@ -272,17 +265,17 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                             inverse_mapping[potential_middle_index],
                             inverse_trans_mapping[initial_mapping[target]],
                         )
-                        # Not using assert! bridge has deplicates.
+                        # Not using assert! The bridge has duplicates.
                         # assert not masks[control_index, target_index], (control_index, target_index, masks[control_index, target_index])
                         masks[self.action.action_to_index[control_index, target_index]] = True
 
     def swap_masks(self, masks, costs: set[float]):
-        # First compute all the qubits involved in the given layer
+        # First, compute all the qubits involved in the given layer
         qubits_involved_in_front_layer = set()
         for op in self.front_layer.ops:
             qubits_involved_in_front_layer.update(op.qargs)
         inverse_mapping = {val: key for key, val in self.current_mapping.items()}
-        # Then for all the possible links that involve at least one of the qubits used by
+        # Then, for all the possible links that involve at least one of the qubits used by
         # the gates in the given layer, add this link as a possible SWAP.
         # all_swaps = list()
         for involved_qubit in qubits_involved_in_front_layer:
@@ -295,7 +288,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                 )
 
 
-gym.register("CircuitEnv", "contrib.environs:CircuitEnvWithInitialMapping")
 
 if __name__ == '__main__':
     set_all_seeds()

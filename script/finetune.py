@@ -9,11 +9,11 @@ if __name__ == '__main__':
     eval_freq = Unit.K
     batch_size = Unit.K
 
-    num_epochs = 100
+    num_epochs = Unit.K
 
-    dataset = CircuitDataset('20Q_depth_Tokyo')
+    dataset = CircuitDataset('20Q_gate_Tokyo')
 
-    for path in dataset.sample(num_circuits=10, min_gatelen=200, max_gatelen=300):
+    for path in dataset.sample(num_circuits=10, min_gatelen=1, max_gatelen=100):
         run_maskable_ppo(
             hardware='Tokyo',
             circuit_path=path,
@@ -28,4 +28,5 @@ if __name__ == '__main__':
             batch_size=batch_size,
             n_steps=n_steps,
             eval_freq=eval_freq,
+            stop_if_no_improvement=True,
         )
