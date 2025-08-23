@@ -1,5 +1,7 @@
 import json
 from enum import IntEnum
+
+import numpy as np
 from qiskit.circuit import Qubit, QuantumCircuit
 from pathlib import Path
 import networkx as nx
@@ -9,6 +11,8 @@ from qiskit.dagcircuit import DAGNode, DAGCircuit
 from hamap.distance_matrix import get_distance_matrix_swap_number, get_distance_matrix_swap_number_and_error
 from hamap.gates import TwoQubitGate
 from hamap.hardware import IBMQHardwareArchitecture
+from hamap.heuristics import _gate_op_cost
+from hamap.layer import QuantumLayer
 
 RESULT_DIR = Path(__file__).parent.parent / 'result'
 
@@ -35,6 +39,14 @@ def get_cnot_num(cirt: QuantumCircuit | DAGCircuit):
 
 def get_circuit_depth(cirt: QuantumCircuit | DAGCircuit):
     return cirt.depth()
+
+
+def get_circuit_cost(front_layer: QuantumLayer, gates: list[DAGNode], current_mapping: dict[Qubit, int],
+                    distance_matrix: np.ndarray, hardware: IBMQHardwareArchitecture, maxlen: int = -1):
+    cost = 0
+    for op in (front_layer.ops + gates)[:maxlen]:
+        cost += _gate_op_cost(op, distance_matrix, current_mapping, hardware)
+    return cost
 
 
 def qknob_metrics(in_cirt: QuantumCircuit, out_cirt: QuantumCircuit | DAGCircuit):

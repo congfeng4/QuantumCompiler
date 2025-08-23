@@ -28,7 +28,7 @@ from contrib.common import qknob_metrics, get_distance_matrix
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
 from contrib.state_space import StateSpace
 from contrib.action_space import ActionSpace, ActionSpaceEdge
-from contrib.reward_space import get_circuit_cost
+from contrib.common import get_circuit_cost
 
 from hamap.distance_matrix import (
     get_distance_matrix_swap_number_and_error,

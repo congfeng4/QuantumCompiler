@@ -1,5 +1,4 @@
 from typing import Any, SupportsFloat
-from enum import Enum
 
 import gymnasium as gym
 import numpy as np
@@ -10,20 +9,16 @@ from qiskit import QuantumCircuit
 from qiskit.circuit import Qubit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGNode
-from sb3_contrib.common.maskable.evaluation import evaluate_policy
-from stable_baselines3.common.base_class import BaseAlgorithm
 
-from contrib.common import qknob_metrics, readable_float_dict
+from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy, ha_baseline
 from contrib.expert import TrajectoryCollector, rollout_expert_trajectory, heuristic_algorithm
 from contrib.seed import set_all_seeds
 from contrib.common import get_cnot_num, get_distance_matrix
 from contrib.action_space import ActionSpaceEdge
 from contrib.state_space import StateSpace
-from contrib.reward_space import get_circuit_cost
 
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
-from hamap.heuristics import sabre_heuristic
 from hamap.layer import QuantumLayer, update_layer
 from hamap.mapping import _adapt_quantum_circuit_and_mapping_arity, _create_empty_dagcircuit_from_existing
 from hamap import IBMQHardwareArchitecture, mapping_to_str
@@ -61,8 +56,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  L: int,
                  reward_shaping_weight: float = 1,
                  final_reward: float = 10,
-                 gamma: float = 0.99,
-                 **kwargs):
+                 gamma: float = 0.99):
         super().__init__(hardware, L=L)
         self.input_circuit = input_circuit
         self.hardware = hardware
@@ -202,25 +196,23 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         best_swap_qubits = self.action.decode(policy, self.initial_mapping,
                                               inverse_current_mapping,
                                               self.inverse_mapping, self.hardware)
-        # old_depth = self.resulting_dag_quantum_circuit.depth()
         if not self.apply_swap_action(best_swap_qubits):
             return self.step_invalid()
-        # new_depth = self.resulting_dag_quantum_circuit.depth()
-        
+
         self.invalid_actions = 0
         self.update()
         prev_potential = self.update_state_potential()
         # The cost of a circuit is a potential function of the state.
         # F(s', s) = gamma * phi(s') - phi(s)
         rs = self.state_potential * self.gamma - prev_potential
-        reward = self.reward_shaping_weight * rs - 1 #3 - (new_depth - old_depth)
+        reward = self.reward_shaping_weight * rs - 1
         done = not self.front_layer
         info = {}
         if not done:
             return self._get_obs(), reward, done, False, info
 
         self.finalize_result()
-        reward += self.metrics['in_cx_num'] #+ self.metrics['in_depth']
+        reward += self.metrics['in_cx_num']
 
         readable_metrics = readable_float_dict(self.metrics)
         print(f'Game ends {readable_metrics}')
