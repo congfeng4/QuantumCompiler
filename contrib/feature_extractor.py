@@ -270,9 +270,15 @@ class SequenceEncoder(nn.Module):
             max_len = x.size(1)
             # print('lengths', lengths.shape, 'arange',
             #       torch.arange(max_len, device=x.device).expand(B, -1).shape, 'x', x.shape)
-
-            mask = torch.arange(max_len, device=x.device).expand(B, -1) >= lengths  # [B, L]
+            tmp = torch.arange(max_len, device=x.device).expand(B, -1)
+            if len(lengths.shape) != 2:
+                lengths = lengths.unsqueeze(1)
+            mask = tmp >= lengths  # [B, L]
             # 2. Transformer 前向
+            if len(mask.shape) != 2:
+                print(f'!!Mask shape is not 2: {mask.shape=} {lengths.shape=} {tmp.shape=}', flush=True)
+                raise RuntimeError
+
             x_enc = self.transformer(x, src_key_padding_mask=mask)  # [B, L, F]
 
             # 3. mean-pool 忽略 pad

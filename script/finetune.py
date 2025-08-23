@@ -8,7 +8,7 @@ def get_param_space(rs_weights: list[float], final_rewards: list[int], horizon_l
 
 
 if __name__ == '__main__':
-    mode = 'gru'
+    mode = 'transformer'
     seqlen = 16
     num_envs = None
     n_steps = 2048

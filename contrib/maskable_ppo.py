@@ -186,7 +186,7 @@ def run_maskable_ppo(
     ✅ Run MaskablePPO on a circuit and return the metrics.
     """
     if num_envs is None:
-        num_envs = max(os.cpu_count() // 8, 1)
+        num_envs = max(os.cpu_count() // 8, os.cpu_count())
         
     if output_dirname is None:
         output_dirname = 'maskable_ppo'
