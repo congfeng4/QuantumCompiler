@@ -10,8 +10,12 @@ from pathlib import Path
 from typing import Callable
 
 import jsons
+import torch.cuda
+from stable_baselines3.common.env_util import make_vec_env
+from sympy.physics.quantum.qubit import Qubit
+
 from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_json, get_cnot_num, readable_float_dict, \
-    read_json
+    read_json, show_mapping
 from sb3_contrib.ppo_mask import MaskablePPO
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
@@ -27,16 +31,14 @@ from contrib.metrics_callback import MetricEvalCallback, evaluate_policy_for_met
 def create_vec_env_from_circuits(
         circuit: QuantumCircuit, seqlen: int,
         hardware: IBMQHardwareArchitecture,
-        init_strategy: InitialMappingStrategy,
+        init: dict[Qubit, int],
         num_envs: int = 1,
+        use_subproc: bool = False,
         rs_weight: float = 1,
         final_reward: float | str = 10,
         gamma: float = 0.99,
-        **kwargs,
 ):
     assert num_envs >= 1
-    vec_funcs = []
-    init = get_initial_mapping(circuit, hardware, init_strategy)
 
     def make_func():
         return lambda: CircuitEnvWithInitialMapping(
@@ -49,18 +51,13 @@ def create_vec_env_from_circuits(
             gamma=gamma,
         )
 
-    for i in range(num_envs):
-        vec_funcs.append(make_func())
-
     print(f'Create env with {num_envs} circuits')
-    env_class = DummyVecEnv if num_envs == 1 else SubprocVecEnv
-    return VecMonitor(env_class(vec_funcs))
 
-
-def get_max_ep_len(env, model):
-    episode_rewards, episode_lengths = evaluate_policy(model, env, deterministic=False, use_masking=True,
-                                                       return_episode_rewards=True)
-    return max(episode_lengths)
+    return make_vec_env(
+        env_id=make_func(),
+        n_envs=num_envs,
+        vec_env_cls=SubprocVecEnv if use_subproc else DummyVecEnv,
+    )
 
 
 def linear_schedule(initial_value: float) -> Callable[[float], float]:
@@ -107,6 +104,7 @@ def run_maskable_ppo(
         batch_size: int = 128,
         n_steps: int = 1024,
         num_envs: int = 1,
+        scale_by_num_envs: bool = True,
         embed_dim: int = 128,
         reward_shaping_weight: float = 10,
         final_reward: float | str = 10,
@@ -121,6 +119,7 @@ def run_maskable_ppo(
         pretrain: Path = None,
         features_extractor_kwargs: dict = None,
         save_result: bool = True,
+        save_model: bool = False,
         skip_existing: bool = True,
         n_eval_episodes: int = 10,
 ):
@@ -150,13 +149,31 @@ def run_maskable_ppo(
         seqlen = int(seqlen * gate_len)
 
     print(f'{circuit_path} {gate_len=} {seqlen=}')
+    init = get_initial_mapping(qc, hardware, init_strategy)
+    use_subproc = torch.cuda.is_available()  # On GPU server, use subproc to make full use of GPUs.
+
+    if scale_by_num_envs:
+        eval_freq //= num_envs
+        n_steps //= num_envs
 
     env = create_vec_env_from_circuits(
         circuit=qc,
         hardware=hardware,
         seqlen=seqlen,
-        init_strategy=init_strategy,
+        init=init,
         num_envs=num_envs,
+        rs_weight=reward_shaping_weight,
+        final_reward=final_reward,
+        use_subproc=use_subproc,
+        gamma=gamma,
+    )
+
+    eval_env = create_vec_env_from_circuits(
+        circuit=qc,
+        hardware=hardware,
+        seqlen=seqlen,
+        init=init,
+        num_envs=1,
         rs_weight=reward_shaping_weight,
         final_reward=final_reward,
         gamma=gamma,
@@ -191,8 +208,6 @@ def run_maskable_ppo(
         print(f'Result exists: {result_file}')
         return read_json(result_file)
 
-    eval_env = VecMonitor(env)
-
     metrics_callback = MetricEvalCallback(
         eval_env,
         eval_freq=eval_freq,
@@ -206,7 +221,7 @@ def run_maskable_ppo(
         verbose=1,
         deterministic=False,
         use_masking=True,
-        # best_model_save_path=best_model_path,
+        best_model_save_path=best_model_path if save_model else None,
         n_eval_episodes=n_eval_episodes,
     )
 
@@ -242,15 +257,21 @@ def run_maskable_ppo(
     metrics = evaluate_policy_for_metrics(ppo, eval_env)
     metrics.update(train_time=learn_end - learn_start)
     metrics = readable_float_dict(metrics)
-    result = jsons.dump(dict(config=config, metrics=metrics))
+
+    result = dict(config=config, metrics=metrics, init=show_mapping(init))
     if save_result:
-        write_json(result_file, result)
+        write_json(result_file, jsons.dump(result))
     return result
 
 
-def get_short_20Q_circuits(min_gatelen=10, max_gatelen: int = 100):
-    circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits/').glob('*.qasm'))
+def get_circuits(dataname: str = None, num_circuits = None, min_gatelen=10, max_gatelen: int = 100):
+    if dataname is None:
+        dataname = '20Q_gate_Tokyo'
+
+    circuit_list = list(Path(f'../data/{dataname}/circuits/').glob('*.qasm'))
     random.shuffle(circuit_list)
+    if num_circuits is not None:  # Randomly sample some circuits.
+        circuit_list = circuit_list[:num_circuits]
 
     for circuit_path in circuit_list:
         qc = QuantumCircuit.from_qasm_file(str(circuit_path))
