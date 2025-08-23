@@ -8,11 +8,11 @@ import random
 import time
 from pathlib import Path
 from typing import Callable
+from pprint import pprint
 
 import jsons
 import torch.cuda
 from stable_baselines3.common.env_util import make_vec_env
-from sympy.physics.quantum.qubit import Qubit
 
 from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_json, get_cnot_num, readable_float_dict, \
     read_json, show_mapping
@@ -25,7 +25,66 @@ from stable_baselines3.common.vec_env import VecEnv, VecMonitor, DummyVecEnv, Su
 from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.feature_extractor import get_policy_kwargs
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
-from contrib.metrics_callback import MetricEvalCallback, evaluate_policy_for_metrics
+from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
+from sb3_contrib.common.maskable.evaluation import evaluate_policy
+from stable_baselines3.common.callbacks import BaseCallback
+
+
+def average_metrics(metrics_list):
+    """
+    Calculate the average of a list of metrics.
+
+    :param metrics_list: List of dictionaries containing metrics
+    :return: Dictionary with averaged metrics
+    """
+    if not metrics_list:
+        return {}
+
+    avg_metrics = {}
+    for key in metrics_list[0].keys():
+        avg_metrics[key] = sum(metric[key] for metric in metrics_list) / len(metrics_list)
+
+    return avg_metrics
+
+
+# def evaluate_policy_for_metrics(model, eval_env, n_eval_episodes=10, deterministic=False):
+#     metrics_list = []
+    
+#     for _ in range(n_eval_episodes):  # 必须重复多次，早期单次eval的方差很大。
+#         evaluate_policy(model, eval_env, n_eval_episodes=1, use_masking=True, deterministic=deterministic)
+#         metrics = eval_env.get_attr('metrics')[0]
+#         metrics_list.append(metrics)
+
+#     return average_metrics(metrics_list)
+
+
+def evaluate_policy_for_metrics(model, eval_env):
+    metrics_list = []
+    
+    evaluate_policy(model, eval_env, n_eval_episodes=1, use_masking=True, deterministic=False)
+    metrics = eval_env.get_attr('metrics')
+    metrics_list.extend(metrics)
+
+    return average_metrics(metrics_list)
+
+
+class MetricEvalCallback(BaseCallback):
+    model: MaskablePPO
+
+    def __init__(self, eval_env, eval_freq=10000):
+        # deterministic=True，早期评估非常慢，几乎卡死。
+        super().__init__()
+        self.eval_env = eval_env
+        self.eval_freq = eval_freq
+
+    def _on_step(self) -> bool:
+        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
+            metrics = evaluate_policy_for_metrics(self.model, self.eval_env)
+
+            for key, value in metrics.items():
+                self.logger.record(f"metric/{key}", round(value, 2))
+
+        return True
 
 
 def create_vec_env_from_circuits(
@@ -51,7 +110,7 @@ def create_vec_env_from_circuits(
             gamma=gamma,
         )
 
-    print(f'Create env with {num_envs} circuits')
+    print(f'Create env with {num_envs} circuits {use_subproc=}')
 
     return make_vec_env(
         env_id=make_func(),
@@ -102,15 +161,15 @@ def run_maskable_ppo(
         hardware: IBMQHardwareArchitecture | str,
         circuit_path: Path | str,
         batch_size: int = 128,
-        n_steps: int = 1024,
-        num_envs: int = 1,
-        scale_by_num_envs: bool = True,
+        n_steps: int = 1024,  # How many steps each env will run.
+        num_envs: int = None,
+        scale_by_num_envs: bool = False,
         embed_dim: int = 128,
         reward_shaping_weight: float = 10,
         final_reward: float | str = 10,
         init_strategy: InitialMappingStrategy = InitialMappingStrategy.SABRE,
         seqlen: int | float = 16,
-        total_timesteps: int = 100_000,
+        num_epochs: int = 100,
         output_dirname: str = None,
         mode: str = 'gru',
         ent_coef: float = 0.01,
@@ -126,6 +185,9 @@ def run_maskable_ppo(
     """
     ✅ Run MaskablePPO on a circuit and return the metrics.
     """
+    if num_envs is None:
+        num_envs = max(os.cpu_count() // 8, 1)
+        
     if output_dirname is None:
         output_dirname = 'maskable_ppo'
 
@@ -173,11 +235,15 @@ def run_maskable_ppo(
         hardware=hardware,
         seqlen=seqlen,
         init=init,
-        num_envs=1,
+        num_envs=n_eval_episodes,
         rs_weight=reward_shaping_weight,
         final_reward=final_reward,
+        use_subproc=use_subproc,
         gamma=gamma,
     )
+
+    steps_per_epoch = num_envs * n_steps
+    total_timesteps = num_epochs * steps_per_epoch
 
     config = dict(
         circuit_path=str(circuit_path),
@@ -190,12 +256,15 @@ def run_maskable_ppo(
         init_strategy=init_strategy.name,
         seqlen=seqlen,
         total_timesteps=total_timesteps,
+        num_epochs=num_epochs,
+        steps_per_epoch=steps_per_epoch,
         mode=mode,
         ent_coef=ent_coef,
         gamma=gamma,
         qubit_number=hardware.qubit_number,
     )
-
+    pprint(config)
+    
     circuit_name = Path(circuit_path).stem
     depth = qc.depth()
     log_name = f'Q={circuit_name}-CX={gate_len}-D={depth}-L={seqlen}-RS={reward_shaping_weight}-FR={final_reward}'
@@ -211,7 +280,7 @@ def run_maskable_ppo(
     metrics_callback = MetricEvalCallback(
         eval_env,
         eval_freq=eval_freq,
-        n_eval_episodes=n_eval_episodes,
+        #n_eval_episodes=n_eval_episodes,
     )
 
     eval_callback = MaskableEvalCallback(
@@ -282,11 +351,3 @@ def get_circuits(dataname: str = None, num_circuits = None, min_gatelen=10, max_
         print(f'Get {circuit_path} {gate_len=}')
         yield circuit_path
 
-
-if __name__ == '__main__':
-    result = run_maskable_ppo(
-        hardware='Tokyo',
-        circuit_path=Path('../data/20Q_gate_Tokyo/circuits/20Q_gate_Tokyo_large_1_1_1.5_no.2.qasm'),
-        total_timesteps=100,
-        save_result=True,
-    )
