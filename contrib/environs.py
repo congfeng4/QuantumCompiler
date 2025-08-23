@@ -55,7 +55,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  initial_mapping: dict[Qubit, int],
                  L: int,
                  reward_shaping_weight: float = 1,
-                 final_reward: float = 10,
                  gamma: float = 0.99):
         super().__init__(hardware, L=L)
         self.input_circuit = input_circuit
@@ -64,7 +63,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.distance_matrix = get_distance_matrix(self.hardware)
         self.gamma = gamma
         self.reward_shaping_weight = reward_shaping_weight
-        self.final_reward = final_reward
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)

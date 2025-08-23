@@ -84,7 +84,6 @@ def create_vec_env_from_circuits(
         num_envs: int = 1,
         use_subproc: bool = False,
         rs_weight: float = 1,
-        final_reward: float | str = 10,
         gamma: float = 0.99,
 ):
     assert num_envs >= 1
@@ -96,7 +95,6 @@ def create_vec_env_from_circuits(
             initial_mapping=init,
             L=seqlen,
             reward_shaping_weight=rs_weight,
-            final_reward=final_reward,
             gamma=gamma,
         )
 
@@ -155,12 +153,11 @@ def run_maskable_ppo(
         eval_freq: int = Unit.K,
         embed_dim: int = 128,
         reward_shaping_weight: float = 10,
-        final_reward: float | str = 10,
         init_strategy: InitialMappingStrategy = InitialMappingStrategy.SABRE,
         seqlen: int | float = 16,
         num_epochs: int = 100,
         output_dirname: str = None,
-        mode: str = 'transformer',
+        mode: str = 'gru',
         ent_coef: float = 0.01,
         gamma: float = 0.99,
         pretrain: Path = None,
@@ -211,7 +208,6 @@ def run_maskable_ppo(
         init=init,
         num_envs=num_envs,
         rs_weight=reward_shaping_weight,
-        final_reward=final_reward,
         use_subproc=use_subproc,
         gamma=gamma,
     )
@@ -223,7 +219,6 @@ def run_maskable_ppo(
         init=init,
         num_envs=n_eval_episodes,
         rs_weight=reward_shaping_weight,
-        final_reward=final_reward,
         use_subproc=use_subproc,
         gamma=gamma,
     )
@@ -236,7 +231,6 @@ def run_maskable_ppo(
         num_envs=num_envs,
         embed_dim=embed_dim,
         reward_shaping_weight=reward_shaping_weight,
-        final_reward=final_reward,
         init_strategy=init_strategy.name,
         seqlen=seqlen,
         total_timesteps=total_timesteps,
@@ -266,7 +260,7 @@ def run_maskable_ppo(
     eval_callback = MaskableEvalCallback(
         eval_env,
         eval_freq=eval_freq,
-        callback_after_eval=StopTrainingOnNoModelImprovement(max_no_improvement_evals=10
+        callback_after_eval=StopTrainingOnNoModelImprovement(max_no_improvement_evals=5
                                                              ) if stop_if_no_improvement else None,
         verbose=1,
         deterministic=False,
