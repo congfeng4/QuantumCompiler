@@ -202,9 +202,6 @@ def run_maskable_ppo(
     init = get_initial_mapping(qc, hardware, init_strategy)
     use_subproc = torch.cuda.is_available()  # On GPU server, use subproc to make full use of GPUs.
 
-    eval_freq //= num_envs
-    n_steps //= num_envs
-
     env = create_vec_env_from_circuits(
         circuit=qc,
         hardware=hardware,
@@ -229,13 +226,11 @@ def run_maskable_ppo(
         gamma=gamma,
     )
 
-    steps_per_epoch = num_envs * n_steps
-    total_timesteps = num_epochs * steps_per_epoch
+    total_timesteps = num_epochs * n_steps
 
     config = dict(
         circuit_path=str(circuit_path),
         batch_size=batch_size,
-        n_steps=n_steps,
         num_envs=num_envs,
         embed_dim=embed_dim,
         reward_shaping_weight=reward_shaping_weight,
@@ -244,7 +239,7 @@ def run_maskable_ppo(
         seqlen=seqlen,
         total_timesteps=total_timesteps,
         num_epochs=num_epochs,
-        steps_per_epoch=steps_per_epoch,
+        n_steps=n_steps,
         mode=mode,
         ent_coef=ent_coef,
         gamma=gamma,
@@ -254,7 +249,7 @@ def run_maskable_ppo(
     
     circuit_name = Path(circuit_path).stem
     depth = qc.depth()
-    log_name = f'Q={circuit_name}-CX={gate_len}-D={depth}-L={seqlen}-RS={reward_shaping_weight}-FR={final_reward}'
+    log_name = f'Q={circuit_name}-CX={gate_len}-D={depth}-L={seqlen}-S={n_steps // Unit.K}-M={mode}'
     
     log_dir = f'../log/{output_dirname}'
     result_dir = f"../result/{output_dirname}"
@@ -280,7 +275,7 @@ def run_maskable_ppo(
     ppo = MaskablePPO(
         policy="MultiInputPolicy",
         env=env,
-        n_steps=n_steps,
+        n_steps=n_steps // num_envs,
         batch_size=batch_size,
         tensorboard_log=log_dir,
         verbose=1,

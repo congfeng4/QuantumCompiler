@@ -6,7 +6,7 @@ if __name__ == '__main__':
     mode = 'transformer'
     seqlen = 16
     num_envs = None
-    n_steps = 32 * Unit.K
+    n_steps = 16 * Unit.K
     eval_freq = Unit.K
     batch_size = Unit.K
 
