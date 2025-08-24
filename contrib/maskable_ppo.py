@@ -258,11 +258,11 @@ def run_maskable_ppo(
         print(f'Result exists: {result_file}')
         return read_json(result_file)
 
-    metrics_callback = MetricEvalCallback(eval_env=eval_env, eval_freq=eval_freq)
+    metrics_callback = MetricEvalCallback(eval_env=eval_env, eval_freq=eval_freq // num_envs)
 
     eval_callback = MaskableEvalCallback(
         eval_env,
-        eval_freq=eval_freq,
+        eval_freq=eval_freq // num_envs,
         callback_after_eval=StopTrainingOnNoModelImprovement(
             max_no_improvement_evals=max_no_improvement_evals) if max_no_improvement_evals > 0 else None,
         verbose=1,
