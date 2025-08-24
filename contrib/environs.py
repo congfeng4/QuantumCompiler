@@ -104,19 +104,17 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
         self.metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
-        self.metrics['bridge_num'] = self.bridge_num
+        # self.metrics['bridge_num'] = self.bridge_num
         total_actions = self.bridge_num + self.metrics['swap_num']
         self.metrics['bridge_ratio'] = self.bridge_num / total_actions
-        self.metrics['swap_ratio'] = self.metrics['swap_num'] / total_actions
+        # self.metrics['swap_ratio'] = self.metrics['swap_num'] / total_actions
         self.metrics['in_cx_num'] = get_cnot_num(self.input_circuit)
         self.metrics['out_cx_num'] = get_cnot_num(self.resulting_circuit)
         self.metrics['in_depth'] = self.input_circuit.depth()
         self.metrics['out_depth'] = self.resulting_circuit.depth()
-        self.metrics['in_depth_num_ratio'] = self.metrics['in_cx_num'] / self.metrics['in_depth']
-        self.metrics['out_depth_num_ratio'] = self.metrics['out_cx_num'] / self.metrics['out_depth']
         for key, value in self.metrics_baseline.items():
             self.metrics[key + '_diff'] = self.metrics[key] - value
-            self.metrics[key + '_HA'] = value
+            # self.metrics[key + '_HA'] = value
 
     def apply_swap_action(self, best_swap_qubits: TwoQubitGate):
         trans_mapping = self.trans_mapping

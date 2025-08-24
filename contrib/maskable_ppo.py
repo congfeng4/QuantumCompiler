@@ -17,7 +17,7 @@ import torch.cuda
 from stable_baselines3.common.env_util import make_vec_env
 
 from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_json, get_cnot_num, readable_float_dict, \
-    read_json, show_mapping, Qubit, Unit, get_circuit_depth
+    read_json, show_mapping, Qubit, Unit, get_circuit_depth, read_circuit
 
 from sb3_contrib.ppo_mask import MaskablePPO
 from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
@@ -167,11 +167,12 @@ def run_maskable_ppo(
         skip_existing: bool = True,
         n_eval_episodes: int = 10,
         stop_if_no_improvement: bool = False,
+        num_envs: int = None,
 ):
     """
     ✅ Run MaskablePPO on a circuit and return the metrics.
     """
-    num_envs = max(os.cpu_count() // 8, 8)
+    num_envs = num_envs or max(os.cpu_count() // 4, 8)
     while n_steps % num_envs != 0:
         num_envs += 1
 
@@ -315,7 +316,7 @@ class CircuitDataset:
             raise FileNotFoundError(circuit_dir)
         circuit_paths = list(circuit_dir.glob('*.qasm'))
         random.shuffle(circuit_paths)
-        self.circuit_paths = circuit_paths
+        self.circuit_paths = sorted(circuit_paths, lambda path: get_cnot_num(read_circuit(path)))
 
     @cached_property
     def _circuits(self):

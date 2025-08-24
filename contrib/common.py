@@ -116,3 +116,13 @@ def read_json(in_file: Path | str):
     if not isinstance(in_file, Path):
         in_file = Path(in_file)
     return json.loads(in_file.read_text(encoding='utf8'))
+
+
+def read_circuit(in_file: Path | str):
+    if not isinstance(in_file, str):
+        in_file = str(in_file)
+    return QuantumCircuit.from_qasm_file(in_file)
+
+
+def write_circuit(out_file: Path | str, qc: QuantumCircuit):
+    raise RuntimeError
