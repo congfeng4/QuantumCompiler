@@ -166,8 +166,9 @@ def run_maskable_ppo(
         save_model: bool = False,
         skip_existing: bool = True,
         n_eval_episodes: int = 10,
-        stop_if_no_improvement: bool = False,
+        max_no_improvement_evals=100,
         num_envs: int = None,
+        learning_rate: float = 3e-4,
 ):
     """
     ✅ Run MaskablePPO on a circuit and return the metrics.
@@ -241,6 +242,7 @@ def run_maskable_ppo(
         ent_coef=ent_coef,
         gamma=gamma,
         qubit_number=hardware.qubit_number,
+        learning_rate=learning_rate,
     )
     pprint(config)
     
@@ -261,8 +263,8 @@ def run_maskable_ppo(
     eval_callback = MaskableEvalCallback(
         eval_env,
         eval_freq=eval_freq,
-        callback_after_eval=StopTrainingOnNoModelImprovement(max_no_improvement_evals=5
-                                                             ) if stop_if_no_improvement else None,
+        callback_after_eval=StopTrainingOnNoModelImprovement(
+            max_no_improvement_evals=max_no_improvement_evals) if max_no_improvement_evals > 0 else None,
         verbose=1,
         deterministic=False,
         use_masking=True,
@@ -279,6 +281,7 @@ def run_maskable_ppo(
         verbose=1,
         gamma=gamma,
         ent_coef=ent_coef,
+        learning_rate=learning_rate,
         policy_kwargs=get_policy_kwargs(
             hardware, embed_dim, mode, **features_extractor_kwargs
         ),
@@ -316,7 +319,8 @@ class CircuitDataset:
             raise FileNotFoundError(circuit_dir)
         circuit_paths = list(circuit_dir.glob('*.qasm'))
         random.shuffle(circuit_paths)
-        self.circuit_paths = sorted(circuit_paths, lambda path: get_cnot_num(read_circuit(path)))
+        circuit_paths.sort(key=lambda path: get_cnot_num(read_circuit(path)))
+        self.circuit_paths = circuit_paths
 
     @cached_property
     def _circuits(self):

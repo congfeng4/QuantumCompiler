@@ -1,1 +1,1 @@
-PYTHONPATH=../:../src python finetune.py
+PYTHONPATH=../:../src python $1
