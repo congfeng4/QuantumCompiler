@@ -149,8 +149,6 @@ def piecewise_linear(initial: float, plateau: float = 0.5, final: float = 1e-5):
 
 
 def run_maskable_ppo(
-        env_cls,
-        use_masking: bool,
         hardware: IBMQHardwareArchitecture | str,
         circuit_path: Path | str,
         batch_size: int = 128,
@@ -174,6 +172,8 @@ def run_maskable_ppo(
         max_no_improvement_evals=100,
         num_envs: int = None,
         learning_rate: float = 3e-4,
+        env_cls = CircuitEnvWithInitialMapping,
+        use_masking: bool = True,
         clip_range: float = 0.2,
 ):
     """

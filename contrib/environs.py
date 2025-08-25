@@ -15,7 +15,7 @@ from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy,
 from contrib.expert import TrajectoryCollector, rollout_expert_trajectory, heuristic_algorithm, DummyTrajectoryCollector
 from contrib.seed import set_all_seeds
 from contrib.common import get_cnot_num, get_distance_matrix
-from contrib.action_space import ActionSpaceEdge, ActionSpaceSelectQubitToSwap
+from contrib.action_space import ActionSpaceEdge, ActionSpaceSelectQubitToSwap, ActionSpaceEdgeWithMap
 from contrib.state_space import StateSpace
 
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
@@ -35,13 +35,13 @@ class BaseCircuitEnv(gym.Env):
     An env that lets the model determine the gate state (Executable or not).
     """
 
-    def __init__(self, hardware: IBMQHardwareArchitecture , action, L: int = 10, **kwargs):
+    def __init__(self, hardware: IBMQHardwareArchitecture, L: int = 10, **kwargs):
         super().__init__()
         self.hardware = hardware
         self.N = N = hardware.qubit_number
         self.L = L
 
-        self.action = action # ActionSpaceEdge(hardware)
+        self.action = ActionSpaceEdge(hardware)
         self.state = StateSpace(N, L)
 
         self.action_space = self.action.get_space()
@@ -55,9 +55,9 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
                  L: int,
-                 reward_shaping_weight: float = 1,
+                 reward_shaping_weight: float = 10,
                  gamma: float = 0.99):
-        super().__init__(hardware, L=L, action=ActionSpaceEdge(hardware))
+        super().__init__(hardware, L=L)
         self.input_circuit = input_circuit
         self.initial_mapping = initial_mapping
         self.distance_matrix = get_distance_matrix(self.hardware)
@@ -70,7 +70,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
         self.resulting_circuit = None
         self.metrics_baseline = ha_baseline(input_circuit, hardware, initial_mapping)
-
         # check_env(self)
 
     def reset(self, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:
@@ -90,16 +89,18 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.update_state_potential()
         return self._get_obs(), {}
 
-    def update_state_potential(self):
+    def update_state_potential(self, mapping=None):
+        mapping = mapping or self.current_mapping
         old_potential = self.state_potential
         # Phi(s) = - cost(s)
         self.state_potential = -get_circuit_cost(self.front_layer, self.topological_nodes[self.current_node_index:],
-                                                self.current_mapping, self.distance_matrix, self.hardware)
+                                                mapping, self.distance_matrix, self.hardware)
         return old_potential
 
-    def _get_obs(self):
+    def _get_obs(self, mapping=None):
+        mapping = mapping or self.current_mapping
         return self.state.encode(self.front_layer, self.topological_nodes[self.current_node_index:],
-                                 self.current_mapping)
+                                 mapping)
 
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
@@ -177,9 +178,9 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
     def num_qubits(self):
         return self.input_circuit.num_qubits
 
-    def step_invalid(self):
+    def step_invalid(self, why: str):
         # Invalid Actions
-        print('invalid')
+        print(f'invalid: {why}')
         self.invalid_actions += 1
         if self.invalid_actions >= 100:
             return self._get_obs(), 0, False, True, {}
@@ -193,7 +194,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                                               inverse_current_mapping,
                                               self.inverse_mapping, self.hardware)
         if not self.apply_swap_action(best_swap_qubits):
-            return self.step_invalid()
+            return self.step_invalid('best_swap_qubits')
 
         self.invalid_actions = 0
         self.update()
@@ -271,29 +272,18 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                 )
 
 
-class InitialMappingCircuitEnv(BaseCircuitEnv):
+class InitialMappingCircuitEnv(CircuitEnvWithInitialMapping):
 
     def __init__(self,
                  input_circuit: QuantumCircuit,
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
-                 reward_shaping_weight: float = 1,
-                 L: int = None,
+                 L: int,
+                 reward_shaping_weight: float = 10,
                  gamma: float = 0.99):
-        super().__init__(hardware, L=get_cnot_num(input_circuit), action=ActionSpaceSelectQubitToSwap(hardware))
-        self.initial_mapping = initial_mapping
-        self.input_circuit = input_circuit
-        self.metrics_baseline = ha_baseline(input_circuit, hardware, initial_mapping)
-        self.distance_matrix = get_distance_matrix(self.hardware)
-        self.gamma = gamma
-        self.reward_shaping_weight = reward_shaping_weight
-        self.front_layer = QuantumLayer()
-        _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
-        self.dag_circuit = circuit_to_dag(input_circuit)
-        self.topological_nodes: list[DAGNode] = list(self.dag_circuit.topological_op_nodes())
-
-    def _get_obs(self):
-        return self.state.encode(self.front_layer, self.topological_nodes, self.current_mapping)
+        super().__init__(input_circuit, hardware, initial_mapping, L, reward_shaping_weight, gamma)
+        self.action_space = gym.spaces.Discrete(self.action.get_size() + self.N)
+        self.initial_mapping_0 = initial_mapping
 
     def reset(
         self,
@@ -301,67 +291,59 @@ class InitialMappingCircuitEnv(BaseCircuitEnv):
         seed: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> tuple[ObsType, dict[str, Any]]:
-        self.step_index = 0
-        self.current_mapping = self.initial_mapping.copy()
-        self.resulting_circuit = None
+        self.qubit_index = 0
+        self.bridge_num = 0
+        self.invalid_actions = 0
+        self.front_layer = QuantumLayer()
+        self.current_node_index = 0
+        self.resulting_dag_quantum_circuit = _create_empty_dagcircuit_from_existing(self.dag_circuit)
+        self.current_mapping = None
+        self.trans_mapping = None
+        self.inverse_mapping = None
+        self.initial_mapping = self.initial_mapping_0.copy()
         self.state_potential = None
-        self.update_state_potential()
-        return self._get_obs(), {}
+        self.explored_mappings = set()
+        self.update_state_potential(self.initial_mapping)
+        # print('Reset')
+        return self._get_obs(self.initial_mapping), {}
 
-    def finalize_result(self):
-        collector = DummyTrajectoryCollector()
-        self.resulting_circuit = heuristic_algorithm(collector,
-                                                     quantum_circuit=self.input_circuit,
-                                                     initial_mapping=self.current_mapping,
-                                                     hardware=self.hardware)
-        self.metrics = collector.metrics
-        self.metrics['in_cx_num'] = get_cnot_num(self.input_circuit)
-        self.metrics['out_cx_num'] = get_cnot_num(self.resulting_circuit)
-        self.metrics['in_depth'] = self.input_circuit.depth()
-        self.metrics['out_depth'] = self.resulting_circuit.depth()
-        for key, value in self.metrics_baseline.items():
-            self.metrics[key + '_diff'] = self.metrics[key] - value
+    def apply_map_action(self, action: int):
+        if self.qubit_index >= self.N:
+            return self.step_invalid(f'map index out of range {self.qubit_index}')
+        if not 0 <= action < self.N:
+            return self.step_invalid(f'Invalid map action: {action}')
 
-    def update_state_potential(self):
-        old_potential = self.state_potential
-        collector = DummyTrajectoryCollector()
-        resulting_circuit = heuristic_algorithm(collector,
-                                                     quantum_circuit=self.input_circuit,
-                                                     initial_mapping=self.current_mapping,
-                                                     hardware=self.hardware)
-        metrics = collector.metrics
-        self.state_potential = -get_cnot_num(resulting_circuit)
-        # Phi(s) = - cost(s)
-        # self.state_potential = -get_circuit_cost(self.front_layer, self.topological_nodes,
-        #                                         self.current_mapping, self.distance_matrix, self.hardware)
-        return old_potential
-
-    def apply_action(self, action: int):
-        a, b = self.step_index, action
-        # Must use swapping to preserve the properties of a mapping.
-        inverse_mapping = {val: key for key, val in self.current_mapping.items()}
-        a, b = inverse_mapping[a], inverse_mapping[b]
-        self.current_mapping[a], self.current_mapping[b] = self.current_mapping[b], self.current_mapping[a]
-
-    def step(
-        self, action: int
-    ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
-        # Swap step_index with action
-        self.apply_action(action)
-        self.step_index += 1
-        prev_potential = self.update_state_potential()
-        # The cost of a circuit is a potential function of the state.
-        # F(s', s) = gamma * phi(s') - phi(s)
+        control, target = self.qubit_index, action
+        inverse_mapping = {val: key for key, val in self.initial_mapping.items()}
+        a, b = inverse_mapping[control], inverse_mapping[target]
+        self.initial_mapping[a], self.initial_mapping[b] = self.initial_mapping[b], self.initial_mapping[a]
+        self.qubit_index += 1
+        done = False
+        if self.qubit_index == self.N:
+            self.inverse_mapping = {val: key for key, val in self.initial_mapping.items()}
+            self.trans_mapping = self.initial_mapping.copy()
+            self.current_mapping = self.initial_mapping.copy()
+            self.update_front_layer()
+            self.update()
+            done = not self.front_layer
+        prev_potential = self.update_state_potential(self.initial_mapping)  # This function only use current_mapping
         rs = self.state_potential * self.gamma - prev_potential
         reward = self.reward_shaping_weight * rs
+        return self._get_obs(self.initial_mapping), reward, done, False, {}
 
-        if self.step_index == self.N:
-            self.finalize_result()
-            # reward -= self.metrics['out_cx_num']
-            return self._get_obs(), reward, True, False, {}
+    def step(
+        self, policy: int
+    ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
+        if self.qubit_index < self.N:
+            # print(f'Map {self.qubit_index} {policy}')
+            return self.apply_map_action(policy)
+        # print(f'Route {self.current_node_index=}')
+        return super().step(policy - self.N)
 
-        return self._get_obs(), reward, False, False, {}
-
+    def action_masks(self):
+        map_masks = np.ones(self.N, bool) if self.qubit_index < self.N else np.zeros(self.N, bool)
+        super_masks = super().action_masks() if self.qubit_index >= self.N else np.zeros(self.action.get_size(), bool)
+        return list(map_masks) + list(super_masks)
 
 
 if __name__ == '__main__':

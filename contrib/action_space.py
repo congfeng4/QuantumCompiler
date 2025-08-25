@@ -132,14 +132,6 @@ class ActionSpaceEdge:
         swap._middle = find_middle(swap, hardware, initial_mapping, inverse_mapping)
         return swap
 
-    def get_masks(self, swap_candidates: list[TwoQubitGate],
-                  current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
-        masks = np.zeros(self.get_size(), bool)
-        for swap in swap_candidates:
-            policy = self.encode(swap, current_mapping, initial_mapping)
-            masks[policy] = True
-        return masks.tolist()
-
 
 class ActionSpaceSelectQubitToSwap:
     """
@@ -150,6 +142,27 @@ class ActionSpaceSelectQubitToSwap:
 
     def get_space(self):
         return gym.spaces.Discrete(self.N)
+
+
+class ActionSpaceEdgeWithMap(ActionSpaceEdge):
+    """
+    Select a physical qubit to swap with.
+    """
+    def __init__(self, hardware: IBMQHardwareArchitecture):
+        super().__init__(hardware)
+
+    def get_size(self):
+        return super().get_size() + self.N
+
+    def get_size_nomap(self):
+        return super().get_size()
+
+    def decode(self, policy: int, initial_mapping,
+               inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit],
+               hardware: IBMQHardwareArchitecture):
+        if 0 <= policy < self.N:
+            return int(policy)
+        return super().decode(policy - self.N, initial_mapping, inverse_mapping, inverse_mapping, hardware)
 
 
 

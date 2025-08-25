@@ -234,7 +234,7 @@ class SequenceEncoder(nn.Module):
     def __init__(self, in_dim, mode='gru', num_layers: int = 4, nhead: int = 2):
         super().__init__()
         self.output_channels = in_dim
-        assert mode in ['gru', 'lstm', 'transformer']
+        assert mode in ['gru', 'lstm', 'transformer', 'mean']
         self.mode = mode
         if mode == 'gru':
             self.rnn = nn.GRU(in_dim, in_dim, num_layers=num_layers, batch_first=True, bidirectional=False)
@@ -263,7 +263,7 @@ class SequenceEncoder(nn.Module):
             # h_last: (1, B, hidden) for GRU, (h_n, c_n) for LSTM
             state = h_last[-1] if self.mode == 'gru' else h_last[0][-1]
             return state  # (B, hidden)
-        else:  # Transformer
+        elif self.mode == 'transformer':  # Transformer
             x = self.pos_enc(x)  # [B, L, F]
             B = x.shape[0]
             # 1. 构造 key_padding_mask
@@ -287,6 +287,8 @@ class SequenceEncoder(nn.Module):
             state = (x_enc * mask_float).sum(dim=1, keepdim=False) / denom.squeeze(1)  # [B, F]
 
             return state  # (B, in_dim)
+        elif self.mode == 'mean':
+            return torch.mean(x, dim=1)
 
 
 class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
