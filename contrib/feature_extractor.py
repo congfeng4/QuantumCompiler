@@ -231,7 +231,7 @@ class PositionalEncoding(nn.Module):
 
 
 class SequenceEncoder(nn.Module):
-    def __init__(self, in_dim, mode='gru', num_layers: int = 4, nhead: int = 2):
+    def __init__(self, in_dim, mode='gru', num_layers: int = 2, nhead: int = 2):
         super().__init__()
         self.output_channels = in_dim
         assert mode in ['gru', 'lstm', 'transformer', 'mean']
