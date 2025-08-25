@@ -145,6 +145,27 @@ class TrajectoryCollector:
         return f'Collected {total}, prefix {self.prefix}, {minlen=}, {maxlen=}, {avglen=}'
 
 
+class DummyTrajectoryCollector(TrajectoryCollector):
+
+    def __init__(self):
+        pass
+
+    def begin_trajectory(self):
+        pass
+
+    def end_trajectory(self, metrics: dict[str, float] = None):
+        self.metrics = metrics
+
+    def add_state(self, front_layer: QuantumLayer, gates: list[DAGNode], current_mapping: dict[Qubit, int]):
+        pass
+
+    def add_action(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
+        pass
+
+    def add_reward(self, rew: float):
+        pass
+
+
 def heuristic_algorithm(
         collector: TrajectoryCollector,
         quantum_circuit: QuantumCircuit,
@@ -172,7 +193,7 @@ def heuristic_algorithm(
         get_distance_matrix: ty.Callable[
             [IBMQHardwareArchitecture], numpy.ndarray
         ] = get_distance_matrix_swap_number_and_error,
-) -> ty.Tuple[QuantumCircuit, ty.Dict[Qubit, int]]:
+) -> QuantumCircuit:
     collector.begin_trajectory()
 
     _adapt_quantum_circuit_and_mapping_arity(quantum_circuit, initial_mapping, hardware)
@@ -279,7 +300,7 @@ def heuristic_algorithm(
 
     metrics = qknob_metrics(quantum_circuit, resulting_circuit)
     collector.end_trajectory(metrics)  # Finish one trajectory.
-    return resulting_circuit, current_mapping
+    return resulting_circuit
 
 
 def rollout_expert_trajectory(env: gym.Env, trajectory: 'Trajectory'):

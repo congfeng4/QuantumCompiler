@@ -23,7 +23,7 @@ from sb3_contrib.ppo_mask import MaskablePPO
 from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
 from stable_baselines3.common.vec_env import VecEnv, VecMonitor, DummyVecEnv, SubprocVecEnv
 
-from contrib.environs import CircuitEnvWithInitialMapping
+from contrib.environs import CircuitEnvWithInitialMapping, BaseCircuitEnv
 from contrib.feature_extractor import get_policy_kwargs
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
@@ -48,10 +48,10 @@ def average_metrics(metrics_list):
     return avg_metrics
 
 
-def evaluate_policy_for_metrics(model, eval_env):
+def evaluate_policy_for_metrics(model, eval_env, use_masking):
     metrics_list = []
     
-    evaluate_policy(model, eval_env, n_eval_episodes=1, use_masking=True, deterministic=False)
+    evaluate_policy(model, eval_env, n_eval_episodes=1, use_masking=use_masking, deterministic=False)
     metrics = eval_env.get_attr('metrics')
     metrics_list.extend(metrics)
 
@@ -61,15 +61,16 @@ def evaluate_policy_for_metrics(model, eval_env):
 class MetricEvalCallback(BaseCallback):
     model: MaskablePPO
 
-    def __init__(self, eval_env, eval_freq=10000):
+    def __init__(self, eval_env, eval_freq, use_masking):
         # deterministic=True，早期评估非常慢，几乎卡死。
         super().__init__()
         self.eval_env = eval_env
         self.eval_freq = eval_freq
+        self.use_masking = use_masking
 
     def _on_step(self) -> bool:
         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
-            metrics = evaluate_policy_for_metrics(self.model, self.eval_env)
+            metrics = evaluate_policy_for_metrics(self.model, self.eval_env, self.use_masking)
 
             for key, value in metrics.items():
                 self.logger.record(f"metric/{key}", round(value, 2))
@@ -78,7 +79,9 @@ class MetricEvalCallback(BaseCallback):
 
 
 def create_vec_env_from_circuits(
-        circuit: QuantumCircuit, seqlen: int,
+        env_cls,
+        circuit: QuantumCircuit,
+        seqlen: int,
         hardware: IBMQHardwareArchitecture,
         init: dict[Qubit, int],
         num_envs: int = 1,
@@ -89,7 +92,7 @@ def create_vec_env_from_circuits(
     assert num_envs >= 1
 
     def make_func():
-        return lambda: CircuitEnvWithInitialMapping(
+        return lambda: env_cls(
             input_circuit=circuit,
             hardware=hardware,
             initial_mapping=init,
@@ -146,6 +149,8 @@ def piecewise_linear(initial: float, plateau: float = 0.5, final: float = 1e-5):
 
 
 def run_maskable_ppo(
+        env_cls,
+        use_masking: bool,
         hardware: IBMQHardwareArchitecture | str,
         circuit_path: Path | str,
         batch_size: int = 128,
@@ -179,7 +184,7 @@ def run_maskable_ppo(
         num_envs += 1
 
     if output_dirname is None:
-        output_dirname = 'maskable_ppo'
+        output_dirname = 'test'
 
     output_dir = f'../result/{output_dirname}'
     if not os.path.exists(output_dir):
@@ -205,6 +210,7 @@ def run_maskable_ppo(
     use_subproc = torch.cuda.is_available()  # On GPU server, use subproc to make full use of GPUs.
 
     env = create_vec_env_from_circuits(
+        env_cls=env_cls,
         circuit=qc,
         hardware=hardware,
         seqlen=seqlen,
@@ -216,6 +222,7 @@ def run_maskable_ppo(
     )
 
     eval_env = create_vec_env_from_circuits(
+        env_cls=env_cls,
         circuit=qc,
         hardware=hardware,
         seqlen=seqlen,
@@ -229,6 +236,7 @@ def run_maskable_ppo(
     total_timesteps = num_epochs * n_steps
 
     config = dict(
+        env_cls=env_cls.__name__,
         circuit_path=str(circuit_path),
         batch_size=batch_size,
         num_envs=num_envs,
@@ -245,6 +253,7 @@ def run_maskable_ppo(
         qubit_number=hardware.qubit_number,
         learning_rate=learning_rate,
         clip_range=clip_range,
+        use_masking=use_masking,
     )
     pprint(config)
     
@@ -260,7 +269,7 @@ def run_maskable_ppo(
         print(f'Result exists: {result_file}')
         return read_json(result_file)
 
-    metrics_callback = MetricEvalCallback(eval_env=eval_env, eval_freq=eval_freq // num_envs)
+    metrics_callback = MetricEvalCallback(eval_env=eval_env, eval_freq=eval_freq // num_envs, use_masking=use_masking)
 
     eval_callback = MaskableEvalCallback(
         eval_env,
@@ -269,7 +278,7 @@ def run_maskable_ppo(
             max_no_improvement_evals=max_no_improvement_evals) if max_no_improvement_evals > 0 else None,
         verbose=1,
         deterministic=False,
-        use_masking=True,
+        use_masking=use_masking,
         best_model_save_path=best_model_path if save_model else None,
         n_eval_episodes=n_eval_episodes,
     )
@@ -298,11 +307,12 @@ def run_maskable_ppo(
         tb_log_name=log_name,
         progress_bar=True,
         callback=[eval_callback, metrics_callback],
+        use_masking=use_masking,
     )
     learn_end = time.time()
 
     print('Eval policy')
-    metrics = evaluate_policy_for_metrics(ppo, eval_env)
+    metrics = evaluate_policy_for_metrics(ppo, eval_env, use_masking)
     metrics.update(train_time=learn_end - learn_start)
     metrics = readable_float_dict(metrics)
 

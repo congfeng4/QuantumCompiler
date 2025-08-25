@@ -141,6 +141,18 @@ class ActionSpaceEdge:
         return masks.tolist()
 
 
+class ActionSpaceSelectQubitToSwap:
+    """
+    Select a physical qubit to swap with.
+    """
+    def __init__(self, hardware: IBMQHardwareArchitecture):
+        self.N = hardware.qubit_number
+
+    def get_space(self):
+        return gym.spaces.Discrete(self.N)
+
+
+
 if __name__ == '__main__':
     for name in ['tokyo', 'sycamore', 'rochester']:
         hardware = IBMQHardwareArchitecture(name)

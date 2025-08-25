@@ -1,4 +1,5 @@
 from contrib.common import Unit, get_cnot_num
+from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.maskable_ppo import run_maskable_ppo, CircuitDataset
 
 
@@ -19,6 +20,8 @@ if __name__ == '__main__':
         minlen = maxlen - 100
         for path in dataset.sample(num_circuits, minlen, maxlen):
             run_maskable_ppo(
+                env_cls=CircuitEnvWithInitialMapping,
+                use_masking=True,
                 hardware='Tokyo',
                 circuit_path=path,
                 seqlen=seqlen,
