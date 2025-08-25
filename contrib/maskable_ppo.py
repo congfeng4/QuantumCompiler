@@ -248,7 +248,7 @@ def run_maskable_ppo(
     
     circuit_name = Path(circuit_path).stem
     depth = qc.depth()
-    log_name = f'Q={circuit_name}-CX={gate_len}-D={depth}-L={seqlen}-S={n_steps // Unit.K}-M={mode}'
+    log_name = f'Q={circuit_name}-CX={gate_len}-D={depth}-L={seqlen}-S={n_steps // Unit.K}-M={mode}-B={batch_size}'
     
     log_dir = f'../log/{output_dirname}'
     result_dir = f"../result/{output_dirname}"
