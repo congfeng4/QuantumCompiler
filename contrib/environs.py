@@ -324,9 +324,16 @@ class InitialMappingCircuitEnv(BaseCircuitEnv):
 
     def update_state_potential(self):
         old_potential = self.state_potential
+        collector = DummyTrajectoryCollector()
+        resulting_circuit = heuristic_algorithm(collector,
+                                                     quantum_circuit=self.input_circuit,
+                                                     initial_mapping=self.current_mapping,
+                                                     hardware=self.hardware)
+        metrics = collector.metrics
+        self.state_potential = -get_cnot_num(resulting_circuit)
         # Phi(s) = - cost(s)
-        self.state_potential = -get_circuit_cost(self.front_layer, self.topological_nodes,
-                                                self.current_mapping, self.distance_matrix, self.hardware)
+        # self.state_potential = -get_circuit_cost(self.front_layer, self.topological_nodes,
+        #                                         self.current_mapping, self.distance_matrix, self.hardware)
         return old_potential
 
     def apply_action(self, action: int):
@@ -350,7 +357,7 @@ class InitialMappingCircuitEnv(BaseCircuitEnv):
 
         if self.step_index == self.N:
             self.finalize_result()
-            reward -= self.metrics['out_cx_num']
+            # reward -= self.metrics['out_cx_num']
             return self._get_obs(), reward, True, False, {}
 
         return self._get_obs(), reward, False, False, {}
