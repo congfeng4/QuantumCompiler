@@ -169,6 +169,7 @@ def run_maskable_ppo(
         max_no_improvement_evals=100,
         num_envs: int = None,
         learning_rate: float = 3e-4,
+        clip_range: float = 0.2,
 ):
     """
     ✅ Run MaskablePPO on a circuit and return the metrics.
@@ -243,12 +244,13 @@ def run_maskable_ppo(
         gamma=gamma,
         qubit_number=hardware.qubit_number,
         learning_rate=learning_rate,
+        clip_range=clip_range,
     )
     pprint(config)
     
     circuit_name = Path(circuit_path).stem
     depth = qc.depth()
-    log_name = f'Q={circuit_name}-CX={gate_len}-D={depth}-L={seqlen}-S={n_steps // Unit.K}-M={mode}-B={batch_size}'
+    log_name = f'Q={circuit_name}-CX={gate_len}-D={depth}-L={seqlen}-S={n_steps // Unit.K}-M={mode}-B={batch_size}-C={clip_range}'
     
     log_dir = f'../log/{output_dirname}'
     result_dir = f"../result/{output_dirname}"
@@ -282,6 +284,7 @@ def run_maskable_ppo(
         gamma=gamma,
         ent_coef=ent_coef,
         learning_rate=learning_rate,
+        clip_range=clip_range,
         policy_kwargs=get_policy_kwargs(
             hardware, embed_dim, mode, **features_extractor_kwargs
         ),
