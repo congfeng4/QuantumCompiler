@@ -1,15 +1,17 @@
 from contrib.common import Unit, get_cnot_num
+from contrib.initial_mapping import InitialMappingStrategy
 from contrib.environs import CircuitEnvWithInitialMapping, InitialMappingCircuitEnv
 from contrib.maskable_ppo import run_maskable_ppo, CircuitDataset
 
 
 if __name__ == '__main__':
-    mode = 'gru'
-    seqlen = 16
+    # mode = 'gru'
+    mode = 'transformer'
+    seqlen = 256
     eval_freq = Unit.K
     batch_size = Unit.K
-    num_circuits = 10
-    n_steps = 4 * Unit.K
+    num_circuits = 1
+    n_steps = Unit.K
     num_epochs = 50
 
     dataset = CircuitDataset('20Q_gate_Tokyo')
@@ -17,6 +19,7 @@ if __name__ == '__main__':
     for path in dataset.sample(1, 0, 50):
         run_maskable_ppo(
             env_cls=InitialMappingCircuitEnv,
+            init_strategy=InitialMappingStrategy.SABRE,
             use_masking=True,
             hardware='Tokyo',
             circuit_path=path,

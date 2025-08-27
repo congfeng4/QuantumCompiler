@@ -152,19 +152,18 @@ def run_maskable_ppo(
         hardware: IBMQHardwareArchitecture | str,
         circuit_path: Path | str,
         batch_size: int = 128,
-        n_steps: int = 32 * Unit.K,
-        eval_freq: int = Unit.K,
+        n_steps: int = 16 * Unit.K,
+        eval_freq: int = 16 * Unit.K,
         embed_dim: int = 128,
         reward_shaping_weight: float = 10,
         init_strategy: InitialMappingStrategy = InitialMappingStrategy.SABRE,
         seqlen: int | float = 16,
         num_epochs: int = 100,
         output_dirname: str = None,
-        mode: str = 'gru',
+        mode: str = 'transformer',
         ent_coef: float = 0.01,
         gamma: float = 0.99,
         pretrain: Path = None,
-        features_extractor_kwargs: dict = None,
         save_result: bool = True,
         save_model: bool = False,
         skip_existing: bool = True,
@@ -175,6 +174,8 @@ def run_maskable_ppo(
         env_cls = CircuitEnvWithInitialMapping,
         use_masking: bool = True,
         clip_range: float = 0.2,
+        nhead: int = 2,
+        num_layers: int = 4,
 ):
     """
     ✅ Run MaskablePPO on a circuit and return the metrics.
@@ -189,9 +190,6 @@ def run_maskable_ppo(
     output_dir = f'../result/{output_dirname}'
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
-
-    if features_extractor_kwargs is None:
-        features_extractor_kwargs = {}
 
     if isinstance(hardware, str):
         hardware = IBMQHardwareArchitecture(hardware)
@@ -254,12 +252,14 @@ def run_maskable_ppo(
         learning_rate=learning_rate,
         clip_range=clip_range,
         use_masking=use_masking,
+        nhead=nhead,
+        num_layers=num_layers,
     )
     pprint(config)
     
     circuit_name = Path(circuit_path).stem
     depth = qc.depth()
-    log_name = f'Q={circuit_name}-CX={gate_len}-D={depth}-L={seqlen}-S={n_steps // Unit.K}-M={mode}-B={batch_size}-C={clip_range}'
+    log_name = f'Q={circuit_name}-CX={gate_len}-L={seqlen}-S={n_steps // Unit.K}-M={mode}-NL={num_layers}-NH={nhead}-IM={init_strategy.value}'
     
     log_dir = f'../log/{output_dirname}'
     result_dir = f"../result/{output_dirname}"
@@ -295,7 +295,11 @@ def run_maskable_ppo(
         learning_rate=learning_rate,
         clip_range=clip_range,
         policy_kwargs=get_policy_kwargs(
-            hardware, embed_dim, mode, **features_extractor_kwargs
+            hardware=hardware, 
+            embed_dim=embed_dim, 
+            mode=mode,         
+            nhead=nhead,
+            num_layers=num_layers,
         ),
     ) if pretrain is None else MaskablePPO.load(pretrain, env)
     ppo.tensorboard_log = log_dir
@@ -324,15 +328,17 @@ def run_maskable_ppo(
 
 class CircuitDataset:
 
-    def __init__(self, dataname: str, dataroot: Path = None):
+    def __init__(self, dataname: str, dataroot: Path = None, shuffle=True, sort=False):
         if dataroot is None:
             dataroot = Path('../data')
         circuit_dir = dataroot / dataname / 'circuits/'
         if not circuit_dir.exists():
             raise FileNotFoundError(circuit_dir)
         circuit_paths = list(circuit_dir.glob('*.qasm'))
-        random.shuffle(circuit_paths)
-        circuit_paths.sort(key=lambda path: get_cnot_num(read_circuit(path)))
+        if shuffle:
+            random.shuffle(circuit_paths)
+        if sort:
+            circuit_paths.sort(key=lambda path: get_cnot_num(read_circuit(path)))
         self.circuit_paths = circuit_paths
 
     @cached_property
