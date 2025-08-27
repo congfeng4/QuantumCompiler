@@ -1,4 +1,6 @@
 import torch
+import enum
+
 from stable_baselines3.common.policies import ActorCriticPolicy
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.utils import get_device
@@ -90,9 +92,11 @@ class DenseGNNModule(nn.Module):
         return x
 
 
+@enum.unique
 class QubitEmbeddingMode(Enum):
     DISTANCE_MATRIX_MLP = 0
     GNN_EDGE_INDEX = 1
+    DISTANCE_MATRIX_POS_EMBED = 2
 
 
 def normalize_distance_matrix(distance_matrix: torch.Tensor):
@@ -126,20 +130,24 @@ class HardwareAwareQubitEmbedding(nn.Module):
                 in_channels=qubit_embedding_dim,
                 out_channels=qubit_embedding_dim,
                 hidden_channels=hidden_channels,
-                num_layers=3,
+                num_layers=1,
             )
         elif qubit_embed_mode == QubitEmbeddingMode.DISTANCE_MATRIX_MLP:
             self.mlp = nn.Sequential(
                 nn.Linear(self.num_qubits, qubit_embedding_dim),
                 nn.ReLU(),
                 nn.Linear(qubit_embedding_dim, qubit_embedding_dim),
-                # nn.ReLU(),
-                # nn.Linear(qubit_embedding_dim, qubit_embedding_dim),
             )
+        elif qubit_embed_mode == QubitEmbeddingMode.DISTANCE_MATRIX_POS_EMBED:
+            self.linear = nn.Linear(self.num_qubits, qubit_embedding_dim)
+            self.pos_embed = PositionalEncoding(qubit_embedding_dim, self.num_qubits)
+        else:
+            raise ValueError(qubit_embed_mode)
 
     def forward(self, physical2log: torch.LongTensor):
         # physical2log: [B, N]  每行是一个排列，表示物理->逻辑的映射
         B, N = physical2log.shape
+        
         if self.qubit_embed_mode == QubitEmbeddingMode.DISTANCE_MATRIX_MLP:
             node_feat = self.distance_matrix.expand(B, -1, -1)
             ha_embed = self.mlp(node_feat)
@@ -149,6 +157,11 @@ class HardwareAwareQubitEmbedding(nn.Module):
             node_feat = self.qubit_embedding(physical2log)  # [B, N, D]
             ha_embed = self.gnn(node_feat, self.edge_index)  # [B, N, D]
             return ha_embed
+            
+        if self.qubit_embed_mode == QubitEmbeddingMode.DISTANCE_MATRIX_POS_EMBED:
+            node_feat = self.distance_matrix.expand(B, -1, -1)
+            ha_embed = self.linear(node_feat)
+            return self.pos_embed(ha_embed)  # Add qubit identity into embed.
 
         raise ValueError(self.qubit_embed_mode)
 
@@ -157,28 +170,15 @@ class GateSeqEncoder(nn.Module):
     """
     Encode a sequence of gates into a sequence of embeddings.
     1. Lookup the qubit embeddings given each pair of logical qubits of a gate.
-    2. Concat the qubit embeddings and send to a shared MLP to obtain the embedding of a gate.
+    2. Concat the qubit embeddings to obtain the embedding of a gate.
     """
 
     def __init__(self,
                  input_dim: int,
                  embed_dim: int,
-                 num_layers: int
                  ):
         super().__init__()
         self.output_channels = embed_dim
-        if num_layers == 0:
-            self.mlp = nn.Identity()
-        elif num_layers == 1:
-            self.mlp = nn.Linear(input_dim, embed_dim)
-        elif num_layers == 2:
-            self.mlp = nn.Sequential(
-                nn.Linear(input_dim, embed_dim),
-                nn.ReLU(),
-                nn.Linear(embed_dim, embed_dim),
-            )
-        else:
-            raise ValueError(num_layers)
 
     def forward(self, gate_seq: torch.LongTensor, qubit_embed: torch.FloatTensor):
         """
@@ -210,8 +210,7 @@ class GateSeqEncoder(nn.Module):
         e0 = e0.reshape(B, S, -1)
         e1 = e1.reshape(B, S, -1)
         gate_vec = torch.cat([e0, e1], dim=-1)  # (B, S, 2*D)
-        gate_emb = self.mlp(gate_vec.reshape(B*S, -1)).reshape(B, S, -1)
-        return gate_emb
+        return gate_vec
 
 
 class PositionalEncoding(nn.Module):
@@ -295,14 +294,15 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
 
     def __init__(self, observation_space, hardware: IBMQHardwareArchitecture,
                  feature_dim: int, mode: str, nhead: int, num_layers: int,
-                 gate_num_layers: int = 0, device = 'cpu',
-                 qubit_embed_mode: QubitEmbeddingMode = QubitEmbeddingMode.DISTANCE_MATRIX_MLP):
+                 qubit_embed_mode: QubitEmbeddingMode,
+                 device = 'cpu'):
         super().__init__(observation_space, features_dim=feature_dim)
+        assert feature_dim % 2 == 0
         dim = feature_dim // 2
         self.qubit_embed = HardwareAwareQubitEmbedding(hardware, qubit_embedding_dim=dim,
                                                        hidden_channels=dim, device=device,
                                                        qubit_embed_mode=qubit_embed_mode)
-        self.gate_seq_encoder = GateSeqEncoder(self.qubit_embed.output_channels * 2, feature_dim, gate_num_layers)
+        self.gate_seq_encoder = GateSeqEncoder(self.qubit_embed.output_channels * 2, feature_dim)
         self.circuit_encoder = SequenceEncoder(self.gate_seq_encoder.output_channels, mode=mode,
                                                nhead=nhead, num_layers=num_layers)
 
@@ -321,7 +321,8 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
 
 
 def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int, mode: str,
-                      nhead: int, num_layers: int, device = 'auto'):
+                      nhead: int, num_layers: int, qubit_embed_mode: QubitEmbeddingMode,
+                      device = 'auto'):
     return dict(
         activation_fn=torch.nn.ReLU,
         features_extractor_class=HierarchicalCircuitFeaturesExtractor,
@@ -332,10 +333,11 @@ def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int, mode: 
             device=get_device(device),
             nhead=nhead,
             num_layers=num_layers,
+            qubit_embed_mode=qubit_embed_mode,
         ),
         net_arch=dict(
-            pi=[embed_dim, embed_dim, embed_dim],
-            vf=[embed_dim, embed_dim, embed_dim],
+            pi=[embed_dim],
+            vf=[embed_dim],
         ),
     )
 

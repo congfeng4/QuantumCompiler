@@ -24,7 +24,7 @@ from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
 from stable_baselines3.common.vec_env import VecEnv, VecMonitor, DummyVecEnv, SubprocVecEnv
 
 from contrib.environs import CircuitEnvWithInitialMapping, BaseCircuitEnv
-from contrib.feature_extractor import get_policy_kwargs
+from contrib.feature_extractor import get_policy_kwargs, QubitEmbeddingMode
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
@@ -176,6 +176,7 @@ def run_maskable_ppo(
         clip_range: float = 0.2,
         nhead: int = 2,
         num_layers: int = 4,
+        qubit_embed_mode: QubitEmbeddingMode = QubitEmbeddingMode.DISTANCE_MATRIX_MLP,
 ):
     """
     ✅ Run MaskablePPO on a circuit and return the metrics.
@@ -254,12 +255,13 @@ def run_maskable_ppo(
         use_masking=use_masking,
         nhead=nhead,
         num_layers=num_layers,
+        qubit_embed_mode=qubit_embed_mode,
     )
     pprint(config)
     
     circuit_name = Path(circuit_path).stem
     depth = qc.depth()
-    log_name = f'Q={circuit_name}-CX={gate_len}-L={seqlen}-S={n_steps // Unit.K}-M={mode}-NL={num_layers}-NH={nhead}-IM={init_strategy.value}'
+    log_name = f'Q={circuit_name}-CX={gate_len}-D={embed_dim}-L={seqlen}-S={n_steps // Unit.K}-QM={qubit_embed_mode.name}'
     
     log_dir = f'../log/{output_dirname}'
     result_dir = f"../result/{output_dirname}"
@@ -300,6 +302,7 @@ def run_maskable_ppo(
             mode=mode,         
             nhead=nhead,
             num_layers=num_layers,
+            qubit_embed_mode=qubit_embed_mode,
         ),
     ) if pretrain is None else MaskablePPO.load(pretrain, env)
     ppo.tensorboard_log = log_dir
