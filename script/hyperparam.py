@@ -9,7 +9,7 @@ if __name__ == '__main__':
 
     dataset = CircuitDataset('20Q_gate_Tokyo', sort=True, shuffle=False)
 
-    for path in dataset.sample(num_circuits=num_circuits, min_gatelen=100, 
+    for path in dataset.sample(num_circuits=num_circuits, min_gatelen=100,
                                max_gatelen=150):
         # for ent_coef in [0.1, 0.01, 0.001]:
         for qubit_embed_mode in [QubitEmbeddingMode.DISTANCE_MATRIX_MLP,

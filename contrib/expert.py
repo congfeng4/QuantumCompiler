@@ -11,6 +11,7 @@ import numpy as np
 import typing as ty
 
 import numpy
+
 try:
     from imitation.data.rollout import flatten_trajectories
     from imitation.data.types import Trajectory, Transitions
@@ -45,7 +46,6 @@ import logging
 from pathlib import Path
 
 logger = logging.getLogger("hamap.swap")
-
 
 
 class TrajectoryCollector:
@@ -324,8 +324,8 @@ if __name__ == '__main__':
     hardware = IBMQHardwareArchitecture('tokyo')
 
     collector = TrajectoryCollector(hardware, L=10,
-                                          outdir=Path('../result/pretrain/ha'),
-                                          prefix='20Q_gate_Tokyo')
+                                    outdir=Path('../result/pretrain/ha'),
+                                    prefix='20Q_gate_Tokyo')
 
     circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
     random.shuffle(circuit_list)

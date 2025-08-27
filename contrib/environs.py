@@ -94,7 +94,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         old_potential = self.state_potential
         # Phi(s) = - cost(s)
         self.state_potential = -get_circuit_cost(self.front_layer, self.topological_nodes[self.current_node_index:],
-                                                mapping, self.distance_matrix, self.hardware)
+                                                 mapping, self.distance_matrix, self.hardware)
         return old_potential
 
     def _get_obs(self, mapping=None):
@@ -286,10 +286,10 @@ class InitialMappingCircuitEnv(CircuitEnvWithInitialMapping):
         self.initial_mapping_0 = initial_mapping
 
     def reset(
-        self,
-        *,
-        seed: int | None = None,
-        options: dict[str, Any] | None = None,
+            self,
+            *,
+            seed: int | None = None,
+            options: dict[str, Any] | None = None,
     ) -> tuple[ObsType, dict[str, Any]]:
         self.qubit_index = 0
         self.bridge_num = 0
@@ -332,7 +332,7 @@ class InitialMappingCircuitEnv(CircuitEnvWithInitialMapping):
         return self._get_obs(self.initial_mapping), reward, done, False, {}
 
     def step(
-        self, policy: int
+            self, policy: int
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
         if self.qubit_index < self.N:
             # print(f'Map {self.qubit_index} {policy}')

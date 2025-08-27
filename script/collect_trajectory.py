@@ -1,6 +1,5 @@
 from contrib.expert import *
 
-
 if __name__ == '__main__':
     from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
 

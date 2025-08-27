@@ -2,7 +2,6 @@ from contrib.common import Unit, get_cnot_num
 from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.maskable_ppo import run_maskable_ppo, CircuitDataset
 
-
 if __name__ == '__main__':
     mode = 'transformer'
     seqlen = 16
@@ -10,15 +9,14 @@ if __name__ == '__main__':
     num_circuits = 5
     n_steps = 16 * Unit.K
     eval_freq = 16 * Unit.K
-    
+
     dataset = CircuitDataset('20Q_gate_Tokyo')
 
     for maxlen in range(100, 700, 100):
         minlen = maxlen - 100
         num_epochs = 50 * (maxlen // 100)
-        
-        for path in dataset.sample(num_circuits, minlen, maxlen):
 
+        for path in dataset.sample(num_circuits, minlen, maxlen):
             run_maskable_ppo(
                 embed_dim=128,
                 hardware='Tokyo',

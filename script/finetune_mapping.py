@@ -3,7 +3,6 @@ from contrib.initial_mapping import InitialMappingStrategy
 from contrib.environs import CircuitEnvWithInitialMapping, InitialMappingCircuitEnv
 from contrib.maskable_ppo import run_maskable_ppo, CircuitDataset
 
-
 if __name__ == '__main__':
     # mode = 'gru'
     mode = 'transformer'

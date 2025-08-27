@@ -50,7 +50,7 @@ def average_metrics(metrics_list):
 
 def evaluate_policy_for_metrics(model, eval_env, use_masking):
     metrics_list = []
-    
+
     evaluate_policy(model, eval_env, n_eval_episodes=1, use_masking=use_masking, deterministic=False)
     metrics = eval_env.get_attr('metrics')
     metrics_list.extend(metrics)
@@ -171,7 +171,7 @@ def run_maskable_ppo(
         max_no_improvement_evals=100,
         num_envs: int = None,
         learning_rate: float = 3e-4,
-        env_cls = CircuitEnvWithInitialMapping,
+        env_cls=CircuitEnvWithInitialMapping,
         use_masking: bool = True,
         clip_range: float = 0.2,
         nhead: int = 2,
@@ -258,11 +258,11 @@ def run_maskable_ppo(
         qubit_embed_mode=qubit_embed_mode,
     )
     pprint(config)
-    
+
     circuit_name = Path(circuit_path).stem
     depth = qc.depth()
     log_name = f'Q={circuit_name}-CX={gate_len}-D={embed_dim}-L={seqlen}-S={n_steps // Unit.K}-QM={qubit_embed_mode.name}'
-    
+
     log_dir = f'../log/{output_dirname}'
     result_dir = f"../result/{output_dirname}"
     best_model_path = output_dir + "/models/" + log_name
@@ -297,9 +297,9 @@ def run_maskable_ppo(
         learning_rate=learning_rate,
         clip_range=clip_range,
         policy_kwargs=get_policy_kwargs(
-            hardware=hardware, 
-            embed_dim=embed_dim, 
-            mode=mode,         
+            hardware=hardware,
+            embed_dim=embed_dim,
+            mode=mode,
             nhead=nhead,
             num_layers=num_layers,
             qubit_embed_mode=qubit_embed_mode,
@@ -375,9 +375,9 @@ class CircuitDataset:
                         break
 
     def plot_distribution(self, stats: Literal['cx', 'depth'],
-                             save_path: Optional[Path] = None,
-                             figsize: tuple = (8, 5),
-                             **sns_kwargs) -> None:
+                          save_path: Optional[Path] = None,
+                          figsize: tuple = (8, 5),
+                          **sns_kwargs) -> None:
         """
         使用 seaborn 绘制数据集中所有电路的 CX 数量分布图。
 
@@ -393,7 +393,8 @@ class CircuitDataset:
         import seaborn as sns
         import matplotlib.pyplot as plt
         stats_map = dict(cx=dict(func=get_cnot_num, xlabel="Number of CNOT Gates", title="Distribution of CNOT Counts"),
-                         depth=dict(func=get_circuit_depth, xlabel='Circuit Depth', title='Distribution of Circuit Depth'))
+                         depth=dict(func=get_circuit_depth, xlabel='Circuit Depth',
+                                    title='Distribution of Circuit Depth'))
         entry = stats_map[stats]
 
         # 收集 CX 数量
@@ -416,4 +417,3 @@ class CircuitDataset:
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
         plt.show()
-

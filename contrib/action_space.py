@@ -137,6 +137,7 @@ class ActionSpaceSelectQubitToSwap:
     """
     Select a physical qubit to swap with.
     """
+
     def __init__(self, hardware: IBMQHardwareArchitecture):
         self.N = hardware.qubit_number
 
@@ -148,6 +149,7 @@ class ActionSpaceEdgeWithMap(ActionSpaceEdge):
     """
     Select a physical qubit to swap with.
     """
+
     def __init__(self, hardware: IBMQHardwareArchitecture):
         super().__init__(hardware)
 
@@ -163,7 +165,6 @@ class ActionSpaceEdgeWithMap(ActionSpaceEdge):
         if 0 <= policy < self.N:
             return int(policy)
         return super().decode(policy - self.N, initial_mapping, inverse_mapping, inverse_mapping, hardware)
-
 
 
 if __name__ == '__main__':

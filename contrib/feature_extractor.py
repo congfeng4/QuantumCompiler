@@ -111,7 +111,7 @@ class HardwareAwareQubitEmbedding(nn.Module):
                  qubit_embed: str = "param",
                  qubit_embedding_dim: int = 32,
                  hidden_channels: int = 32,
-                 device = 'cpu',
+                 device='cpu',
                  qubit_embed_mode: QubitEmbeddingMode = QubitEmbeddingMode.DISTANCE_MATRIX_MLP):
         super().__init__()
         self.hardware = hardware
@@ -147,7 +147,7 @@ class HardwareAwareQubitEmbedding(nn.Module):
     def forward(self, physical2log: torch.LongTensor):
         # physical2log: [B, N]  每行是一个排列，表示物理->逻辑的映射
         B, N = physical2log.shape
-        
+
         if self.qubit_embed_mode == QubitEmbeddingMode.DISTANCE_MATRIX_MLP:
             node_feat = self.distance_matrix.expand(B, -1, -1)
             ha_embed = self.mlp(node_feat)
@@ -157,7 +157,7 @@ class HardwareAwareQubitEmbedding(nn.Module):
             node_feat = self.qubit_embedding(physical2log)  # [B, N, D]
             ha_embed = self.gnn(node_feat, self.edge_index)  # [B, N, D]
             return ha_embed
-            
+
         if self.qubit_embed_mode == QubitEmbeddingMode.DISTANCE_MATRIX_POS_EMBED:
             node_feat = self.distance_matrix.expand(B, -1, -1)
             ha_embed = self.linear(node_feat)
@@ -295,7 +295,7 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
     def __init__(self, observation_space, hardware: IBMQHardwareArchitecture,
                  feature_dim: int, mode: str, nhead: int, num_layers: int,
                  qubit_embed_mode: QubitEmbeddingMode,
-                 device = 'cpu'):
+                 device='cpu'):
         super().__init__(observation_space, features_dim=feature_dim)
         assert feature_dim % 2 == 0
         dim = feature_dim // 2
@@ -322,7 +322,7 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
 
 def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int, mode: str,
                       nhead: int, num_layers: int, qubit_embed_mode: QubitEmbeddingMode,
-                      device = 'auto'):
+                      device='auto'):
     return dict(
         activation_fn=torch.nn.ReLU,
         features_extractor_class=HierarchicalCircuitFeaturesExtractor,
