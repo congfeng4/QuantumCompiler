@@ -8,7 +8,7 @@ from gymnasium.utils.env_checker import check_env
 from qiskit import QuantumCircuit
 from qiskit.circuit import Qubit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
-from qiskit.dagcircuit import DAGNode
+from qiskit.dagcircuit import DAGNode, DAGCircuit, DAGOpNode
 
 from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy, ha_baseline
@@ -27,6 +27,19 @@ import logging
 
 
 logger = logging.getLogger("contrib.env")
+
+
+def compute_level_for_cnot(dag_circuit: DAGCircuit) -> dict[str, int]:
+    res = {}
+    level = 0
+    for layer in dag_circuit.layers():
+        cx_ops: list[DAGOpNode] = list(filter(lambda op: op.name == 'cx', layer['graph'].op_nodes()))
+        if not cx_ops:
+            continue
+        for op in cx_ops:
+            res[op.sort_key] = level
+        level += 1
+    return res
 
 
 class BaseCircuitEnv(gym.Env):
@@ -66,7 +79,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
         self.topological_nodes: list[DAGNode] = list(self.dag_circuit.topological_op_nodes())
-
+        self.gate_levels = compute_level_for_cnot(self.dag_circuit)
         self.resulting_circuit = None
         self.metrics_baseline = ha_baseline(input_circuit, hardware, initial_mapping)
         # check_env(self)
@@ -99,7 +112,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
     def _get_obs(self, mapping=None):
         mapping = mapping or self.current_mapping
         return self.state.encode(self.front_layer, self.topological_nodes[self.current_node_index:],
-                                 mapping)
+                                 mapping, self.gate_levels)
 
     def finalize_result(self):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)

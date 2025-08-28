@@ -230,6 +230,33 @@ class PositionalEncoding(nn.Module):
         return x + self.pe[:, :x.size(1)]
 
 
+class PositionalEncodingLevel(nn.Module):
+    def __init__(self, d_model: int, max_len: int):
+        super().__init__()
+        self.d_model = d_model
+        # 预计算分母，不再缓存整张表
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() *
+                             -(torch.log(torch.tensor(10000.0)) / d_model))
+        self.register_buffer('div_term', div_term)  # (d_model//2,)
+
+    def forward(self, x, levels):
+        """
+        x      : (B, S, d_model)  输入特征
+        levels : (B, S) long      每个 gate 对应的层号
+        """
+        B, S, _ = x.size()
+        # levels: (B, S, 1)  -> 广播到 (B, S, d_model//2)
+        pos = levels.float()
+        # pos = levels.unsqueeze(-1).float()          # (B, S, 1)
+        pe_sin = torch.sin(pos * self.div_term)     # (B, S, d_model//2)
+        pe_cos = torch.cos(pos * self.div_term)     # (B, S, d_model//2)
+
+        pe = torch.empty(B, S, self.d_model, device=x.device)
+        pe[..., 0::2] = pe_sin
+        pe[..., 1::2] = pe_cos
+        return x + pe
+
+
 class SequenceEncoder(nn.Module):
     def __init__(self, in_dim, mode, num_layers: int, nhead: int):
         super().__init__()
@@ -244,13 +271,13 @@ class SequenceEncoder(nn.Module):
             encoder_layer = nn.TransformerEncoderLayer(
                 d_model=in_dim, nhead=nhead, dim_feedforward=in_dim * 2, batch_first=True
             )
-            self.pos_enc = PositionalEncoding(in_dim, max_len=1024)  # 或用可学习版本
+            self.pos_enc = PositionalEncodingLevel(in_dim, max_len=1024)  # 或用可学习版本
             self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
             self.out_dim = in_dim
         else:
             raise ValueError(mode)
 
-    def forward(self, x, lengths):
+    def forward(self, x, lengths, levels):
         """
         x:        (B, S, in_dim)   已 pad 到 batch 最大长度
         lengths:  (B,)            每一样本的真实门数
@@ -266,7 +293,7 @@ class SequenceEncoder(nn.Module):
             state = h_last[-1] if self.mode == 'gru' else h_last[0][-1]
             return state  # (B, hidden)
         elif self.mode == 'transformer':  # Transformer
-            x = self.pos_enc(x)  # [B, L, F]
+            x = self.pos_enc(x, levels)  # [B, L, F]
             B = x.shape[0]
             # 1. 构造 key_padding_mask
             max_len = x.size(1)
@@ -318,9 +345,10 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
 
         gate_seq = obs['gate_seq'].long()  # [B, S, 2] Gate seq of qubit pairs. (padded)
         gate_len = obs['gate_len'].long()  # [B, 1] Gate seq len of each seq.
+        gate_level = obs['gate_level'].long()
 
         gate_embed = self.gate_seq_encoder(gate_seq, qubit_embed)  # [B, S, D], D is embed_dim
-        circuit_embed = self.circuit_encoder(gate_embed, gate_len)  # [B, D]
+        circuit_embed = self.circuit_encoder(gate_embed, gate_len, gate_level)  # [B, D]
 
         return circuit_embed
 

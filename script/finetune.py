@@ -1,6 +1,13 @@
-from contrib.common import Unit, get_cnot_num
+from qiskit.converters import circuit_to_dag
+from qiskit.dagcircuit import DAGCircuit, DAGNode
+
+from contrib.common import Unit, get_cnot_num, read_circuit
 from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.maskable_ppo import run_maskable_ppo, CircuitDataset
+
+
+
+
 
 if __name__ == '__main__':
 
