@@ -3,6 +3,7 @@ from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.maskable_ppo import run_maskable_ppo, CircuitDataset
 
 if __name__ == '__main__':
+
     mode = 'transformer'
     seqlen = 16
     batch_size = Unit.K

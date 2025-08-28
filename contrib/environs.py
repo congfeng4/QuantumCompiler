@@ -2,7 +2,7 @@ from typing import Any, SupportsFloat
 
 import gymnasium as gym
 import numpy as np
-from gymnasium.core import ObsType, ActType
+from gymnasium.core import ObsType
 from gymnasium.utils.env_checker import check_env
 
 from qiskit import QuantumCircuit
@@ -12,10 +12,10 @@ from qiskit.dagcircuit import DAGNode
 
 from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy, ha_baseline
-from contrib.expert import TrajectoryCollector, rollout_expert_trajectory, heuristic_algorithm, DummyTrajectoryCollector
+from contrib.expert import TrajectoryCollector, rollout_expert_trajectory, heuristic_algorithm
 from contrib.seed import set_all_seeds
 from contrib.common import get_cnot_num, get_distance_matrix
-from contrib.action_space import ActionSpaceEdge, ActionSpaceSelectQubitToSwap, ActionSpaceEdgeWithMap
+from contrib.action_space import ActionSpaceEdge
 from contrib.state_space import StateSpace
 
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
@@ -25,7 +25,6 @@ from hamap import IBMQHardwareArchitecture, mapping_to_str
 
 import logging
 
-from hamap.swap import get_all_swap_bridge_candidates
 
 logger = logging.getLogger("contrib.env")
 

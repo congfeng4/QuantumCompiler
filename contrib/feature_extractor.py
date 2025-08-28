@@ -240,13 +240,15 @@ class SequenceEncoder(nn.Module):
             self.rnn = nn.GRU(in_dim, in_dim, num_layers=num_layers, batch_first=True, bidirectional=False)
         elif mode == 'lstm':
             self.rnn = nn.LSTM(in_dim, in_dim, num_layers=num_layers, batch_first=True, bidirectional=False)
-        else:  # Transformer
+        elif mode == 'transformer':  # Transformer
             encoder_layer = nn.TransformerEncoderLayer(
                 d_model=in_dim, nhead=nhead, dim_feedforward=in_dim * 2, batch_first=True
             )
             self.pos_enc = PositionalEncoding(in_dim, max_len=1024)  # 或用可学习版本
             self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
             self.out_dim = in_dim
+        else:
+            raise ValueError(mode)
 
     def forward(self, x, lengths):
         """
@@ -289,6 +291,8 @@ class SequenceEncoder(nn.Module):
             return state  # (B, in_dim)
         elif self.mode == 'mean':
             return torch.mean(x, dim=1)
+        else:
+            raise ValueError(self.mode)
 
 
 class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):

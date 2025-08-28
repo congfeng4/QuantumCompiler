@@ -125,4 +125,8 @@ def read_circuit(in_file: Path | str):
 
 
 def write_circuit(out_file: Path | str, qc: QuantumCircuit):
-    raise RuntimeError
+    from qiskit.qasm3 import dumps
+
+    if not isinstance(out_file, Path):
+        out_file = Path(out_file)
+    out_file.write_text(dumps(qc), encoding='utf8')

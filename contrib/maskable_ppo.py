@@ -3,7 +3,6 @@
 至少需要用MaskablePPO，并且把Action Mask定义好。
 ☀️🌛🎉🖼🏊🏻🏓✈️🚗
 """
-import math
 import os
 import random
 import time
@@ -12,23 +11,26 @@ from pathlib import Path
 from typing import Callable, Optional, Literal
 from pprint import pprint
 
+import gymnasium
 import jsons
 import torch.cuda
 from stable_baselines3.common.env_util import make_vec_env
 
 from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_json, get_cnot_num, readable_float_dict, \
-    read_json, show_mapping, Qubit, Unit, get_circuit_depth, read_circuit
+    read_json, show_mapping, Qubit, Unit, get_circuit_depth, read_circuit, qknob_metrics
 
 from sb3_contrib.ppo_mask import MaskablePPO
 from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
-from stable_baselines3.common.vec_env import VecEnv, VecMonitor, DummyVecEnv, SubprocVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
-from contrib.environs import CircuitEnvWithInitialMapping, BaseCircuitEnv
+from contrib.environs import CircuitEnvWithInitialMapping
 from contrib.feature_extractor import get_policy_kwargs, QubitEmbeddingMode
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from stable_baselines3.common.callbacks import BaseCallback
+
+from hamap.initial_mapping import initial_mapping_from_sabre
 
 
 def average_metrics(metrics_list):
@@ -49,13 +51,13 @@ def average_metrics(metrics_list):
 
 
 def evaluate_policy_for_metrics(model, eval_env, use_masking):
-    metrics_list = []
-
     evaluate_policy(model, eval_env, n_eval_episodes=1, use_masking=use_masking, deterministic=False)
-    metrics = eval_env.get_attr('metrics')
-    metrics_list.extend(metrics)
-
-    return average_metrics(metrics_list)
+    metrics_list = eval_env.get_attr('metrics')
+    k = random.choice(range(eval_env.num_envs))
+    final_circuit = eval_env.get_attr('resulting_circuit')[k]
+    final_mapping = eval_env.get_attr('current_mapping')[k]
+    metrics = average_metrics(metrics_list)
+    return metrics, final_circuit, final_mapping
 
 
 class MetricEvalCallback(BaseCallback):
@@ -70,7 +72,7 @@ class MetricEvalCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
-            metrics = evaluate_policy_for_metrics(self.model, self.eval_env, self.use_masking)
+            metrics, *_ = evaluate_policy_for_metrics(self.model, self.eval_env, self.use_masking)
 
             for key, value in metrics.items():
                 self.logger.record(f"metric/{key}", round(value, 2))
@@ -151,12 +153,12 @@ def piecewise_linear(initial: float, plateau: float = 0.5, final: float = 1e-5):
 def run_maskable_ppo(
         hardware: IBMQHardwareArchitecture | str,
         circuit_path: Path | str | QuantumCircuit,
-        batch_size: int = 128,
+        batch_size: int = Unit.K,
         n_steps: int = 16 * Unit.K,
         eval_freq: int = 16 * Unit.K,
         embed_dim: int = 128,
         reward_shaping_weight: float = 10,
-        init_strategy: InitialMappingStrategy | dict[int, Qubit] = InitialMappingStrategy.SABRE,
+        init_strategy: InitialMappingStrategy | dict[Qubit, int] = InitialMappingStrategy.SABRE,
         seqlen: int | float = 16,
         num_epochs: int = 100,
         output_dirname: str = None,
@@ -171,7 +173,7 @@ def run_maskable_ppo(
         max_no_improvement_evals=100,
         num_envs: int = None,
         learning_rate: float = 3e-4,
-        env_cls=CircuitEnvWithInitialMapping,
+        env_cls: gymnasium.Env = CircuitEnvWithInitialMapping,
         use_masking: bool = True,
         clip_range: float = 0.2,
         nhead: int = 2,
@@ -199,7 +201,7 @@ def run_maskable_ppo(
         qc = QuantumCircuit.from_qasm_file(str(circuit_path))
     else:
         qc = circuit_path
-        
+
     gate_len = get_cnot_num(qc)
 
     if isinstance(seqlen, int):
@@ -209,12 +211,12 @@ def run_maskable_ppo(
         seqlen = int(seqlen * gate_len)
 
     print(f'{circuit_path} {gate_len=} {seqlen=}')
-    
+
     if not isinstance(init_strategy, dict):
         init = get_initial_mapping(qc, hardware, init_strategy)
     else:
         init = init_strategy
-        
+
     use_subproc = torch.cuda.is_available()  # On GPU server, use subproc to make full use of GPUs.
 
     env = create_vec_env_from_circuits(
@@ -245,12 +247,12 @@ def run_maskable_ppo(
 
     config = dict(
         env_cls=env_cls.__name__,
-        circuit_path=str(circuit_path),
+        circuit_path=str(circuit_path) if not isinstance(circuit_path, QuantumCircuit) else None,
         batch_size=batch_size,
         num_envs=num_envs,
         embed_dim=embed_dim,
         reward_shaping_weight=reward_shaping_weight,
-        init_strategy=init_strategy,
+        init_strategy=init_strategy if isinstance(init_strategy, InitialMappingStrategy) else None,
         seqlen=seqlen,
         total_timesteps=total_timesteps,
         num_epochs=num_epochs,
@@ -268,11 +270,12 @@ def run_maskable_ppo(
     )
     pprint(config)
 
-    circuit_name = Path(circuit_path).stem
-    depth = qc.depth()
+    circuit_name = Path(circuit_path).stem if not isinstance(circuit_path, QuantumCircuit) else None
     log_name = f'Q={circuit_name}-CX={gate_len}-D={embed_dim}-L={seqlen}-S={n_steps // Unit.K}'
     log_dir = f'../log/{output_dirname}'
     result_dir = f"../result/{output_dirname}"
+    if not os.path.exists(result_dir):
+        os.mkdir(result_dir)
     best_model_path = output_dir + "/models/" + log_name
     result_file = result_dir + f"/Q={circuit_name}-result.json"
     if os.path.exists(result_file) and skip_existing:
@@ -327,14 +330,14 @@ def run_maskable_ppo(
     learn_end = time.time()
 
     print('Eval policy')
-    metrics = evaluate_policy_for_metrics(ppo, eval_env, use_masking)
+    metrics, final_circuit, final_mapping = evaluate_policy_for_metrics(ppo, eval_env, use_masking)
     metrics.update(train_time=learn_end - learn_start)
     metrics = readable_float_dict(metrics)
 
     result = dict(config=config, metrics=metrics, init=show_mapping(init))
     if save_result:
         write_json(result_file, jsons.dump(result))
-    return result
+    return final_circuit, final_mapping
 
 
 class CircuitDataset:
@@ -356,7 +359,7 @@ class CircuitDataset:
     @cached_property
     def hardware(self):
         return IBMQHardwareArchitecture(self.dataname.split('_')[-1])
-        
+
     @cached_property
     def _circuits(self):
         return [QuantumCircuit.from_qasm_file(str(p)) for p in self.circuit_paths]
@@ -430,3 +433,35 @@ class CircuitDataset:
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
         plt.show()
+
+
+def maskable_ppo_mapping(
+        qc: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
+        initial_mapping: dict[Qubit, int],
+        **kwargs,
+):
+    return run_maskable_ppo(
+        hardware=hardware,
+        circuit_path=qc,
+        init_strategy=initial_mapping,
+        save_result=False,
+        skip_existing=False,
+        **kwargs,
+    )
+
+def forward_backward_initial_mapping(
+        qc: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
+        initial_mapping: dict[Qubit, int] = None,
+        **kwargs,
+):
+    initial_mapping = initial_mapping_from_sabre(
+        quantum_circuit=qc,
+        hardware=hardware,
+        mapping_algorithm=lambda qc, hw, init: maskable_ppo_mapping(qc, hw, init, **kwargs),
+        initial_mapping=initial_mapping
+    )
+    final_circuit, _ = maskable_ppo_mapping(qc=qc, hardware=hardware, initial_mapping=initial_mapping)
+    metrics = qknob_metrics(qc, final_circuit)
+    return metrics, final_circuit, initial_mapping
