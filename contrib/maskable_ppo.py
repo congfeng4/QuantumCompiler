@@ -150,13 +150,13 @@ def piecewise_linear(initial: float, plateau: float = 0.5, final: float = 1e-5):
 
 def run_maskable_ppo(
         hardware: IBMQHardwareArchitecture | str,
-        circuit_path: Path | str,
+        circuit_path: Path | str | QuantumCircuit,
         batch_size: int = 128,
         n_steps: int = 16 * Unit.K,
         eval_freq: int = 16 * Unit.K,
         embed_dim: int = 128,
         reward_shaping_weight: float = 10,
-        init_strategy: InitialMappingStrategy = InitialMappingStrategy.SABRE,
+        init_strategy: InitialMappingStrategy | dict[int, Qubit] = InitialMappingStrategy.SABRE,
         seqlen: int | float = 16,
         num_epochs: int = 100,
         output_dirname: str = None,
@@ -192,10 +192,14 @@ def run_maskable_ppo(
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
 
-    if isinstance(hardware, str):
+    if not isinstance(hardware, IBMQHardwareArchitecture):
         hardware = IBMQHardwareArchitecture(hardware)
 
-    qc = QuantumCircuit.from_qasm_file(str(circuit_path))
+    if not isinstance(circuit_path, QuantumCircuit):
+        qc = QuantumCircuit.from_qasm_file(str(circuit_path))
+    else:
+        qc = circuit_path
+        
     gate_len = get_cnot_num(qc)
 
     if isinstance(seqlen, int):
@@ -205,7 +209,12 @@ def run_maskable_ppo(
         seqlen = int(seqlen * gate_len)
 
     print(f'{circuit_path} {gate_len=} {seqlen=}')
-    init = get_initial_mapping(qc, hardware, init_strategy)
+    
+    if not isinstance(init_strategy, dict):
+        init = get_initial_mapping(qc, hardware, init_strategy)
+    else:
+        init = init_strategy
+        
     use_subproc = torch.cuda.is_available()  # On GPU server, use subproc to make full use of GPUs.
 
     env = create_vec_env_from_circuits(
@@ -241,7 +250,7 @@ def run_maskable_ppo(
         num_envs=num_envs,
         embed_dim=embed_dim,
         reward_shaping_weight=reward_shaping_weight,
-        init_strategy=init_strategy.name,
+        init_strategy=init_strategy,
         seqlen=seqlen,
         total_timesteps=total_timesteps,
         num_epochs=num_epochs,
@@ -261,8 +270,7 @@ def run_maskable_ppo(
 
     circuit_name = Path(circuit_path).stem
     depth = qc.depth()
-    log_name = f'Q={circuit_name}-CX={gate_len}-D={embed_dim}-L={seqlen}-S={n_steps // Unit.K}-QM={qubit_embed_mode.name}'
-
+    log_name = f'Q={circuit_name}-CX={gate_len}-D={embed_dim}-L={seqlen}-S={n_steps // Unit.K}'
     log_dir = f'../log/{output_dirname}'
     result_dir = f"../result/{output_dirname}"
     best_model_path = output_dir + "/models/" + log_name
@@ -332,6 +340,7 @@ def run_maskable_ppo(
 class CircuitDataset:
 
     def __init__(self, dataname: str, dataroot: Path = None, shuffle=True, sort=False):
+        self.dataname = dataname
         if dataroot is None:
             dataroot = Path('../data')
         circuit_dir = dataroot / dataname / 'circuits/'
@@ -344,6 +353,10 @@ class CircuitDataset:
             circuit_paths.sort(key=lambda path: get_cnot_num(read_circuit(path)))
         self.circuit_paths = circuit_paths
 
+    @cached_property
+    def hardware(self):
+        return IBMQHardwareArchitecture(self.dataname.split('_')[-1])
+        
     @cached_property
     def _circuits(self):
         return [QuantumCircuit.from_qasm_file(str(p)) for p in self.circuit_paths]

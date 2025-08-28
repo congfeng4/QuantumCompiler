@@ -161,7 +161,8 @@ class HardwareAwareQubitEmbedding(nn.Module):
         if self.qubit_embed_mode == QubitEmbeddingMode.DISTANCE_MATRIX_POS_EMBED:
             node_feat = self.distance_matrix.expand(B, -1, -1)
             ha_embed = self.linear(node_feat)
-            return self.pos_embed(ha_embed)  # Add qubit identity into embed.
+            # return self.pos_embed(ha_embed)  # Add qubit identity into embed.
+            return ha_embed
 
         raise ValueError(self.qubit_embed_mode)
 
