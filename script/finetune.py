@@ -30,7 +30,7 @@ if __name__ == '__main__':
                 hardware='Tokyo',
                 circuit_path=path,
                 seqlen=seqlen,
-                output_dirname=f'20Q_gate_Tokyo_NH=4_NL=8_D=128',
+                output_dirname=f'20Q_gate_Tokyo_level_PE',
                 reward_shaping_weight=10,
                 mode=mode,
                 save_result=True,

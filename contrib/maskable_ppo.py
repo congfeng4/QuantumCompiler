@@ -337,6 +337,10 @@ def run_maskable_ppo(
     result = dict(config=config, metrics=metrics, init=show_mapping(init))
     if save_result:
         write_json(result_file, jsons.dump(result))
+        
+    env.close()
+    eval_env.close()
+
     return final_circuit, final_mapping
 
 

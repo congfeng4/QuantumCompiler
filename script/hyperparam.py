@@ -15,7 +15,7 @@ if __name__ == '__main__':
     for path in dataset.sample(num_circuits=num_circuits, min_gatelen=0, 
                                max_gatelen=100):
         qc = read_circuit(path)
-        metrics, *_ = forward_backward_initial_mapping(qc, hardware, num_epochs=1, n_steps=Unit.K)
+        metrics, *_ = forward_backward_initial_mapping(qc, hardware, num_epochs=50)
         print(metrics)
         # init = get_initial_mapping(qc, hardware, InitialMappingStrategy.RANDOM)
         #
