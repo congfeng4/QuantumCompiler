@@ -231,7 +231,7 @@ class PositionalEncoding(nn.Module):
 
 
 class PositionalEncodingLevel(nn.Module):
-    def __init__(self, d_model: int, max_len: int):
+    def __init__(self, d_model: int):
         super().__init__()
         self.d_model = d_model
         # 预计算分母，不再缓存整张表
@@ -257,8 +257,13 @@ class PositionalEncodingLevel(nn.Module):
         return x + pe
 
 
+class PositionalEncodingMode(Enum):
+    DEFAULT_PE = 'default'
+    LEVEL_PE = 'level'
+
+
 class SequenceEncoder(nn.Module):
-    def __init__(self, in_dim, mode, num_layers: int, nhead: int):
+    def __init__(self, in_dim, mode, num_layers: int, nhead: int, pe_mode: PositionalEncodingMode):
         super().__init__()
         self.output_channels = in_dim
         assert mode in ['gru', 'lstm', 'transformer', 'mean']
@@ -271,7 +276,10 @@ class SequenceEncoder(nn.Module):
             encoder_layer = nn.TransformerEncoderLayer(
                 d_model=in_dim, nhead=nhead, dim_feedforward=in_dim * 2, batch_first=True
             )
-            self.pos_enc = PositionalEncodingLevel(in_dim, max_len=1024)  # 或用可学习版本
+            if pe_mode == PositionalEncodingMode.LEVEL_PE:
+                self.pos_enc = PositionalEncoding(in_dim)
+            else:
+                self.pos_enc = PositionalEncodingLevel(in_dim)
             self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
             self.out_dim = in_dim
         else:
@@ -293,7 +301,10 @@ class SequenceEncoder(nn.Module):
             state = h_last[-1] if self.mode == 'gru' else h_last[0][-1]
             return state  # (B, hidden)
         elif self.mode == 'transformer':  # Transformer
-            x = self.pos_enc(x, levels)  # [B, L, F]
+            if isinstance(self.pos_enc, PositionalEncodingLevel):
+                x = self.pos_enc(x, levels)
+            else:
+                x = self.pos_enc(x)  # [B, L, F]
             B = x.shape[0]
             # 1. 构造 key_padding_mask
             max_len = x.size(1)
@@ -326,7 +337,7 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
 
     def __init__(self, observation_space, hardware: IBMQHardwareArchitecture,
                  feature_dim: int, mode: str, nhead: int, num_layers: int,
-                 qubit_embed_mode: QubitEmbeddingMode,
+                 qubit_embed_mode: QubitEmbeddingMode, pe_mode: PositionalEncodingMode,
                  device='cpu'):
         super().__init__(observation_space, features_dim=feature_dim)
         assert feature_dim % 2 == 0
@@ -336,7 +347,7 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
                                                        qubit_embed_mode=qubit_embed_mode)
         self.gate_seq_encoder = GateSeqEncoder(self.qubit_embed.output_channels * 2, feature_dim)
         self.circuit_encoder = SequenceEncoder(self.gate_seq_encoder.output_channels, mode=mode,
-                                               nhead=nhead, num_layers=num_layers)
+                                               nhead=nhead, num_layers=num_layers, pe_mode=pe_mode)
 
     def forward(self, obs: dict[str, torch.Tensor]):
         # SB3会把Box无脑转成float32.
@@ -355,6 +366,7 @@ class HierarchicalCircuitFeaturesExtractor(BaseFeaturesExtractor):
 
 def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int, mode: str,
                       nhead: int, num_layers: int, qubit_embed_mode: QubitEmbeddingMode,
+                      pe_mode: PositionalEncodingMode,
                       device='auto'):
     return dict(
         activation_fn=torch.nn.ReLU,
@@ -367,6 +379,7 @@ def get_policy_kwargs(hardware: IBMQHardwareArchitecture, embed_dim: int, mode: 
             nhead=nhead,
             num_layers=num_layers,
             qubit_embed_mode=qubit_embed_mode,
+            pe_mode=pe_mode,
         ),
         net_arch=dict(
             pi=[embed_dim],

@@ -23,8 +23,8 @@ from sb3_contrib.ppo_mask import MaskablePPO
 from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
-from contrib.environs import CircuitEnvWithInitialMapping
-from contrib.feature_extractor import get_policy_kwargs, QubitEmbeddingMode
+from contrib.environs import CircuitEnvWithInitialMapping, TopologicalOrderMode
+from contrib.feature_extractor import get_policy_kwargs, QubitEmbeddingMode, PositionalEncodingMode
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
 from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
@@ -90,6 +90,7 @@ def create_vec_env_from_circuits(
         use_subproc: bool = False,
         rs_weight: float = 1,
         gamma: float = 0.99,
+        topological_order_mode: TopologicalOrderMode = TopologicalOrderMode.DEFAULT_ORDER,
 ):
     assert num_envs >= 1
 
@@ -101,6 +102,7 @@ def create_vec_env_from_circuits(
             L=seqlen,
             reward_shaping_weight=rs_weight,
             gamma=gamma,
+            topological_order_mode=topological_order_mode,
         )
 
     print(f'Create env with {num_envs} circuits {use_subproc=}')
@@ -179,10 +181,15 @@ def run_maskable_ppo(
         nhead: int = 2,
         num_layers: int = 4,
         qubit_embed_mode: QubitEmbeddingMode = QubitEmbeddingMode.DISTANCE_MATRIX_MLP,
+        pe_mode: PositionalEncodingMode = PositionalEncodingMode.DEFAULT_PE,
+        topological_order_mode: TopologicalOrderMode = TopologicalOrderMode.DEFAULT_ORDER,
 ):
     """
     ✅ Run MaskablePPO on a circuit and return the metrics.
     """
+    if pe_mode == PositionalEncodingMode.LEVEL_PE and topological_order_mode != TopologicalOrderMode.LEVEL_ORDER:
+        raise ValueError(f'{pe_mode=} must be used with {TopologicalOrderMode.LEVEL_ORDER}')
+
     num_envs = num_envs or max(os.cpu_count() // 4, 8)
     while n_steps % num_envs != 0:
         num_envs += 1
@@ -210,7 +217,7 @@ def run_maskable_ppo(
         assert 0 < seqlen < 1
         seqlen = int(seqlen * gate_len)
 
-    print(f'{circuit_path} {gate_len=} {seqlen=}')
+    print(f'{gate_len=} {seqlen=}')
 
     if not isinstance(init_strategy, dict):
         init = get_initial_mapping(qc, hardware, init_strategy)
@@ -229,6 +236,7 @@ def run_maskable_ppo(
         rs_weight=reward_shaping_weight,
         use_subproc=use_subproc,
         gamma=gamma,
+        topological_order_mode=topological_order_mode,
     )
 
     eval_env = create_vec_env_from_circuits(
@@ -241,6 +249,7 @@ def run_maskable_ppo(
         rs_weight=reward_shaping_weight,
         use_subproc=use_subproc,
         gamma=gamma,
+        topological_order_mode=topological_order_mode,
     )
 
     total_timesteps = num_epochs * n_steps
@@ -267,6 +276,8 @@ def run_maskable_ppo(
         nhead=nhead,
         num_layers=num_layers,
         qubit_embed_mode=qubit_embed_mode,
+        pe_mode=pe_mode,
+        topological_order_mode=topological_order_mode,
     )
     pprint(config)
 
@@ -314,6 +325,7 @@ def run_maskable_ppo(
             nhead=nhead,
             num_layers=num_layers,
             qubit_embed_mode=qubit_embed_mode,
+            pe_mode=pe_mode,
         ),
     ) if pretrain is None else MaskablePPO.load(pretrain, env)
     ppo.tensorboard_log = log_dir

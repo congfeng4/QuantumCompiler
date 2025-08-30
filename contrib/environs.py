@@ -1,4 +1,5 @@
 from typing import Any, SupportsFloat
+from enum import Enum
 
 import gymnasium as gym
 import numpy as np
@@ -29,17 +30,23 @@ import logging
 logger = logging.getLogger("contrib.env")
 
 
-def compute_level_for_cnot(dag_circuit: DAGCircuit) -> dict[str, int]:
-    res = {}
-    level = 0
-    for layer in dag_circuit.layers():
-        cx_ops: list[DAGOpNode] = list(filter(lambda op: op.name == 'cx', layer['graph'].op_nodes()))
-        if not cx_ops:
-            continue
-        for op in cx_ops:
-            res[op.sort_key] = level
-        level += 1
-    return res
+def build_op_node_level(dag: DAGCircuit, topological_nodes: list[DAGOpNode], sort_by_level: bool = False):
+    """
+    Compute the level of all op nodes using a lookup table.
+    """
+    memo = {}
+    for node in topological_nodes:
+        predecessors = list(filter(lambda node: isinstance(node, DAGOpNode), dag.predecessors(node)))
+        if not predecessors:
+            level = 0
+        else:
+            level = 1 + max(map(lambda p: memo[p._node_id], predecessors))
+        memo[node._node_id] = level
+
+    if sort_by_level:
+        # Sort by level. Note that H gates also have their levels.
+        topological_nodes.sort(key=lambda nd: memo[nd._node_id])
+    return memo
 
 
 class BaseCircuitEnv(gym.Env):
@@ -60,6 +67,11 @@ class BaseCircuitEnv(gym.Env):
         self.observation_space = self.state.get_space()
 
 
+class TopologicalOrderMode(Enum):
+    DEFAULT_ORDER = 0
+    LEVEL_ORDER = 1
+
+
 class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
     def __init__(self,
@@ -67,6 +79,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
                  L: int,
+                 topological_order_mode: TopologicalOrderMode,
                  reward_shaping_weight: float = 10,
                  gamma: float = 0.99):
         super().__init__(hardware, L=L)
@@ -78,8 +91,9 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
         _adapt_quantum_circuit_and_mapping_arity(self.input_circuit, initial_mapping, hardware)
         self.dag_circuit = circuit_to_dag(input_circuit)
-        self.topological_nodes: list[DAGNode] = list(self.dag_circuit.topological_op_nodes())
-        self.gate_levels = compute_level_for_cnot(self.dag_circuit)
+        self.topological_nodes: list[DAGOpNode] = list(self.dag_circuit.topological_op_nodes())
+        self.gate_levels = build_op_node_level(self.dag_circuit, self.topological_nodes,
+                                               sort_by_level=topological_order_mode == TopologicalOrderMode.LEVEL_ORDER)
         self.resulting_circuit = None
         self.metrics_baseline = ha_baseline(input_circuit, hardware, initial_mapping)
         # check_env(self)
