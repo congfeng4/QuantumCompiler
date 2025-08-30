@@ -14,27 +14,27 @@ if __name__ == '__main__':
     hardware = dataset.hardware
     
     for path in dataset.sample(num_circuits=num_circuits, min_gatelen=0, 
-                               max_gatelen=100):
+                               max_gatelen=50):
         qc = read_circuit(path)
-        init = get_initial_mapping(qc, hardware, InitialMappingStrategy.RANDOM)
+        init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
 
         run_maskable_ppo(
             hardware=hardware,
             circuit_path=qc,
-            seqlen=16,
-            output_dirname=f'test',
+            seqlen=0.5,
+            output_dirname=f'len50',
             reward_shaping_weight=10,
             mode=mode,
             save_result=True,
             skip_existing=False,
             num_epochs=num_epochs,
-            batch_size=Unit.K,
-            eval_freq=16 * Unit.K,
-            n_steps=16 * Unit.K,
+            batch_size=4 * Unit.K,
+            eval_freq=4 * Unit.K,
+            n_steps=Unit.K,
             init_strategy=init,
             num_envs=16,
-            nhead=4,
-            num_layers=8,
+            nhead=2,
+            num_layers=4,
             embed_dim=128,
             topological_order_mode=TopologicalOrderMode.LEVEL_ORDER,
             pe_mode=PositionalEncodingMode.LEVEL_PE,

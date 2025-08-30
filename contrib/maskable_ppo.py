@@ -178,11 +178,11 @@ def run_maskable_ppo(
         env_cls: gymnasium.Env = CircuitEnvWithInitialMapping,
         use_masking: bool = True,
         clip_range: float = 0.2,
-        nhead: int = 2,
-        num_layers: int = 4,
+        nhead: int = 4,
+        num_layers: int = 8,
         qubit_embed_mode: QubitEmbeddingMode = QubitEmbeddingMode.DISTANCE_MATRIX_MLP,
-        pe_mode: PositionalEncodingMode = PositionalEncodingMode.DEFAULT_PE,
-        topological_order_mode: TopologicalOrderMode = TopologicalOrderMode.DEFAULT_ORDER,
+        pe_mode: PositionalEncodingMode = PositionalEncodingMode.LEVEL_PE,
+        topological_order_mode: TopologicalOrderMode = TopologicalOrderMode.LEVEL_ORDER,
 ):
     """
     ✅ Run MaskablePPO on a circuit and return the metrics.
@@ -282,7 +282,7 @@ def run_maskable_ppo(
     pprint(config)
 
     circuit_name = Path(circuit_path).stem if not isinstance(circuit_path, QuantumCircuit) else None
-    log_name = f'Q={circuit_name}-CX={gate_len}-D={embed_dim}-L={seqlen}-S={n_steps // Unit.K}'
+    log_name = f'Q={circuit_name}-CX={gate_len}-D={embed_dim}-L={seqlen}-S={n_steps // Unit.K}-TM={topological_order_mode.name}-PM={pe_mode.name}'
     log_dir = f'../log/{output_dirname}'
     result_dir = f"../result/{output_dirname}"
     if not os.path.exists(result_dir):

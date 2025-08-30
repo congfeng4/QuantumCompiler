@@ -49,14 +49,15 @@ class StateSpace:
 
         gate_seq = np.zeros((self.L, 2), np.int64)
         gate_level = np.zeros((self.L, 1), np.int64)
-        ops = front_layer.ops + gates
+        ops = list(filter(lambda op: op.name == 'cx', front_layer.ops + gates))
         gate_len = min(len(ops), self.L)
 
-        for i, op in zip(range(gate_len), filter(lambda op: op.name == 'cx', ops)):
+        for i, op in zip(range(gate_len), ops):
             gate_seq[i] = current_mapping[op.qargs[0]], current_mapping[op.qargs[1]]
             gate_level[i] = gate_levels[op._node_id]
 
-        # if gate_len > 0:
-        #     gate_level -= gate_level[0]
+        if gate_len > 0:
+            gate_level[:gate_len] -= gate_level[0]
+            assert np.all(gate_level >= 0), gate_level
 
         return dict(mapping=mapping, gate_seq=gate_seq, gate_len=gate_len, gate_level=gate_level)
