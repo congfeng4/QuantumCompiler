@@ -17,7 +17,7 @@ if __name__ == '__main__':
     n_steps = 16 * Unit.K
     eval_freq = 16 * Unit.K
 
-    dataset = CircuitDataset('20Q_gate_Tokyo')
+    dataset = CircuitDataset('20Q_gate_Tokyo', sort=True)
 
     for maxlen in range(50, 700, 50):
         minlen = maxlen - 50
@@ -30,7 +30,7 @@ if __name__ == '__main__':
                 hardware='Tokyo',
                 circuit_path=path,
                 seqlen=seqlen,
-                output_dirname=f'20Q_gate_Tokyo_Level',
+                output_dirname=f'20Q_depth_Tokyo_Level',
                 reward_shaping_weight=10,
                 mode=mode,
                 save_result=True,
@@ -44,6 +44,4 @@ if __name__ == '__main__':
                 num_layers=8,
                 topological_order_mode=TopologicalOrderMode.LEVEL_ORDER,
                 pe_mode=PositionalEncodingMode.LEVEL_PE,
-                learning_rate=1e-4,
-                ent_coef=0,
             )

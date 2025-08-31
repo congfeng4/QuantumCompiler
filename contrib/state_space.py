@@ -41,7 +41,7 @@ class StateSpace:
             ),
         })
 
-    def encode(self, front_layer: QuantumLayer, gates: list[DAGNode], current_mapping: dict[Qubit, int],
+    def encode(self, front_layer: QuantumLayer, gates: list[DAGOpNode], current_mapping: dict[Qubit, int],
                gate_levels: dict[int, int]):
         mapping = np.zeros((self.N,), np.int64)
         for qb, j in current_mapping.items():
@@ -49,11 +49,15 @@ class StateSpace:
 
         gate_seq = np.zeros((self.L, 2), np.int64)
         gate_level = np.zeros((self.L, 1), np.int64)
-        ops = list(filter(lambda op: op.name == 'cx', front_layer.ops + gates))
+        ops: list[DAGOpNode] = front_layer.ops + gates
         gate_len = min(len(ops), self.L)
 
         for i, op in zip(range(gate_len), ops):
-            gate_seq[i] = current_mapping[op.qargs[0]], current_mapping[op.qargs[1]]
+            if op.name == 'cx':
+                gate_seq[i] = current_mapping[op.qargs[0]], current_mapping[op.qargs[1]]
+            elif op.name == 'h':
+                gate_seq[i] = current_mapping[op.qargs[0]], current_mapping[op.qargs[0]]
+
             gate_level[i] = gate_levels[op._node_id]
 
         if gate_len > 0:
