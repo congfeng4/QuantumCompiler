@@ -12,30 +12,35 @@ if __name__ == '__main__':
     dataset = CircuitDataset('20Q_gate_Tokyo', sort=True, shuffle=False)
 
     hardware = dataset.hardware
-    
-    for path in dataset.sample(num_circuits=num_circuits, min_gatelen=0, 
+
+    for path in dataset.sample(num_circuits=num_circuits, min_gatelen=0,
                                max_gatelen=50):
         qc = read_circuit(path)
-        init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
+        init = get_initial_mapping(qc, hardware, InitialMappingStrategy.RANDOM)
 
-        run_maskable_ppo(
-            hardware=hardware,
-            circuit_path=qc,
-            seqlen=0.5,
-            output_dirname=f'len50',
-            reward_shaping_weight=10,
-            mode=mode,
-            save_result=True,
-            skip_existing=False,
-            num_epochs=num_epochs,
-            batch_size=4 * Unit.K,
-            eval_freq=4 * Unit.K,
-            n_steps=Unit.K,
-            init_strategy=init,
-            num_envs=16,
-            nhead=2,
-            num_layers=4,
-            embed_dim=128,
-            topological_order_mode=TopologicalOrderMode.LEVEL_ORDER,
-            pe_mode=PositionalEncodingMode.LEVEL_PE,
+        forward_backward_initial_mapping(
+            qc=qc, hardware=hardware, initial_mapping=init, output_dirname='forward_backward',
+            num_epochs=40,
         )
+
+        # run_maskable_ppo(
+        #     hardware=hardware,
+        #     circuit_path=qc,
+        #     seqlen=0.5,
+        #     output_dirname=f'20Q_gate_Tokyo_forward_backward',
+        #     reward_shaping_weight=10,
+        #     mode=mode,
+        #     save_result=True,
+        #     skip_existing=False,
+        #     num_epochs=num_epochs,
+        #     batch_size=4 * Unit.K,
+        #     eval_freq=4 * Unit.K,
+        #     n_steps=Unit.K,
+        #     init_strategy=init,
+        #     num_envs=16,
+        #     nhead=2,
+        #     num_layers=4,
+        #     embed_dim=128,
+        #     topological_order_mode=TopologicalOrderMode.LEVEL_ORDER,
+        #     pe_mode=PositionalEncodingMode.LEVEL_PE,
+        # )

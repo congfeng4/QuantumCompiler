@@ -6,7 +6,7 @@ from contrib.maskable_ppo import run_maskable_ppo, CircuitDataset
 if __name__ == '__main__':
     # mode = 'gru'
     mode = 'transformer'
-    seqlen = 256
+    seqlen = 0.5
     eval_freq = Unit.K
     batch_size = Unit.K
     num_circuits = 1

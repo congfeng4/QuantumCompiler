@@ -165,7 +165,7 @@ def run_maskable_ppo(
         num_epochs: int = 100,
         output_dirname: str = None,
         mode: str = 'transformer',
-        ent_coef: float = 0.01,
+        ent_coef: float = 0,
         gamma: float = 0.99,
         pretrain: Path = None,
         save_result: bool = True,
