@@ -5,7 +5,7 @@ State space encoding.
 import gymnasium as gym
 import numpy as np
 from qiskit.circuit import Qubit
-from qiskit.dagcircuit import DAGNode, DAGOpNode
+from qiskit.dagcircuit import DAGOpNode
 
 from hamap.layer import QuantumLayer
 

@@ -2,7 +2,6 @@
 Collect expert trajectories for validation of our environment.
 """
 import pickle
-import random
 from collections import defaultdict, Counter
 
 import gymnasium as gym
@@ -11,6 +10,9 @@ import numpy as np
 import typing as ty
 
 import numpy
+from qiskit.dagcircuit import DAGOpNode
+
+from contrib import common
 
 try:
     from imitation.data.rollout import flatten_trajectories
@@ -25,16 +27,15 @@ from qiskit.converters.circuit_to_dag import circuit_to_dag
 from qiskit.converters.dag_to_circuit import dag_to_circuit
 from qiskit.dagcircuit.dagcircuit import DAGNode
 
-from contrib.common import qknob_metrics, get_distance_matrix
-from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
+from contrib.common import qknob_metrics, TopologicalOrderMode, build_op_node_level
 from contrib.state_space import StateSpace
-from contrib.action_space import ActionSpace, ActionSpaceEdge
+from contrib.action_space import ActionSpaceEdge
 from contrib.common import get_circuit_cost
 
 from hamap.distance_matrix import (
     get_distance_matrix_swap_number_and_error,
 )
-from hamap.gates import TwoQubitGate, SwapTwoQubitGate, BridgeTwoQubitGate
+from hamap.gates import TwoQubitGate, SwapTwoQubitGate
 from hamap.hardware.IBMQHardwareArchitecture import IBMQHardwareArchitecture
 from hamap.heuristics import sabre_heuristic
 from hamap.layer import QuantumLayer, update_layer
@@ -193,7 +194,8 @@ def heuristic_algorithm(
         get_distance_matrix: ty.Callable[
             [IBMQHardwareArchitecture], numpy.ndarray
         ] = get_distance_matrix_swap_number_and_error,
-) -> QuantumCircuit:
+        topological_order_mode: TopologicalOrderMode = TopologicalOrderMode.DEFAULT_ORDER,
+) -> ty.Tuple[QuantumCircuit, dict[Qubit, int]]:
     collector.begin_trajectory()
 
     _adapt_quantum_circuit_and_mapping_arity(quantum_circuit, initial_mapping, hardware)
@@ -205,7 +207,10 @@ def heuristic_algorithm(
     explored_mappings: ty.Set[str] = set()
     # Sorting all the quantum operations in topological order once for all.
     # May require significant memory on large circuits...
-    topological_nodes: ty.List[DAGNode] = list(dag_circuit.topological_op_nodes())
+    topological_nodes: ty.List[DAGOpNode] = list(dag_circuit.topological_op_nodes())
+    if topological_order_mode == TopologicalOrderMode.LEVEL_ORDER:
+        build_op_node_level(dag_circuit, topological_nodes, sort_by_level=True)
+
     current_node_index = 0
     # Creating the initial front layer.
     front_layer = QuantumLayer()
@@ -300,7 +305,7 @@ def heuristic_algorithm(
 
     metrics = qknob_metrics(quantum_circuit, resulting_circuit)
     collector.end_trajectory(metrics)  # Finish one trajectory.
-    return resulting_circuit
+    return resulting_circuit, current_mapping
 
 
 def rollout_expert_trajectory(env: gym.Env, trajectory: 'Trajectory'):
@@ -320,22 +325,14 @@ def rollout_expert_trajectory(env: gym.Env, trajectory: 'Trajectory'):
     return info['metrics']
 
 
-if __name__ == '__main__':
-    hardware = IBMQHardwareArchitecture('tokyo')
+def ha_baseline(qc: QuantumCircuit, hardware: IBMQHardwareArchitecture, initial_mapping: dict[Qubit, int],
+                topological_order_mode: TopologicalOrderMode):
+    """
+    Run HA baseline and return QKNOB metrics.
+    """
+    mapped_circuit, final_mapping = heuristic_algorithm(DummyTrajectoryCollector(), qc, initial_mapping, hardware,
+                                               get_distance_matrix=common.get_distance_matrix,
+                                               topological_order_mode=topological_order_mode)
+    metrics = qknob_metrics(qc, mapped_circuit)
 
-    collector = TrajectoryCollector(hardware, L=10,
-                                    outdir=Path('../result/pretrain/ha'),
-                                    prefix='20Q_gate_Tokyo')
-
-    circuit_list = list(Path('../data/20Q_gate_Tokyo/circuits').glob('*.qasm'))
-    random.shuffle(circuit_list)
-
-    qc = QuantumCircuit.from_qasm_file(str(circuit_list[0]))
-    init = get_initial_mapping(qc, hardware, InitialMappingStrategy.SABRE)
-    heuristic_algorithm(
-        collector=collector,
-        quantum_circuit=qc,
-        initial_mapping=init,
-        hardware=hardware,
-        # get_distance_matrix=get_distance_matrix,
-    )
+    return metrics

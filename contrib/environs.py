@@ -1,5 +1,4 @@
 from typing import Any, SupportsFloat
-from enum import Enum
 
 import gymnasium as gym
 import numpy as np
@@ -9,12 +8,11 @@ from gymnasium.utils.env_checker import check_env
 from qiskit import QuantumCircuit
 from qiskit.circuit import Qubit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
-from qiskit.dagcircuit import DAGNode, DAGCircuit, DAGOpNode
+from qiskit.dagcircuit import DAGOpNode
 
-from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost
-from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy, ha_baseline
-from contrib.expert import TrajectoryCollector, rollout_expert_trajectory, heuristic_algorithm
-from contrib.seed import set_all_seeds
+from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost, TopologicalOrderMode, \
+    build_op_node_level
+from contrib.expert import ha_baseline
 from contrib.common import get_cnot_num, get_distance_matrix
 from contrib.action_space import ActionSpaceEdge
 from contrib.state_space import StateSpace
@@ -28,25 +26,6 @@ import logging
 
 
 logger = logging.getLogger("contrib.env")
-
-
-def build_op_node_level(dag: DAGCircuit, topological_nodes: list[DAGOpNode], sort_by_level: bool = False):
-    """
-    Compute the level of all op nodes using a lookup table.
-    """
-    memo = {}
-    for node in topological_nodes:
-        predecessors = list(filter(lambda node: isinstance(node, DAGOpNode), dag.predecessors(node)))
-        if not predecessors:
-            level = 0
-        else:
-            level = 1 + max(map(lambda p: memo[p._node_id], predecessors))
-        memo[node._node_id] = level
-
-    if sort_by_level:
-        # Sort by level. Note that H gates also have their levels.
-        topological_nodes.sort(key=lambda nd: memo[nd._node_id])
-    return memo
 
 
 class BaseCircuitEnv(gym.Env):
@@ -65,11 +44,6 @@ class BaseCircuitEnv(gym.Env):
 
         self.action_space = self.action.get_space()
         self.observation_space = self.state.get_space()
-
-
-class TopologicalOrderMode(Enum):
-    DEFAULT_ORDER = 0
-    LEVEL_ORDER = 1
 
 
 class CircuitEnvWithInitialMapping(BaseCircuitEnv):
@@ -95,7 +69,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.gate_levels = build_op_node_level(self.dag_circuit, self.topological_nodes,
                                                sort_by_level=topological_order_mode == TopologicalOrderMode.LEVEL_ORDER)
         self.resulting_circuit = None
-        self.metrics_baseline = ha_baseline(input_circuit, hardware, initial_mapping)
+        self.metrics_baseline = ha_baseline(input_circuit, hardware, initial_mapping, topological_order_mode)
         # check_env(self)
 
     def reset(self, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:
@@ -370,19 +344,3 @@ class InitialMappingCircuitEnv(CircuitEnvWithInitialMapping):
         map_masks = np.ones(self.N, bool) if self.qubit_index < self.N else np.zeros(self.N, bool)
         super_masks = super().action_masks() if self.qubit_index >= self.N else np.zeros(self.action.get_size(), bool)
         return list(map_masks) + list(super_masks)
-
-
-if __name__ == '__main__':
-    set_all_seeds()
-    circuit_path = '../data/53Q_depth_Sycamore/circuits/53Q_depth_Sycamore_small_None_1_1.5_no.0.qasm'
-    hardware_name = 'sycamore'
-    circuit = QuantumCircuit.from_qasm_file(str(circuit_path))
-    hardware = IBMQHardwareArchitecture(hardware_name)
-    collector = TrajectoryCollector(hardware=hardware, L=10)
-
-    init = get_initial_mapping(circuit, hardware, InitialMappingStrategy.IDENTITY)
-    heuristic_algorithm(collector, circuit, init, hardware)
-    traj = collector.trajectories[0]
-    metrics = collector.metrics_list[0]
-    env = CircuitEnvWithInitialMapping(circuit, hardware, init, L=10)
-    metrics_env = rollout_expert_trajectory(env, traj)

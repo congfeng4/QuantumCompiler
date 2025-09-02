@@ -1,12 +1,12 @@
 import json
-from enum import IntEnum
+from enum import IntEnum, Enum
 
 import numpy as np
 from qiskit.circuit import Qubit, QuantumCircuit
 from pathlib import Path
 import networkx as nx
 
-from qiskit.dagcircuit import DAGNode, DAGCircuit
+from qiskit.dagcircuit import DAGNode, DAGCircuit, DAGOpNode
 
 from hamap.distance_matrix import get_distance_matrix_swap_number, get_distance_matrix_swap_number_and_error
 from hamap.gates import TwoQubitGate
@@ -130,3 +130,27 @@ def write_circuit(out_file: Path | str, qc: QuantumCircuit):
     if not isinstance(out_file, Path):
         out_file = Path(out_file)
     out_file.write_text(dumps(qc), encoding='utf8')
+
+
+class TopologicalOrderMode(Enum):
+    DEFAULT_ORDER = 0
+    LEVEL_ORDER = 1
+
+
+def build_op_node_level(dag: DAGCircuit, topological_nodes: list[DAGOpNode], sort_by_level: bool = False):
+    """
+    Compute the level of all op nodes using a lookup table.
+    """
+    memo = {}
+    for node in topological_nodes:
+        predecessors = list(filter(lambda node: isinstance(node, DAGOpNode), dag.predecessors(node)))
+        if not predecessors:
+            level = 0
+        else:
+            level = 1 + max(map(lambda p: memo[p._node_id], predecessors))
+        memo[node._node_id] = level
+
+    if sort_by_level:
+        # Sort by level. Note that H gates also have their levels.
+        topological_nodes.sort(key=lambda nd: memo[nd._node_id])
+    return memo
