@@ -36,7 +36,7 @@ class StateSpace:
             ),
 
             # 门的层级（整数）
-            "gate_level":  gym.spaces.Box(
+            "gate_level": gym.spaces.Box(
                 low=0, high=L, shape=(L, 1), dtype=np.int64
             ),
         })

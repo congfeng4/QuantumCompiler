@@ -24,7 +24,6 @@ from hamap import IBMQHardwareArchitecture, mapping_to_str
 
 import logging
 
-
 logger = logging.getLogger("contrib.env")
 
 

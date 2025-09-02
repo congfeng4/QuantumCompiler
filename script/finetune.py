@@ -1,13 +1,8 @@
-from qiskit.converters import circuit_to_dag
-from qiskit.dagcircuit import DAGCircuit, DAGNode, DAGOpNode, DAGInNode
-
-from contrib.common import Unit, get_cnot_num, read_circuit
-from contrib.environs import CircuitEnvWithInitialMapping, build_op_node_level
+from contrib.common import Unit
 from contrib.maskable_ppo import run_maskable_ppo, CircuitDataset
 from contrib.feature_extractor import QubitEmbeddingMode, PositionalEncodingMode
 from contrib.environs import TopologicalOrderMode
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
-
 
 if __name__ == '__main__':
     mode = 'transformer'
@@ -16,13 +11,13 @@ if __name__ == '__main__':
     num_circuits = 5
     n_steps = 16 * Unit.K
     eval_freq = 16 * Unit.K
+    total_timesteps = 800 * Unit.K
 
     dataset = CircuitDataset('20Q_gate_Tokyo', sort=True)
 
     for maxlen in range(50, 700, 50):
         minlen = maxlen - 50
-        num_epochs = 40 * (maxlen // 50)
-        
+
         for path in dataset.sample(num_circuits, minlen, maxlen):
             run_maskable_ppo(
                 init_strategy=InitialMappingStrategy.RANDOM,
@@ -35,7 +30,7 @@ if __name__ == '__main__':
                 mode=mode,
                 save_result=True,
                 skip_existing=False,
-                num_epochs=num_epochs,
+                total_timesteps=total_timesteps,
                 batch_size=batch_size,
                 eval_freq=eval_freq,
                 n_steps=n_steps,

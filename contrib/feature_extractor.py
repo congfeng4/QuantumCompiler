@@ -248,8 +248,8 @@ class PositionalEncodingLevel(nn.Module):
         # levels: (B, S, 1)  -> 广播到 (B, S, d_model//2)
         pos = levels.float()
         # pos = levels.unsqueeze(-1).float()          # (B, S, 1)
-        pe_sin = torch.sin(pos * self.div_term)     # (B, S, d_model//2)
-        pe_cos = torch.cos(pos * self.div_term)     # (B, S, d_model//2)
+        pe_sin = torch.sin(pos * self.div_term)  # (B, S, d_model//2)
+        pe_cos = torch.cos(pos * self.div_term)  # (B, S, d_model//2)
 
         pe = torch.empty(B, S, self.d_model, device=x.device)
         pe[..., 0::2] = pe_sin

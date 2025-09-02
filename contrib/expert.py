@@ -331,8 +331,8 @@ def ha_baseline(qc: QuantumCircuit, hardware: IBMQHardwareArchitecture, initial_
     Run HA baseline and return QKNOB metrics.
     """
     mapped_circuit, final_mapping = heuristic_algorithm(DummyTrajectoryCollector(), qc, initial_mapping, hardware,
-                                               get_distance_matrix=common.get_distance_matrix,
-                                               topological_order_mode=topological_order_mode)
+                                                        get_distance_matrix=common.get_distance_matrix,
+                                                        topological_order_mode=topological_order_mode)
     metrics = qknob_metrics(qc, mapped_circuit)
 
     return metrics

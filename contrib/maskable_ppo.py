@@ -163,6 +163,7 @@ def run_maskable_ppo(
         init_strategy: InitialMappingStrategy | dict[Qubit, int] = InitialMappingStrategy.SABRE,
         seqlen: int | float = 16,
         num_epochs: int = 100,
+        total_timesteps: int = 800 * Unit.K,
         output_dirname: str = None,
         mode: str = 'transformer',
         ent_coef: float = 0,
@@ -252,7 +253,8 @@ def run_maskable_ppo(
         topological_order_mode=topological_order_mode,
     )
 
-    total_timesteps = num_epochs * n_steps
+    if total_timesteps is None:
+        total_timesteps = num_epochs * n_steps
 
     config = dict(
         env_cls=env_cls.__name__,
@@ -349,7 +351,7 @@ def run_maskable_ppo(
     result = dict(config=config, metrics=metrics, init=show_mapping(init))
     if save_result:
         write_json(result_file, jsons.dump(result))
-        
+
     env.close()
     eval_env.close()
 
@@ -465,6 +467,7 @@ def maskable_ppo_mapping(
         skip_existing=False,
         **kwargs,
     )
+
 
 def forward_backward_initial_mapping(
         qc: QuantumCircuit,
