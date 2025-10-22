@@ -146,8 +146,7 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
 
     @staticmethod
     def _get_backend_fake(backend_name: str):
-        from qiskit.providers.fake_provider import FakeBackend
-        from qiskit.providers import BackendConfiguration
+        from qiskit.providers.fake_provider import GenericBackendV2
         from lib.graph_utils import graph_from_name
 
         graph = graph_from_name(backend_name)
@@ -157,12 +156,9 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
             edge = [node.val for node in e]
             coupling_map.append(edge)
             coupling_map.append(list(reversed(edge)))
-        configuration = BackendConfiguration(backend_name=backend_name, n_qubits=graph.num_nodes,
-                                             coupling_map=coupling_map, local=True, backend_version="0.0.0",
-                                             simulator=True, conditional=True,
-                                             open_pulse=False, gates=[],
-                                             memory=False, max_shots=999, basis_gates=['h', 'cx'])
-        backend = FakeBackend(configuration)
+        backend = GenericBackendV2(
+            num_qubits=graph.num_nodes, basis_gates=['h', 'cx'], coupling_map=coupling_map,
+        )
         return backend
 
     def __init__(
@@ -196,30 +192,18 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
         backend = IBMQHardwareArchitecture._get_backend_fake(backend_name.lower())
 
         # Get the configuration data
-        backend_configuration = backend.configuration()
-        qubit_number = backend_configuration.n_qubits
-        coupling_map = backend_configuration.coupling_map
+        qubit_number = backend.num_qubits
+        coupling_map = backend.coupling_map
         # Get the properties of the backend
-        backend_properties = backend.properties()
-        qubit_properties = backend_properties.qubits
-        gate_properties = backend_properties.gates
-        qubit_indices = list()
         # Add the qubits with their properties (error rates?)
         for qubit_index in range(qubit_number):
             added_qubit_index = self.add_qubit(
-                **IBMQHardwareArchitecture._get_qubit_properties_dict(
-                    qubit_index, qubit_properties, gate_properties
-                )
             )
-            qubit_indices.append(added_qubit_index)
         # Add the links between qubits
         for source, sink in coupling_map:
             self.add_link(
                 source,
                 sink,
-                **IBMQHardwareArchitecture._get_link_properties_dict(
-                    backend_properties, source, sink
-                ),
             )
         # Update the links with a default function
         self.update_link_weights()

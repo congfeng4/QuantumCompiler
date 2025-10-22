@@ -99,7 +99,7 @@ class HardwareAwareQubitEmbedding(nn.Module):
                  qubit_embed_mode: QubitEmbeddingMode = QubitEmbeddingMode.DISTANCE_MATRIX_MLP):
         super().__init__()
         self.hardware = hardware
-        self.edge_index = from_networkx(hardware).edge_index
+        # self.edge_index = from_networkx(hardware).edge_index
         self.num_qubits: int = hardware.qubit_number
         self.distance_matrix = torch.tensor(get_distance_matrix(hardware), dtype=torch.float32, device=device)
         self.distance_matrix = normalize_distance_matrix(self.distance_matrix)
@@ -107,16 +107,7 @@ class HardwareAwareQubitEmbedding(nn.Module):
         self.output_channels = qubit_embedding_dim
         self.qubit_embed_mode = qubit_embed_mode
 
-        if qubit_embed_mode == QubitEmbeddingMode.GNN_EDGE_INDEX:
-            # 1. 逻辑比特嵌入（随映射变化）
-            self.qubit_embedding = self.qubit_embed_class(self.num_qubits, qubit_embedding_dim)
-            self.gnn = GraphSAGE(
-                in_channels=qubit_embedding_dim,
-                out_channels=qubit_embedding_dim,
-                hidden_channels=hidden_channels,
-                num_layers=1,
-            )
-        elif qubit_embed_mode == QubitEmbeddingMode.DISTANCE_MATRIX_MLP:
+        if qubit_embed_mode == QubitEmbeddingMode.DISTANCE_MATRIX_MLP:
             self.mlp = nn.Sequential(
                 nn.Linear(self.num_qubits, qubit_embedding_dim),
                 nn.ReLU(),

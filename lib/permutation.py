@@ -1,6 +1,6 @@
 import random as rd
 
-from typing import Iterator, Optional, TypeVar, Sequence
+from typing import Iterator, Optional, TypeVar, Sequence, Union
 Self = TypeVar("Self")
 from .graph_data import Node, Edge
 

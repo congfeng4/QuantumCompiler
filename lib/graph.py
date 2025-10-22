@@ -2,7 +2,7 @@ import itertools as it
 import random as rd
 
 from rustworkx import PyGraph
-from typing import Iterator, Optional, TypeVar, Sequence
+from typing import Iterator, Optional, TypeVar, Sequence, Union
 Self = TypeVar("Self")
 
 from .graph_data import Edge, Node
