@@ -196,7 +196,8 @@ def heuristic_algorithm(
         ] = get_distance_matrix_swap_number_and_error,
         topological_order_mode: TopologicalOrderMode = TopologicalOrderMode.DEFAULT_ORDER,
 ) -> ty.Tuple[QuantumCircuit, dict[Qubit, int]]:
-    collector.begin_trajectory()
+    if collector:
+        collector.begin_trajectory()
 
     _adapt_quantum_circuit_and_mapping_arity(quantum_circuit, initial_mapping, hardware)
     # Creating the internal data structures that will be used in this function.
@@ -249,7 +250,8 @@ def heuristic_algorithm(
             swap_candidates = get_candidates(
                 front_layer, hardware, initial_mapping, current_mapping, trans_mapping, explored_mappings
             )
-            collector.add_state(front_layer, topological_nodes[current_node_index:], current_mapping)
+            if collector:
+                collector.add_state(front_layer, topological_nodes[current_node_index:], current_mapping)
             # Then rank the SWAPs/Bridge and take the best one.
             best_cost = float("inf")
             best_swap_qubits = None
@@ -271,8 +273,9 @@ def heuristic_algorithm(
                     best_swap_qubits = potential_swap
                 candidates_with_cost.append((potential_swap, cost))
             # Add action
-            collector.add_action(best_swap_qubits, current_mapping, initial_mapping)
-            collector.add_reward(get_circuit_cost(front_layer, topological_nodes[current_node_index:], current_mapping,
+            if collector:
+                collector.add_action(best_swap_qubits, current_mapping, initial_mapping)
+                collector.add_reward(get_circuit_cost(front_layer, topological_nodes[current_node_index:], current_mapping,
                                                   distance_matrix, hardware))
 
             # We now have our best SWAP/Bridge, let's perform it!
@@ -298,13 +301,15 @@ def heuristic_algorithm(
             front_layer, topological_nodes, current_node_index
         )
     # Add state
-    collector.add_state(front_layer, topological_nodes[current_node_index:], current_mapping)
+    if collector:
+        collector.add_state(front_layer, topological_nodes[current_node_index:], current_mapping)
     # We are done here, we just need to return the results
     # resulting_dag_quantum_circuit.draw(scale=1, filename="qcirc.dot")
     resulting_circuit = dag_to_circuit(resulting_dag_quantum_circuit)
 
     metrics = qknob_metrics(quantum_circuit, resulting_circuit)
-    collector.end_trajectory(metrics)  # Finish one trajectory.
+    if collector:
+        collector.end_trajectory(metrics)  # Finish one trajectory.
     return resulting_circuit, current_mapping
 
 
@@ -330,7 +335,7 @@ def ha_baseline(qc: QuantumCircuit, hardware: IBMQHardwareArchitecture, initial_
     """
     Run HA baseline and return QKNOB metrics.
     """
-    mapped_circuit, final_mapping = heuristic_algorithm(DummyTrajectoryCollector(), qc, initial_mapping, hardware,
+    mapped_circuit, final_mapping = heuristic_algorithm(None, qc, initial_mapping, hardware,
                                                         get_distance_matrix=common.get_distance_matrix,
                                                         topological_order_mode=topological_order_mode)
     metrics = qknob_metrics(qc, mapped_circuit)

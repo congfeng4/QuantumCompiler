@@ -199,7 +199,7 @@ def run_maskable_ppo(
     if output_dirname is None:
         output_dirname = 'test'
 
-    output_dir = f'../result/{output_dirname}'
+    output_dir = f'./result/{output_dirname}'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -286,8 +286,8 @@ def run_maskable_ppo(
 
     circuit_name = Path(circuit_path).stem if not isinstance(circuit_path, QuantumCircuit) else None
     log_name = f'Q={circuit_name}-CX={gate_len}-D={embed_dim}-L={seqlen}-S={n_steps // Unit.K}-TM={topological_order_mode.name}-PM={pe_mode.name}'
-    log_dir = f'../log/{output_dirname}'
-    result_dir = f"../result/{output_dirname}"
+    log_dir = f'./log/{output_dirname}'
+    result_dir = f"./result/{output_dirname}"
     if not os.path.exists(result_dir):
         os.mkdir(result_dir)
     best_model_path = output_dir + "/models/" + log_name
@@ -364,7 +364,7 @@ class CircuitDataset:
     def __init__(self, dataname: str, dataroot: Path = None, shuffle=True, sort=False):
         self.dataname = dataname
         if dataroot is None:
-            dataroot = Path('../data')
+            dataroot = Path('./data')
         circuit_dir = dataroot / dataname / 'circuits/'
         if not circuit_dir.exists():
             raise FileNotFoundError(circuit_dir)

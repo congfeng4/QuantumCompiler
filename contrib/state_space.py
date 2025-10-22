@@ -5,7 +5,19 @@ State space encoding.
 import gymnasium as gym
 import numpy as np
 from qiskit.circuit import Qubit
-from qiskit.dagcircuit import DAGOpNode
+from qiskit.dagcircuit import DAGOpNode, DAGCircuit
+from typing import Any, Optional, SupportsFloat
+
+import gymnasium as gym
+import numpy as np
+
+from qiskit.circuit import Qubit
+from qiskit.dagcircuit import DAGOpNode, DAGCircuit
+
+from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost, TopologicalOrderMode, \
+    build_op_node_level
+
+from hamap.layer import QuantumLayer, update_layer
 
 from hamap.layer import QuantumLayer
 
@@ -41,15 +53,23 @@ class StateSpace:
             ),
         })
 
-    def encode(self, front_layer: QuantumLayer, gates: list[DAGOpNode], current_mapping: dict[Qubit, int],
-               gate_levels: dict[int, int]):
+    def encode(self, dag: DAGCircuit, current_mapping: dict[Qubit, int]):
         mapping = np.zeros((self.N,), np.int64)
         for qb, j in current_mapping.items():
             mapping[j] = qb._index  # Phy to logic
 
+        topological_nodes: list[DAGOpNode] = list(dag.topological_op_nodes())
+        # Resort according to node levels.
+        gate_levels = build_op_node_level(dag, topological_nodes, sort_by_level=True)
+
+        front_layer = QuantumLayer() # Obtain the front layer, ensuring they are in the sequence front.
+        current_node_index = update_layer(
+            front_layer, topological_nodes, 0,
+        )
+
         gate_seq = np.zeros((self.L, 2), np.int64)
         gate_level = np.zeros((self.L, 1), np.int64)
-        ops: list[DAGOpNode] = front_layer.ops + gates
+        ops: list[DAGOpNode] = front_layer.ops + topological_nodes[current_node_index:]
         gate_len = min(len(ops), self.L)
 
         for i, op in zip(range(gate_len), ops):

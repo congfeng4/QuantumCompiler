@@ -12,7 +12,7 @@ from hamap.distance_matrix import get_distance_matrix_swap_number, get_distance_
 from hamap.gates import TwoQubitGate
 from hamap.hardware import IBMQHardwareArchitecture
 from hamap.heuristics import _gate_op_cost
-from hamap.layer import QuantumLayer
+from hamap.layer import QuantumLayer, update_layer
 
 RESULT_DIR = Path(__file__).parent.parent / 'result'
 
@@ -41,10 +41,32 @@ def get_circuit_depth(cirt: Union[QuantumCircuit, DAGCircuit]):
     return cirt.depth()
 
 
-def get_circuit_cost(front_layer: QuantumLayer, gates: list[DAGNode], current_mapping: dict[Qubit, int],
+def get_front_layer(dag: DAGCircuit):
+    topological_nodes: list[DAGOpNode] = list(dag.topological_op_nodes())
+    front_layer = QuantumLayer()
+    update_layer(
+        front_layer, topological_nodes, 0,
+    )
+    return front_layer
+
+
+def dag_to_sequence(dag: DAGCircuit):
+    topological_nodes: list[DAGOpNode] = list(dag.topological_op_nodes())
+    # Resort according to node levels.
+    build_op_node_level(dag, topological_nodes, sort_by_level=True)
+
+    front_layer = QuantumLayer()  # Obtain the front layer, ensuring they are in the sequence front.
+    current_node_index = update_layer(
+        front_layer, topological_nodes, 0,
+    )
+    return front_layer.ops + topological_nodes[current_node_index:]
+
+
+def get_circuit_cost(dag: DAGCircuit, current_mapping: dict[Qubit, int],
                      distance_matrix: np.ndarray, hardware: IBMQHardwareArchitecture, maxlen: int = -1):
     cost = 0
-    for op in (front_layer.ops + gates)[:maxlen]:
+    sequence = dag_to_sequence(dag)
+    for op in sequence[:maxlen]:
         cost += _gate_op_cost(op, distance_matrix, current_mapping, hardware)
     return cost
 

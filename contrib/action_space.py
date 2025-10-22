@@ -8,6 +8,7 @@ import gymnasium as gym
 import numpy as np
 
 from qiskit.circuit import Qubit
+from qiskit.transpiler.passes import *
 
 from hamap import IBMQHardwareArchitecture
 from hamap.gates import TwoQubitGate, SwapTwoQubitGate, BridgeTwoQubitGate
@@ -52,6 +53,19 @@ def make_symmetric(pairs: set[tuple[int, int]]):
 
 class ActionSpaceEdge:
 
+    OPT_PASSES = [
+        CommutativeCancellation,
+        CommutativeInverseCancellation,
+        # ElidePermutations,
+        InverseCancellation,
+        Optimize1qGates,
+        Optimize1qGatesSimpleCommutation,
+        OptimizeSwapBeforeMeasure,
+        # RemoveDiagonalGatesBeforeMeasure,
+        # RemoveFinalReset,
+        RemoveIdentityEquivalent,
+    ]
+
     def __init__(self, hardware: IBMQHardwareArchitecture):
         self.N = hardware.qubit_number
         swap_set = set(hardware.edges)
@@ -61,6 +75,7 @@ class ActionSpaceEdge:
         check_symmetric(self.action_list)
         assert len(self.action_list) == len(swap_set) + len(bridge_set), \
             f'{len(swap_set)=} {len(bridge_set)=} {len(self.action_list)=}'
+        self.action_list += self.OPT_PASSES
         self.action_to_index = {act: i for i, act in enumerate(self.action_list)}
 
     def __repr__(self):
@@ -80,7 +95,10 @@ class ActionSpaceEdge:
     def decode(self, policy: int, initial_mapping,
                inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit],
                hardware: IBMQHardwareArchitecture):
-        left, right = self.action_list[policy]
+        action = self.action_list[policy]
+        if isinstance(action, type):
+            return action()
+        left, right = action
         swap_class = SWAP_INDEX if (left, right) in hardware.edges else BRIDGE_INDEX
         if swap_class == SWAP_INDEX:
             return SwapTwoQubitGate(inverse_current_mapping[left], inverse_current_mapping[right])
@@ -89,39 +107,9 @@ class ActionSpaceEdge:
         swap._middle = find_middle(swap, hardware, initial_mapping, inverse_mapping)
         return swap
 
-
-class ActionSpaceSelectQubitToSwap:
-    """
-    Select a physical qubit to swap with.
-    """
-
-    def __init__(self, hardware: IBMQHardwareArchitecture):
-        self.N = hardware.qubit_number
-
-    def get_space(self):
-        return gym.spaces.Discrete(self.N)
-
-
-class ActionSpaceEdgeWithMap(ActionSpaceEdge):
-    """
-    Select a physical qubit to swap with.
-    """
-
-    def __init__(self, hardware: IBMQHardwareArchitecture):
-        super().__init__(hardware)
-
-    def get_size(self):
-        return super().get_size() + self.N
-
-    def get_size_nomap(self):
-        return super().get_size()
-
-    def decode(self, policy: int, initial_mapping,
-               inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit],
-               hardware: IBMQHardwareArchitecture):
-        if 0 <= policy < self.N:
-            return int(policy)
-        return super().decode(policy - self.N, initial_mapping, inverse_mapping, inverse_mapping, hardware)
+    @property
+    def num_transformation(self):
+        return len(self.OPT_PASSES)
 
 
 if __name__ == '__main__':
