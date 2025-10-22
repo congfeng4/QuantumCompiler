@@ -74,7 +74,7 @@ class ActionSpaceEdge:
         check_symmetric(self.action_list)
         assert len(self.action_list) == len(swap_set) + len(bridge_set), \
             f'{len(swap_set)=} {len(bridge_set)=} {len(self.action_list)=}'
-        self.action_list += self.OPT_PASSES
+        self.action_list = self.OPT_PASSES + self.action_list
         self.action_to_index = {act: i for i, act in enumerate(self.action_list)}
 
     def __repr__(self):

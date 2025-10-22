@@ -1,3 +1,4 @@
+from collections import Counter, defaultdict
 from typing import Any, Optional, SupportsFloat
 
 import gymnasium as gym
@@ -79,7 +80,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.state_potential = None
         self.dag_circuit = circuit_to_dag(self.input_circuit)
         self.resulting_dag_quantum_circuit = _create_empty_dagcircuit_from_existing(self.dag_circuit)
-
+        self.action_stats = defaultdict(int)
         self.update()
         self.update_state_potential()
         return self._get_obs(), {}
@@ -104,23 +105,25 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         if new_dag_cnt < old_dag_cnt:
             print(f'Reduce op count by transform {action_pass} from {old_dag_cnt} to {new_dag_cnt}')
         self.dag_circuit = new_dag
-        print(f'Apply transform {action_pass}')
+        self.action_stats['t:' + action_pass.name()] += 1
         return None
 
     def finalize_result(self):
+        record = {}
         self.resulting_circuit = dag_to_circuit(self.resulting_dag_quantum_circuit)
-        self.metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
-        # self.metrics['bridge_num'] = self.bridge_num
-        # total_actions = self.bridge_num + self.metrics['swap_num']
-        # self.metrics['bridge_ratio'] = self.bridge_num / total_actions
-        # self.metrics['swap_ratio'] = self.metrics['swap_num'] / total_actions
-        self.metrics['in_cx_num'] = get_cnot_num(self.input_circuit)
-        self.metrics['out_cx_num'] = get_cnot_num(self.resulting_circuit)
-        self.metrics['in_depth'] = self.input_circuit.depth()
-        self.metrics['out_depth'] = self.resulting_circuit.depth()
+
+        metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
+        for key, value in metrics.items():
+            record['metric/' + key] = round(value, 2)
+
+        total = sum(self.action_stats.values()) # py39 has no total() in Counter
+        for key, value in self.action_stats.items():
+            record['action/' + key] = round(value / total, 2)
+
         for key, value in self.metrics_baseline.items():
-            self.metrics[key + '_diff'] = self.metrics[key] - value
-            # self.metrics[key + '_HA'] = value
+            record['diff/' + key] = metrics[key] - value
+
+        self.metrics = record
 
     def apply_swap_action(self, best_swap_qubits: TwoQubitGate):
         trans_mapping = self.trans_mapping
@@ -146,6 +149,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         if not best_swap_qubits.apply(self.resulting_dag_quantum_circuit, front_layer, self.initial_mapping,
                                       trans_mapping):
             return f'Cannot apply swap/bridge: {best_swap_qubits}'
+        self.action_stats['r:' + best_swap_qubits.__class__.__name__] += 1
         return None
 
     def update(self):
@@ -219,15 +223,15 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             return self._get_obs(), reward, done, False, info
 
         self.finalize_result()
-        reward += self.metrics['in_cx_num']  # Final bonus.
+        reward += get_cnot_num(self.input_circuit)
 
-        readable_metrics = readable_float_dict(self.metrics)
+        # readable_metrics = readable_float_dict(self.metrics)
         # print(f'Game ends {readable_metrics}')
         return self._get_obs(), reward, done, False, info
 
     def action_masks(self):
         masks = np.zeros(self.action.get_size(), dtype=bool)
-        masks[-self.action.num_transformation] = True  # Assume all transformations are valid.
+        masks[:self.action.num_transformation] = True  # Assume all transformations are valid.
         self.swap_masks(masks)
         self.bridge_masks(masks)
         return masks.tolist()

@@ -3,6 +3,7 @@
 至少需要用MaskablePPO，并且把Action Mask定义好。
 ☀️🌛🎉🖼🏊🏻🏓✈️🚗
 """
+from collections import defaultdict
 import os
 import random
 import time
@@ -44,10 +45,12 @@ def average_metrics(metrics_list):
     if not metrics_list:
         return {}
 
-    avg_metrics = {}
-    for key in metrics_list[0].keys():
-        avg_metrics[key] = sum(metric[key] for metric in metrics_list) / len(metrics_list)
+    avg_metrics = defaultdict(list)
+    for item in metrics_list:
+        for key, value in item.items():
+            avg_metrics[key].append(value)
 
+    avg_metrics = {key: sum(val) / len(val) for key, val in avg_metrics.items()}
     return avg_metrics
 
 
@@ -76,7 +79,7 @@ class MetricEvalCallback(BaseCallback):
             metrics, *_ = evaluate_policy_for_metrics(self.model, self.eval_env, self.use_masking)
 
             for key, value in metrics.items():
-                self.logger.record(f"metric/{key}", round(value, 2))
+                self.logger.record(key, round(value, 2))
 
         return True
 
