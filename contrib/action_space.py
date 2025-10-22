@@ -7,7 +7,7 @@ from typing import Optional
 import gymnasium as gym
 import numpy as np
 
-from qiskit.circuit.quantumregister import Qubit
+from qiskit.circuit import Qubit
 
 from hamap import IBMQHardwareArchitecture
 from hamap.gates import TwoQubitGate, SwapTwoQubitGate, BridgeTwoQubitGate
@@ -38,49 +38,6 @@ def two_qubit_gate_to_tuple(swap: TwoQubitGate, current_mapping: dict[Qubit, int
     else:
         q0, q1 = current_mapping[swap.left], current_mapping[swap.right]
         return SWAP_INDEX, q0, q1
-
-
-class ActionSpace:
-    # IMPORTANT: Swap and Bridge can share one NxN matrix since their qubits CANNOT conflict!
-
-    def __init__(self, N: int):
-        self.N = N
-
-    def get_space(self):
-        N = self.N
-        return gym.spaces.Discrete(N * N)
-
-    def get_size(self):
-        return self.N * self.N
-
-    def _encode(self, q0: int, q1: int):
-        return q0 * self.N + q1
-
-    def encode(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int],
-               hardware: IBMQHardwareArchitecture):
-        _, q0, q1 = two_qubit_gate_to_tuple(swap, current_mapping, initial_mapping)
-        if isinstance(swap, BridgeTwoQubitGate):
-            inverse_mapping = {val: key for key, val in initial_mapping.items()}
-            find_middle(swap, hardware, initial_mapping, inverse_mapping)  # Check this bridge is valid.
-        assert ((q0, q1) in hardware.edges) == isinstance(swap, SwapTwoQubitGate)
-        return self._encode(q0, q1)
-
-    def _decode(self, policy: int):
-        left = policy // self.N
-        right = policy % self.N
-        return left, right
-
-    def decode(self, policy: int, initial_mapping,
-               inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit],
-               hardware: IBMQHardwareArchitecture):
-        left, right = self._decode(policy)
-        swap_class = SWAP_INDEX if (left, right) in hardware.edges else BRIDGE_INDEX
-        if swap_class == SWAP_INDEX:
-            return SwapTwoQubitGate(inverse_current_mapping[left], inverse_current_mapping[right])
-
-        swap = BridgeTwoQubitGate(inverse_mapping[left], None, inverse_mapping[right])
-        swap._middle = find_middle(swap, hardware, initial_mapping, inverse_mapping)
-        return swap
 
 
 def check_symmetric(pairs: list[tuple[int, int]]):

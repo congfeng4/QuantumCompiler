@@ -22,10 +22,10 @@ except ImportError:
     pass
 
 from qiskit import QuantumCircuit
-from qiskit.circuit.quantumregister import Qubit
+from qiskit.circuit import Qubit
 from qiskit.converters.circuit_to_dag import circuit_to_dag
 from qiskit.converters.dag_to_circuit import dag_to_circuit
-from qiskit.dagcircuit.dagcircuit import DAGNode
+from qiskit.dagcircuit import DAGNode
 
 from contrib.common import qknob_metrics, TopologicalOrderMode, build_op_node_level
 from contrib.state_space import StateSpace

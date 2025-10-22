@@ -36,10 +36,8 @@ import typing as ty
 from pathlib import Path
 
 import networkx as nx
-from qiskit.circuit.quantumregister import Qubit
-from qiskit.dagcircuit.dagcircuit import DAGNode
-from qiskit.providers.fake_provider import GenericBackendV2
-from qiskit.providers.models import BackendConfiguration, GateConfig
+from qiskit.circuit import Qubit
+from qiskit.dagcircuit import DAGNode
 
 from hamap.hardware.HardwareArchitecture import HardwareArchitecture
 
@@ -149,7 +147,7 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
     @staticmethod
     def _get_backend_fake(backend_name: str):
         from qiskit.providers.fake_provider import FakeBackend
-        from qiskit.providers.models import BackendConfiguration
+        from qiskit.providers import BackendConfiguration
         from lib.graph_utils import graph_from_name
 
         graph = graph_from_name(backend_name)

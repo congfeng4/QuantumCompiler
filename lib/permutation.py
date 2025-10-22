@@ -38,7 +38,7 @@ class Permutation:
             "\n  ".join(str(edge) for edge in self.__perm)
         )
 
-    def __getitem__(self, key: Node | int) -> Node:
+    def __getitem__(self, key: Union[Node, int]) -> Node:
         if isinstance(key, int):
             key = Node(key)
         return self.dict()[key]

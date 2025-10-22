@@ -1,4 +1,4 @@
-from typing import Any, SupportsFloat
+from typing import Any, Optional, SupportsFloat
 
 import gymnasium as gym
 import numpy as np
@@ -287,8 +287,8 @@ class InitialMappingCircuitEnv(CircuitEnvWithInitialMapping):
     def reset(
             self,
             *,
-            seed: int | None = None,
-            options: dict[str, Any] | None = None,
+            seed: Optional[int] = None,
+            options = None,
     ) -> tuple[ObsType, dict[str, Any]]:
         self.qubit_index = 0
         self.bridge_num = 0

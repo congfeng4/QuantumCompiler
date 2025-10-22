@@ -7,25 +7,25 @@ from stable_baselines3.common.utils import get_device
 from torch import nn
 from enum import Enum
 
-from torch_geometric.nn import GraphSAGE
-from torch_geometric.utils import from_networkx
+# from torch_geometric.nn import GraphSAGE
+# from torch_geometric.utils import from_networkx
 from hamap.hardware import IBMQHardwareArchitecture
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-import torch_geometric as pyg
+# import torch_geometric as pyg
 
 from contrib.common import get_distance_matrix
 
 
-class DenseGNNType(Enum):
-    GCN_CONV = pyg.nn.DenseGCNConv
-    GRAPH_CONV = pyg.nn.DenseGraphConv
-    GIN_CONV = pyg.nn.DenseGINConv
-    GAT_CONV = pyg.nn.DenseGATConv
-    SAGE_CONV = pyg.nn.DenseSAGEConv
+# class DenseGNNType(Enum):
+#     GCN_CONV = pyg.nn.DenseGCNConv
+#     GRAPH_CONV = pyg.nn.DenseGraphConv
+#     GIN_CONV = pyg.nn.DenseGINConv
+#     GAT_CONV = pyg.nn.DenseGATConv
+#     SAGE_CONV = pyg.nn.DenseSAGEConv
 
-    @property
-    def name(self):
-        return self.value.__name__
+#     @property
+#     def name(self):
+#         return self.value.__name__
 
 
 class QubitEmbedding(nn.Module):
@@ -74,22 +74,6 @@ def inverse_permutation_batched(p: torch.Tensor) -> torch.Tensor:
     # 对每一行执行 scatter
     inv.scatter_(dim=1, index=p, src=torch.arange(N, device=p.device).repeat(B, 1))
     return inv
-
-
-class DenseGNNModule(nn.Module):
-
-    def __init__(self, in_channels, out_channels, hidden_channels,
-                 conv_mode: DenseGNNType = DenseGNNType.GCN_CONV):
-        super().__init__()
-        self.conv1 = conv_mode.value(in_channels, hidden_channels)
-        self.conv2 = conv_mode.value(hidden_channels, out_channels)
-
-    def forward(self, node_feat, adjacent_matrix):
-        x = self.conv1(node_feat, adjacent_matrix)
-        x = nn.functional.relu(x)
-        x = self.conv2(x, adjacent_matrix)
-        x = nn.functional.relu(x)
-        return x
 
 
 @enum.unique

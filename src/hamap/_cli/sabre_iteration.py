@@ -33,7 +33,7 @@ import typing as ty
 from pathlib import Path
 
 from qiskit import QuantumCircuit
-from qiskit.circuit.quantumregister import Qubit
+from qiskit.circuit import Qubit
 
 from hamap._circuit_manipulation import add_qubits_to_quantum_circuit
 from hamap.hardware.IBMQHardwareArchitecture import IBMQHardwareArchitecture

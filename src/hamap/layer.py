@@ -33,8 +33,8 @@
 import logging
 import typing as ty
 
-from qiskit.circuit.quantumregister import Qubit
-from qiskit.dagcircuit.dagcircuit import DAGCircuit, DAGNode
+from qiskit.circuit import Qubit
+from qiskit.dagcircuit import DAGCircuit, DAGNode
 
 logger = logging.getLogger("hamap.layer")
 

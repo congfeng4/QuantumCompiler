@@ -1,6 +1,6 @@
 import json
 from enum import IntEnum, Enum
-
+from typing import Union
 import numpy as np
 from qiskit.circuit import Qubit, QuantumCircuit
 from pathlib import Path
@@ -32,12 +32,12 @@ class Unit(IntEnum):
 get_distance_matrix = get_distance_matrix_swap_number_and_error
 
 
-def get_cnot_num(cirt: QuantumCircuit | DAGCircuit):
+def get_cnot_num(cirt: Union[QuantumCircuit, DAGCircuit]):
     count = cirt.count_ops()
     return count.get('cx', 0) + 3 * count.get('swap', 0)
 
 
-def get_circuit_depth(cirt: QuantumCircuit | DAGCircuit):
+def get_circuit_depth(cirt: Union[QuantumCircuit, DAGCircuit]):
     return cirt.depth()
 
 
@@ -49,7 +49,7 @@ def get_circuit_cost(front_layer: QuantumLayer, gates: list[DAGNode], current_ma
     return cost
 
 
-def qknob_metrics(in_cirt: QuantumCircuit, out_cirt: QuantumCircuit | DAGCircuit):
+def qknob_metrics(in_cirt: QuantumCircuit, out_cirt: Union[QuantumCircuit, DAGCircuit]):
     depth_ratio = out_cirt.depth() / in_cirt.depth()
     in_cx_num = get_cnot_num(in_cirt)
     out_cx_num = get_cnot_num(out_cirt)
@@ -105,26 +105,26 @@ def readable_float_dict(data: dict[str, float], places: int = 2):
     return {k: round(float(v), places) for k, v in data.items()}
 
 
-def write_json(out_file: Path | str, data):
+def write_json(out_file: Union[Path, str], data):
     if not isinstance(out_file, Path):
         out_file = Path(out_file)
     out_file.parent.mkdir(parents=True, exist_ok=True)
     out_file.write_text(json.dumps(data, indent=4, ensure_ascii=False), encoding='utf8')
 
 
-def read_json(in_file: Path | str):
+def read_json(in_file: Union[Path, str]):
     if not isinstance(in_file, Path):
         in_file = Path(in_file)
     return json.loads(in_file.read_text(encoding='utf8'))
 
 
-def read_circuit(in_file: Path | str):
+def read_circuit(in_file: Union[Path, str]):
     if not isinstance(in_file, str):
         in_file = str(in_file)
     return QuantumCircuit.from_qasm_file(in_file)
 
 
-def write_circuit(out_file: Path | str, qc: QuantumCircuit):
+def write_circuit(out_file: Union[Path, str], qc: QuantumCircuit):
     from qiskit.qasm3 import dumps
 
     if not isinstance(out_file, Path):

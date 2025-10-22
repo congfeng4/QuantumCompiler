@@ -10,6 +10,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Callable, Optional, Literal
 from pprint import pprint
+from typing import Union
 
 import gymnasium
 import jsons
@@ -153,15 +154,15 @@ def piecewise_linear(initial: float, plateau: float = 0.5, final: float = 1e-5):
 
 
 def run_maskable_ppo(
-        hardware: IBMQHardwareArchitecture | str,
-        circuit_path: Path | str | QuantumCircuit,
+        hardware: Union[IBMQHardwareArchitecture, str],
+        circuit_path: Union[Path, str, QuantumCircuit],
         batch_size: int = Unit.K,
         n_steps: int = 16 * Unit.K,
         eval_freq: int = 16 * Unit.K,
         embed_dim: int = 128,
         reward_shaping_weight: float = 10,
-        init_strategy: InitialMappingStrategy | dict[Qubit, int] = InitialMappingStrategy.SABRE,
-        seqlen: int | float = 16,
+        init_strategy: Union[InitialMappingStrategy, dict[Qubit, int]] = InitialMappingStrategy.SABRE,
+        seqlen: Union[int, float] = 16,
         num_epochs: int = 100,
         total_timesteps: int = 800 * Unit.K,
         output_dirname: str = None,
@@ -200,7 +201,7 @@ def run_maskable_ppo(
 
     output_dir = f'../result/{output_dirname}'
     if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
+        os.makedirs(output_dir)
 
     if not isinstance(hardware, IBMQHardwareArchitecture):
         hardware = IBMQHardwareArchitecture(hardware)
