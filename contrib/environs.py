@@ -221,7 +221,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         reward += self.metrics['in_cx_num']  # Final bonus.
 
         readable_metrics = readable_float_dict(self.metrics)
-        print(f'Game ends {readable_metrics}')
+        # print(f'Game ends {readable_metrics}')
         return self._get_obs(), reward, done, False, info
 
     def action_masks(self):
