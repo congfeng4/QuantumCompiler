@@ -185,6 +185,7 @@ def run_maskable_ppo(
         clip_range: float = 0.2,
         nhead: int = 4,
         num_layers: int = 8,
+        min_evals: int = 5,
         qubit_embed_mode: QubitEmbeddingMode = QubitEmbeddingMode.DISTANCE_MATRIX_MLP,
         pe_mode: PositionalEncodingMode = PositionalEncodingMode.LEVEL_PE,
         topological_order_mode: TopologicalOrderMode = TopologicalOrderMode.LEVEL_ORDER,
@@ -304,8 +305,10 @@ def run_maskable_ppo(
     eval_callback = MaskableEvalCallback(
         eval_env,
         eval_freq=eval_freq // num_envs,
-        callback_after_eval=StopTrainingOnNoModelImprovement(
-            max_no_improvement_evals=max_no_improvement_evals) if max_no_improvement_evals > 0 else None,
+        callback_on_new_best=StopTrainingOnNoModelImprovement(
+            max_no_improvement_evals=max_no_improvement_evals,
+            min_evals=min_evals,
+        ) if max_no_improvement_evals > 0 else None,
         verbose=1,
         deterministic=False,
         use_masking=use_masking,
@@ -336,7 +339,6 @@ def run_maskable_ppo(
     ) if pretrain is None else MaskablePPO.load(pretrain, env)
     ppo.tensorboard_log = log_dir
     print(f'Model loaded: {ppo}')
-
     learn_start = time.time()
     ppo.learn(
         total_timesteps=total_timesteps,
@@ -359,7 +361,7 @@ def run_maskable_ppo(
     env.close()
     eval_env.close()
 
-    return final_circuit, final_mapping
+    return final_circuit, final_mapping, metrics
 
 
 class CircuitDataset:

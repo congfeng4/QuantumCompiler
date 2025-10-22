@@ -15,28 +15,27 @@ if __name__ == '__main__':
 
     dataset = CircuitDataset('20Q_gate_Tokyo', sort=True)
 
-    for maxlen in range(50, 700, 50):
-        minlen = maxlen - 50
+    for path in dataset.circuit_paths:
+        *_, metrics = run_maskable_ppo(
+            init_strategy=InitialMappingStrategy.SABRE,
+            embed_dim=128,
+            hardware=dataset.hardware,
+            circuit_path=path,
+            seqlen=seqlen,
+            output_dirname=dataset.dataname,
+            reward_shaping_weight=10,
+            mode=mode,
+            save_result=True,
+            skip_existing=True,
+            total_timesteps=total_timesteps,
+            batch_size=batch_size,
+            eval_freq=eval_freq,
+            n_steps=n_steps,
+            num_envs=8,
+            nhead=4,
+            num_layers=8,
+            topological_order_mode=TopologicalOrderMode.LEVEL_ORDER,
+            pe_mode=PositionalEncodingMode.LEVEL_PE,
+            max_no_improvement_evals=4,
+        )
 
-        for path in dataset.sample(num_circuits, minlen, maxlen):
-            run_maskable_ppo(
-                init_strategy=InitialMappingStrategy.RANDOM,
-                embed_dim=128,
-                hardware='Tokyo',
-                circuit_path=path,
-                seqlen=seqlen,
-                output_dirname=f'20Q_depth_Tokyo_Level',
-                reward_shaping_weight=10,
-                mode=mode,
-                save_result=True,
-                skip_existing=False,
-                total_timesteps=total_timesteps,
-                batch_size=batch_size,
-                eval_freq=eval_freq,
-                n_steps=n_steps,
-                num_envs=16,
-                nhead=4,
-                num_layers=8,
-                topological_order_mode=TopologicalOrderMode.LEVEL_ORDER,
-                pe_mode=PositionalEncodingMode.LEVEL_PE,
-            )
