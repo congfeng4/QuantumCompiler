@@ -45,6 +45,7 @@ from qiskit.transpiler.passmanager_config import PassManagerConfig
 from qiskit.transpiler.preset_passmanagers import level_0_pass_manager
 from qiskit.transpiler import CouplingMap
 
+
 class IBMQSubmitter:
     def __init__(self, backend: IBMQBackend, tags=None):
         self._circuits = []
@@ -63,7 +64,7 @@ class IBMQSubmitter:
         return len(self._circuits)
 
     def unroll_and_map_circuit(
-        self, circuit: QuantumCircuit, mapping, backend
+            self, circuit: QuantumCircuit, mapping, backend
     ) -> QuantumCircuit:
         layout = Layout({q: i for q, i in zip(circuit.qubits, mapping)})
         pm = PassManager(

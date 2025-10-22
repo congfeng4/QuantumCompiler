@@ -42,7 +42,7 @@ StateType = ty.NewType("StateType", ty.Any)
 
 
 def _accept_neighbour(
-    neighbour_cost: float, current_cost: float, temperature: float
+        neighbour_cost: float, current_cost: float, temperature: float
 ) -> bool:
     try:
         p = exp(-(neighbour_cost - current_cost) / temperature)
@@ -52,14 +52,14 @@ def _accept_neighbour(
 
 
 def simulated_annealing(
-    initial_state: StateType,
-    cost_function: ty.Callable[[StateType], float],
-    get_neighbour: ty.Callable[[StateType], StateType],
-    initial_temperature: float,
-    max_iterations: int,
-    schedule_function: ty.Callable[[float], float],
-    atol: float = 0.0,
-    stop_temperature: float = 1e-6,
+        initial_state: StateType,
+        cost_function: ty.Callable[[StateType], float],
+        get_neighbour: ty.Callable[[StateType], StateType],
+        initial_temperature: float,
+        max_iterations: int,
+        schedule_function: ty.Callable[[float], float],
+        atol: float = 0.0,
+        stop_temperature: float = 1e-6,
 ) -> ty.Tuple[StateType, float, int]:
     """Optimise using simulated annealing procedure.
 

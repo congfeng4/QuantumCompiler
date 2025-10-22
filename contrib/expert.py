@@ -275,8 +275,9 @@ def heuristic_algorithm(
             # Add action
             if collector:
                 collector.add_action(best_swap_qubits, current_mapping, initial_mapping)
-                collector.add_reward(get_circuit_cost(front_layer, topological_nodes[current_node_index:], current_mapping,
-                                                  distance_matrix, hardware))
+                collector.add_reward(
+                    get_circuit_cost(front_layer, topological_nodes[current_node_index:], current_mapping,
+                                     distance_matrix, hardware))
 
             # We now have our best SWAP/Bridge, let's perform it!
             current_mapping = best_swap_qubits.update_mapping(current_mapping)

@@ -52,7 +52,6 @@ def make_symmetric(pairs: set[tuple[int, int]]):
 
 
 class ActionSpaceEdge:
-
     OPT_PASSES = [
         CommutativeCancellation,
         CommutativeInverseCancellation,

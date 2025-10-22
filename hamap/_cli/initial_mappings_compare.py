@@ -102,8 +102,8 @@ def print_statistics(result_type: str, results, timings):
         f"\t\tMedian: {numpy.median(results)}\n"
         f"\t\tBest: {numpy.min(results)}\n"
         f"\t\tWorst: {numpy.max(results)}\n"
-        f"\t\t25-50-75 percentiles: {numpy.percentile(results, [25,50,75])}\n"
-        f"\t\t25-50-75 percentiles timing: {numpy.percentile(timings, [25,50,75])}"
+        f"\t\t25-50-75 percentiles: {numpy.percentile(results, [25, 50, 75])}\n"
+        f"\t\t25-50-75 percentiles timing: {numpy.percentile(timings, [25, 50, 75])}"
     )
 
 
@@ -112,10 +112,10 @@ def cost_function(mapping, circuit: QuantumCircuit, hardware: IBMQHardwareArchit
     count = mapped_circuit.count_ops()
     assert ("cx" in count) != ("cnot" in count)
     return (
-        3 * count.get("swap", 0)
-        + count.get("cx", 0)
-        + count.get("cnot", 0)
-        + 4 * count.get("bridge", 0)
+            3 * count.get("swap", 0)
+            + count.get("cx", 0)
+            + count.get("cnot", 0)
+            + 4 * count.get("bridge", 0)
     )
 
 
@@ -177,7 +177,7 @@ def main():
         "N",
         type=int,
         help="Number of allowed call to the mapping procedure. Should be strictly "
-        "over 1 (i.e. 2 or more).",
+             "over 1 (i.e. 2 or more).",
     )
     parser.add_argument("M", type=int, help="Number of repetitions for statistics.")
     parser.add_argument(
@@ -251,6 +251,6 @@ def main():
 
     print(f"Saving to results-{N}-{Nstep}-{M}-{args.circuit_name}-{args.hardware}.pkl")
     with open(
-        f"results-{N}-{Nstep}-{M}-{args.circuit_name}-{args.hardware}.pkl", "wb"
+            f"results-{N}-{Nstep}-{M}-{args.circuit_name}-{args.hardware}.pkl", "wb"
     ) as f:
         pickle.dump(results, f)

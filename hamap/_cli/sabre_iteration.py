@@ -53,18 +53,18 @@ def read_benchmark_circuit(category: str, name: str) -> QuantumCircuit:
 
 
 def mapping_algorithm(
-    quantum_circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
-    mapping: ty.Dict[Qubit, int],
+        quantum_circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
+        mapping: ty.Dict[Qubit, int],
 ):
     return ha_mapping(quantum_circuit, mapping, hardware)
 
 
 def test_iterated_sabre(
-    quantum_circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
-    iteration_number: int,
-    initial_mapping: ty.Optional[ty.Dict[Qubit, int]] = None,
+        quantum_circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
+        iteration_number: int,
+        initial_mapping: ty.Optional[ty.Dict[Qubit, int]] = None,
 ) -> int:
     quantum_circuit = add_qubits_to_quantum_circuit(quantum_circuit, hardware)
     circuit, mapping = initial_mapping_from_iterative_forward_backward(

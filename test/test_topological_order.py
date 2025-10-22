@@ -39,4 +39,5 @@ def test_topological_order(data: str):
         # Make sure this level sequence is sorted.
         assert sorted(node_levels) == node_levels, f'{node_levels=} is not sorted!!'
         assert len(level_memo) == len(topological_op_nodes), f'{len(level_memo)=} vs {len(topological_op_nodes)=}'
-        assert all(op._node_id in level_memo for op in topological_op_nodes), f'{level_memo=} does not contain all op nodes!'
+        assert all(
+            op._node_id in level_memo for op in topological_op_nodes), f'{level_memo=} does not contain all op nodes!'

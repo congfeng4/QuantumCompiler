@@ -50,7 +50,6 @@ def cnot_execution_time_function(vertex, hardware):
 
 
 class IBMQHardwareArchitecture(HardwareArchitecture):
-
     _hardware_directory: Path = Path(
         __file__
     ).parent.parent.parent.parent / "architectures_saved_data"
@@ -125,9 +124,9 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
                 hub="ibm-q-france", group="univ-montpellier", project="default"
             )
         except (
-            IBMQAccountMultipleCredentialsFound,
-            IBMQAccountCredentialsNotFound,
-            IBMQAccountCredentialsInvalidUrl,
+                IBMQAccountMultipleCredentialsFound,
+                IBMQAccountCredentialsNotFound,
+                IBMQAccountCredentialsInvalidUrl,
         ):
             logger.error(
                 "WARNING: No valid IBMQ credentials found on disk.\n"
@@ -162,13 +161,13 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
         return backend
 
     def __init__(
-        self,
-        backend_name: str,
-        weight_func: ty.Callable[
-            [ty.Tuple[int, int], nx.classes.reportviews.OutEdgeView], float
-        ] = None,
-        incoming_graph_data=None,
-        **kwargs,
+            self,
+            backend_name: str,
+            weight_func: ty.Callable[
+                [ty.Tuple[int, int], nx.classes.reportviews.OutEdgeView], float
+            ] = None,
+            incoming_graph_data=None,
+            **kwargs,
     ):
         """The architecture of any IBMQ hardware.
 
@@ -295,7 +294,7 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
         return op.name in self._ignored_gates
 
     def can_natively_execute_operation(
-        self, op: DAGNode, mapping: ty.Dict[Qubit, int],
+            self, op: DAGNode, mapping: ty.Dict[Qubit, int],
     ) -> bool:
         if self.is_ignored_operation(op):
             return True
@@ -317,7 +316,7 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
 
     def save(self, hardware_name: str):
         filepath = (
-            IBMQHardwareArchitecture._hardware_directory / f"{hardware_name}.archdata"
+                IBMQHardwareArchitecture._hardware_directory / f"{hardware_name}.archdata"
         )
         with open(str(filepath), "wb") as f:
             logger.info(f"Saving IBMQHardwareArchitecture instance in '{filepath}'.")
@@ -326,7 +325,7 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
     @staticmethod
     def load(hardware_name: str) -> "IBMQHardwareArchitecture":
         filepath = (
-            IBMQHardwareArchitecture._hardware_directory / f"{hardware_name}.archdata"
+                IBMQHardwareArchitecture._hardware_directory / f"{hardware_name}.archdata"
         )
         with open(str(filepath), "rb") as f:
             logger.info(f"Loading IBMQHardwareArchitecture instance from '{filepath}'.")

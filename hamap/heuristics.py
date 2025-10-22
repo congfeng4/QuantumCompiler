@@ -45,10 +45,10 @@ logger = logging.getLogger("hamap.heuristics")
 
 
 def _gate_op_cost(
-    op: DAGNode,
-    distance_matrix: numpy.ndarray,
-    mapping: ty.Dict[Qubit, int],
-    hardware: IBMQHardwareArchitecture,
+        op: DAGNode,
+        distance_matrix: numpy.ndarray,
+        mapping: ty.Dict[Qubit, int],
+        hardware: IBMQHardwareArchitecture,
 ) -> float:
     if hardware.is_ignored_operation(op):
         return 0
@@ -68,17 +68,17 @@ def _gate_op_cost(
 
 
 def sabre_heuristic(
-    hardware: IBMQHardwareArchitecture,
-    front_layer: QuantumLayer,
-    topological_nodes: ty.List[DAGNode],
-    current_node_index: int,
-    current_mapping: ty.Dict[Qubit, int],
-    initial_mapping: ty.Dict[Qubit, int],
-    trans_mapping: ty.Dict[Qubit, int],
-    distance_matrix: numpy.ndarray,
-    tentative_gate: TwoQubitGate,
-    look_ahead_depth: int = 20,
-    look_ahead_weight: float = 0.5,
+        hardware: IBMQHardwareArchitecture,
+        front_layer: QuantumLayer,
+        topological_nodes: ty.List[DAGNode],
+        current_node_index: int,
+        current_mapping: ty.Dict[Qubit, int],
+        initial_mapping: ty.Dict[Qubit, int],
+        trans_mapping: ty.Dict[Qubit, int],
+        distance_matrix: numpy.ndarray,
+        tentative_gate: TwoQubitGate,
+        look_ahead_depth: int = 20,
+        look_ahead_weight: float = 0.5,
 ) -> float:
     """The heuristic cost function used in the SABRE optimiser.
 
@@ -117,7 +117,7 @@ def sabre_heuristic(
         # Only add the gate to the cost if the gate is not already implemented by the
         # SWAP/Bridge
         if not tentative_gate.implements_operation(op, initial_mapping, trans_mapping):
-        #if isinstance(tentative_gate, SwapTwoQubitGate):
+            # if isinstance(tentative_gate, SwapTwoQubitGate):
             H_basic += _gate_op_cost(op, distance_matrix, new_mapping, hardware)
             H_basic_gate_number += 1
     # Compute H, the cost cost that encourage parallelism and adds some look-ahead
@@ -130,8 +130,7 @@ def sabre_heuristic(
         H_tentative += tentative_gate.cost(hardware, initial_mapping, distance_matrix)
         H_tentative_gate_number += 4
 
-
-    #H = 0.0
+    # H = 0.0
     future_nodes_layer = QuantumLayer(max_depth=look_ahead_depth)
     # We do not use the return of update_layer because we do not care about the
     # number of gates that were added. Still, we add the firsts look_ahead_depth layers
@@ -140,39 +139,39 @@ def sabre_heuristic(
     # The decay is not implemented in the code the authors gave us and not
     # sufficiently explained in the paper to implement it without guessing. Not
     # implementing it for the moment...
-    #H += (H_basic / H_basic_gate_number) if H_basic_gate_number != 0 else 0
+    # H += (H_basic / H_basic_gate_number) if H_basic_gate_number != 0 else 0
     H = (H_basic + H_tentative) / (H_basic_gate_number + H_tentative_gate_number)
-    #print(type(tentative_gate), tentative_gate.left, tentative_gate.right, H, H_basic, H_basic_gate_number)
-    #print(front_layer.ops[0].qargs)
+    # print(type(tentative_gate), tentative_gate.left, tentative_gate.right, H, H_basic, H_basic_gate_number)
+    # print(front_layer.ops[0].qargs)
     H_extended = 0.0
     if future_nodes_layer:
         # Only add this cost if there are nodes in the future_node_layer
         H_extended += (
-            look_ahead_weight
-            * sum(
-                _gate_op_cost(op, distance_matrix, new_mapping, hardware)
-                for op in future_nodes_layer.ops
-            )
-            / len(future_nodes_layer)
+                look_ahead_weight
+                * sum(
+            _gate_op_cost(op, distance_matrix, new_mapping, hardware)
+            for op in future_nodes_layer.ops
+        )
+                / len(future_nodes_layer)
         )
 
     H += H_extended
-    #print(f"H extended {H_extended} and final H is {H}, gate number {len(future_nodes_layer)}")
+    # print(f"H extended {H_extended} and final H is {H}, gate number {len(future_nodes_layer)}")
     return H
 
 
 def sabre_heuristic_with_effect(
-    hardware: IBMQHardwareArchitecture,
-    front_layer: QuantumLayer,
-    topological_nodes: ty.List[DAGNode],
-    current_node_index: int,
-    current_mapping: ty.Dict[Qubit, int],
-    initial_mapping: ty.Dict[Qubit, int],
-    trans_mapping: ty.Dict[Qubit, int],
-    distance_matrix: numpy.ndarray,
-    tentative_gate: SwapTwoQubitGate,
-    look_ahead_depth: int = 20,
-    look_ahead_weight: float = 0.5,
+        hardware: IBMQHardwareArchitecture,
+        front_layer: QuantumLayer,
+        topological_nodes: ty.List[DAGNode],
+        current_node_index: int,
+        current_mapping: ty.Dict[Qubit, int],
+        initial_mapping: ty.Dict[Qubit, int],
+        trans_mapping: ty.Dict[Qubit, int],
+        distance_matrix: numpy.ndarray,
+        tentative_gate: SwapTwoQubitGate,
+        look_ahead_depth: int = 20,
+        look_ahead_weight: float = 0.5,
 ) -> ty.Tuple[float, float]:
     """The heuristic cost function used by SABRE, modified to return the effect.
 
@@ -217,7 +216,7 @@ def sabre_heuristic_with_effect(
             H_basic_gate_number += 1
     # Compute H, the cost cost that encourage parallelism and adds some look-ahead
     # ability.
-    #H = tentative_gate.cost(hardware, current_mapping)
+    # H = tentative_gate.cost(hardware, current_mapping)
     H = 0.0
     future_nodes_layer = QuantumLayer(max_depth=look_ahead_depth)
     # We do not use the return of update_layer because we do not care about the
@@ -232,12 +231,12 @@ def sabre_heuristic_with_effect(
     if future_nodes_layer:
         # Only add this cost if there are nodes in the future_node_layer
         H += (
-            look_ahead_weight
-            * sum(
-                _gate_op_cost(op, distance_matrix, new_mapping, hardware)
-                for op in future_nodes_layer.ops
-            )
-            / len(future_nodes_layer)
+                look_ahead_weight
+                * sum(
+            _gate_op_cost(op, distance_matrix, new_mapping, hardware)
+            for op in future_nodes_layer.ops
+        )
+                / len(future_nodes_layer)
         )
         swap_effect += sum(
             _gate_op_cost(op, distance_matrix, current_mapping, hardware)
@@ -245,4 +244,3 @@ def sabre_heuristic_with_effect(
             for op in future_nodes_layer.ops
         )
     return H, swap_effect
-

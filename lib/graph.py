@@ -3,6 +3,7 @@ import random as rd
 
 from rustworkx import PyGraph
 from typing import Iterator, Optional, TypeVar, Sequence, Union
+
 Self = TypeVar("Self")
 
 from .graph_data import Edge, Node
@@ -15,8 +16,8 @@ class Graph:
     """
     __pygraph: PyGraph
     __name: str
-    __i2n: dict[int, Node] # index-to-node map
-    __n2i: dict[Node, int] # node-to-index map
+    __i2n: dict[int, Node]  # index-to-node map
+    __n2i: dict[Node, int]  # node-to-index map
 
     def __init__(self, pygraph: PyGraph, name: str = "graph"):
 
@@ -50,7 +51,7 @@ class Graph:
             for src, dst in edges
         ]
         # Construct graph
-        pygraph = PyGraph(multigraph = False)
+        pygraph = PyGraph(multigraph=False)
         pygraph.add_nodes_from(new_nodes)
         n2i = {pygraph[index]: index for index in pygraph.node_indices()}
         pygraph.add_edges_from([(n2i[src], n2i[dst], Edge(src, dst)) for src, dst in new_edges])
@@ -67,7 +68,7 @@ class Graph:
         return "Graph(\n" + \
             f"  nodes: {self.nodes}\n" + \
             f"  edges: {self.edges}\n" + \
-        ")"
+            ")"
 
     @property
     def name(self) -> str:
@@ -175,7 +176,7 @@ class Graph:
         if include_all:
             nodes += rd.sample(self.nodes, self.num_nodes)
             num_nodes -= self.num_nodes
-        nodes += rd.choices(self.nodes, k = num_nodes)
+        nodes += rd.choices(self.nodes, k=num_nodes)
 
         return nodes
 
@@ -198,7 +199,7 @@ class Graph:
         if include_all:
             edges += rd.sample(self.edges, self.num_edges)
             num_edges -= self.num_edges
-        edges += rd.choices(self.edges, k = num_edges)
+        edges += rd.choices(self.edges, k=num_edges)
 
         return edges
 
@@ -286,7 +287,7 @@ class Graph:
 if __name__ == "__main__":
 
     graph1 = Graph.from_edges(
-        rd.sample(list(it.combinations(range(10), 2)), k = 10)
+        rd.sample(list(it.combinations(range(10), 2)), k=10)
     )
     # Test permute
     src, dst = Node(0), Node(5)

@@ -1,4 +1,5 @@
 from typing import Iterator, Optional, TypeVar
+
 Self = TypeVar("Self")
 from .graph import Graph
 from .permutation import Permutation
@@ -13,10 +14,10 @@ class Glink:
     __next: Self
 
     def __init__(
-        self,
-        graph: Graph,
-        perm: Permutation,
-        next: Optional[Self] = None
+            self,
+            graph: Graph,
+            perm: Permutation,
+            next: Optional[Self] = None
     ):
         self.__graph = graph
         self.__perm = perm

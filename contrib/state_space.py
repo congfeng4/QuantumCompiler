@@ -62,7 +62,7 @@ class StateSpace:
         # Resort according to node levels.
         gate_levels = build_op_node_level(dag, topological_nodes, sort_by_level=True)
 
-        front_layer = QuantumLayer() # Obtain the front layer, ensuring they are in the sequence front.
+        front_layer = QuantumLayer()  # Obtain the front layer, ensuring they are in the sequence front.
         current_node_index = update_layer(
             front_layer, topological_nodes, 0,
         )

@@ -43,7 +43,7 @@ def _get_swap_number(*_) -> float:
 
 
 def get_distance_matrix_swap_number(
-    hardware: IBMQHardwareArchitecture,
+        hardware: IBMQHardwareArchitecture,
 ) -> numpy.ndarray:
     hardware.weight_function = _get_swap_number
     return nx.floyd_warshall_numpy(hardware)
@@ -57,7 +57,7 @@ def _get_swap_execution_time_cost(node, hardware: IBMQHardwareArchitecture) -> f
 
 
 def get_distance_matrix_execution_time_cost(
-    hardware: IBMQHardwareArchitecture,
+        hardware: IBMQHardwareArchitecture,
 ) -> numpy.ndarray:
     hardware.weight_function = _get_swap_execution_time_cost
     return nx.floyd_warshall_numpy(hardware)
@@ -78,11 +78,11 @@ def get_distance_matrix_error_cost(hardware: IBMQHardwareArchitecture) -> numpy.
 
 
 def _get_mixed_cost(
-    node,
-    hardware: IBMQHardwareArchitecture,
-    swap_weight: float,
-    execution_time_weight: float,
-    error_weight: float,
+        node,
+        hardware: IBMQHardwareArchitecture,
+        swap_weight: float,
+        execution_time_weight: float,
+        error_weight: float,
 ) -> float:
     swap_cost = swap_weight * _get_swap_number(node, hardware)
     execution_time_cost = execution_time_weight * _get_swap_execution_time_cost(
@@ -90,15 +90,15 @@ def _get_mixed_cost(
     )
     error_cost = error_weight * _get_swap_error_cost(node, hardware)
     return (swap_cost + execution_time_cost + error_cost) / (
-        swap_weight + execution_time_weight + error_weight
+            swap_weight + execution_time_weight + error_weight
     )
 
 
 def get_distance_matrix_mixed(
-    hardware: IBMQHardwareArchitecture,
-    swap_weight: float,
-    execution_time_weight: float,
-    error_weight: float,
+        hardware: IBMQHardwareArchitecture,
+        swap_weight: float,
+        execution_time_weight: float,
+        error_weight: float,
 ) -> numpy.ndarray:
     if swap_weight < 0 or execution_time_weight < 0 or error_weight < 0:
         raise RuntimeError("All the weight should be positive.")
@@ -128,7 +128,8 @@ def get_distance_matrix_mixed(
             swap_weight + execution_time_weight + error_weight
     )
 
+
 def get_distance_matrix_swap_number_and_error(
-    hardware: IBMQHardwareArchitecture,
+        hardware: IBMQHardwareArchitecture,
 ) -> numpy.ndarray:
     return get_distance_matrix_mixed(hardware, 0.5, 0, 0.5)

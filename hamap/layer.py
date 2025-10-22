@@ -47,8 +47,8 @@ class QuantumLayer:
 
     def is_qubit_busy(self, qubit: Qubit) -> bool:
         return (
-            qubit in self._operations_dict
-            and len(self._operations_dict[qubit]) >= self._max_depth
+                qubit in self._operations_dict
+                and len(self._operations_dict[qubit]) >= self._max_depth
         )
 
     def is_operation_addable(self, op: DAGNode) -> bool:
@@ -89,10 +89,10 @@ class QuantumLayer:
         return len(self._operations) == 0
 
     def apply_back_to_dag_circuit(
-        self,
-        dag_circuit: DAGCircuit,
-        initial_mapping: ty.Dict[Qubit, int],
-        trans_mapping: ty.Dict[Qubit, int],
+            self,
+            dag_circuit: DAGCircuit,
+            initial_mapping: ty.Dict[Qubit, int],
+            trans_mapping: ty.Dict[Qubit, int],
     ):
         reversed_trans_mapping = {val: key for key, val in trans_mapping.items()}
         for op in self._operations:
@@ -100,7 +100,7 @@ class QuantumLayer:
             new_physical_qubits = [
                 reversed_trans_mapping[qubit_index] for qubit_index in logical_qubits
             ]
-            #print(new_physical_qubits)
+            # print(new_physical_qubits)
             dag_circuit.apply_operation_back(
                 op.op, new_physical_qubits, op.cargs,
             )
@@ -213,9 +213,9 @@ class QuantumLayer:
 
 
 def update_layer(
-    layer: QuantumLayer,
-    topological_order_nodes: ty.List[DAGNode],
-    current_node_index: int,
+        layer: QuantumLayer,
+        topological_order_nodes: ty.List[DAGNode],
+        current_node_index: int,
 ) -> int:
     """Updates the given layer with new operations if possible and returns it.
 

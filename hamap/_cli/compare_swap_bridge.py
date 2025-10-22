@@ -63,9 +63,9 @@ def read_benchmark_circuit(category: str, name: str) -> QuantumCircuit:
 
 
 def using_only_swap_strategy(
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
-    mapping: ty.Dict[Qubit, int],
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
+        mapping: ty.Dict[Qubit, int],
 ):
     start = now()
     modified_circuit, _ = ha_mapping(
@@ -89,9 +89,9 @@ def using_only_swap_strategy_tup(tup):
 
 
 def using_swap_and_bridge_strategy(
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
-    mapping: ty.Dict[Qubit, int],
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
+        mapping: ty.Dict[Qubit, int],
 ):
     start = now()
     modified_circuit, _ = ha_mapping(
@@ -104,9 +104,9 @@ def using_swap_and_bridge_strategy(
     )
     duration = now() - start
     cnot_count = (
-        3 * modified_circuit.count_ops().get("swap", 0)
-        + 4 * modified_circuit.count_ops().get("bridge", 0)
-        + modified_circuit.count_ops().get("cx", 0)
+            3 * modified_circuit.count_ops().get("swap", 0)
+            + 4 * modified_circuit.count_ops().get("bridge", 0)
+            + modified_circuit.count_ops().get("cx", 0)
     )
     # print(modified_circuit.draw("text"))
     return cnot_count, duration
@@ -123,8 +123,8 @@ def print_statistics(result_type: str, results, timings):
         f"\tMedian: {numpy.median(results)}\n"
         f"\tBest: {numpy.min(results)}\n"
         f"\tWorst: {numpy.max(results)}\n"
-        f"\t25-50-75 percentiles: {numpy.percentile(results, [25,50,75])}\n"
-        f"\t25-50-75 percentiles timing: {numpy.percentile(timings, [25,50,75])}"
+        f"\t25-50-75 percentiles: {numpy.percentile(results, [25, 50, 75])}\n"
+        f"\t25-50-75 percentiles timing: {numpy.percentile(timings, [25, 50, 75])}"
     )
 
 
@@ -145,7 +145,7 @@ def main():
         "N",
         type=int,
         help="Number of initial mapping that will be explored. Should be strictly "
-        "over 1 (i.e. 2 or more).",
+             "over 1 (i.e. 2 or more).",
     )
     parser.add_argument(
         "circuit_name", type=str, help="Name of the quantum circuit to map."
@@ -166,8 +166,8 @@ def main():
         {
             qubit: i
             for qubit, i in zip(
-                circuit.qubits, permutation(range(hardware.qubit_number))
-            )
+            circuit.qubits, permutation(range(hardware.qubit_number))
+        )
         }
         for _ in range(N)
     ]

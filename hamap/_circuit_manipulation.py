@@ -36,7 +36,7 @@ from hamap.hardware.IBMQHardwareArchitecture import IBMQHardwareArchitecture
 
 
 def add_qubits_to_quantum_circuit(
-    quantum_circuit: QuantumCircuit, hardware: IBMQHardwareArchitecture
+        quantum_circuit: QuantumCircuit, hardware: IBMQHardwareArchitecture
 ) -> QuantumCircuit:
     if hardware.qubit_number > len(quantum_circuit.qubits):
         additional_qregs = QuantumRegister(

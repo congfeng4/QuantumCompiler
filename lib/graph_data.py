@@ -1,10 +1,13 @@
 from typing import Iterator, Optional, TypeVar
+
 Self = TypeVar("Self")
+
 
 class Node:
     """
     Wrapper class representing a node.
     """
+
     def __init__(self, val: Optional[int]):
         if isinstance(val, Node):
             raise ValueError("data is already of type Node")
@@ -49,6 +52,7 @@ class Edge:
     """
     Wrapper class representing an undirected edge.
     """
+
     def __init__(self, src: Node, dst: Node):
         if isinstance(src, int) or isinstance(dst, int):
             raise ValueError("src and dst needs to be of type Node")

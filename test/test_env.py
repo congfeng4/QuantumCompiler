@@ -11,7 +11,6 @@ from contrib.expert import TrajectoryCollector, heuristic_algorithm, rollout_exp
 
 from hamap import IBMQHardwareArchitecture
 
-
 ALL_QKNOB_CIRCUIT_PATHS = get_all_qknob_circuit_paths()
 
 

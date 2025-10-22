@@ -45,7 +45,7 @@ setup(
     install_requires=[
         "numpy",
         "qiskit-terra",
-       # "qiskit-ibmq-provider",
+        # "qiskit-ibmq-provider",
         "networkx",
     ],  # Optional
     entry_points={

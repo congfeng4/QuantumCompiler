@@ -75,10 +75,10 @@ def read_benchmark_circuit(category: str, name: str) -> QuantumCircuit:
 
 
 def random_strategy_results(
-    allowed_calls_to_mapping: int,
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
-    allowed_calls_to_mapping_checkpoints: ty.List[int],
+        allowed_calls_to_mapping: int,
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
+        allowed_calls_to_mapping_checkpoints: ty.List[int],
 ):
     _seed_random()
     best_random_cnot_number = float("inf")
@@ -104,16 +104,16 @@ def random_strategy_results(
 
 
 def wrap_iterative_mapping_algorithm(
-    quantum_circuit: QuantumCircuit, hardware: IBMQHardwareArchitecture, mapping,
+        quantum_circuit: QuantumCircuit, hardware: IBMQHardwareArchitecture, mapping,
 ):
     return ha_mapping(quantum_circuit, mapping, hardware)
 
 
 def sabre_strategy_results(
-    allowed_calls_to_mapping: int,
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
-    allowed_calls_to_mapping_checkpoints: ty.List[int],
+        allowed_calls_to_mapping: int,
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
+        allowed_calls_to_mapping_checkpoints: ty.List[int],
 ):
     _seed_random()
     best_random_cnot_number = float("inf")
@@ -130,8 +130,8 @@ def sabre_strategy_results(
             best_random_cnot_number, 3 * op_count.get("swap", 0) + op_count.get("cx", 0)
         )
         if (
-            2 * (i + 1) in allowed_calls_to_mapping_checkpoints
-            or 2 * i + 1 in allowed_calls_to_mapping_checkpoints
+                2 * (i + 1) in allowed_calls_to_mapping_checkpoints
+                or 2 * i + 1 in allowed_calls_to_mapping_checkpoints
         ):
             cnots.append(best_random_cnot_number)
             times.append(now() - start)
@@ -144,9 +144,9 @@ def get_mapping_cost(mapping, quantum_circuit, hardware) -> float:
 
 
 def annealing_strategy_results(
-    allowed_calls_to_mapping: int,
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
+        allowed_calls_to_mapping: int,
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
 ):
     _seed_random()
     start = now()
@@ -164,9 +164,9 @@ def annealing_strategy_results(
 
 
 def annealing_sabre_strategy_results(
-    allowed_calls_to_mapping: int,
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
+        allowed_calls_to_mapping: int,
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
 ):
     _seed_random()
     start = now()
@@ -191,25 +191,25 @@ def annealing_sabre_strategy_results(
 
 
 def forward_backward_strategy_results(
-    allowed_calls_to_mapping: int,
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
+        allowed_calls_to_mapping: int,
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
 ):
     _seed_random()
     start = now()
     mapping_procedure_calls = 0
     best_cnot_number = float("inf")
     while (
-        # We want to have at least 2 allowed calls to the mapping procedure.
-        allowed_calls_to_mapping - mapping_procedure_calls > 1
-        and best_cnot_number > 0
+            # We want to have at least 2 allowed calls to the mapping procedure.
+            allowed_calls_to_mapping - mapping_procedure_calls > 1
+            and best_cnot_number > 0
     ):
         mapping, nbcalls = initial_mapping_from_iterative_forward_backward(
             circuit,
             hardware,
             wrap_iterative_mapping_algorithm,
             maximum_mapping_procedure_calls=(
-                allowed_calls_to_mapping - mapping_procedure_calls
+                    allowed_calls_to_mapping - mapping_procedure_calls
             ),
         )
         mapping_procedure_calls += nbcalls
@@ -222,9 +222,9 @@ def forward_backward_strategy_results(
 
 
 def forward_backward_annealing_strategy_results(
-    allowed_calls_to_mapping: int,
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
+        allowed_calls_to_mapping: int,
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
 ):
     _seed_random()
     start = now()
@@ -251,9 +251,9 @@ def forward_backward_annealing_strategy_results(
 
 
 def forward_backward_neighbour_strategy_results(
-    allowed_calls_to_mapping: int,
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
+        allowed_calls_to_mapping: int,
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
 ):
     _seed_random()
     start = now()
@@ -331,8 +331,8 @@ def print_statistics(result_type: str, results, timings):
         f"\t\tMedian: {numpy.median(results)}\n"
         f"\t\tBest: {numpy.min(results)}\n"
         f"\t\tWorst: {numpy.max(results)}\n"
-        f"\t\t25-50-75 percentiles: {numpy.percentile(results, [25,50,75])}\n"
-        f"\t\t25-50-75 percentiles timing: {numpy.percentile(timings, [25,50,75])}"
+        f"\t\t25-50-75 percentiles: {numpy.percentile(results, [25, 50, 75])}\n"
+        f"\t\t25-50-75 percentiles timing: {numpy.percentile(timings, [25, 50, 75])}"
     )
 
 
@@ -343,7 +343,7 @@ def main():
         "N",
         type=int,
         help="Number of allowed call to the mapping procedure. Should be strictly "
-        "over 1 (i.e. 2 or more).",
+             "over 1 (i.e. 2 or more).",
     )
     parser.add_argument("M", type=int, help="Number of repetitions for statistics.")
     parser.add_argument(
@@ -472,6 +472,6 @@ def main():
             }
 
     with open(
-        f"results-{N}-{Nstep}-{M}-{args.circuit_name}-{args.hardware}.pkl", "wb"
+            f"results-{N}-{Nstep}-{M}-{args.circuit_name}-{args.hardware}.pkl", "wb"
     ) as f:
         pickle.dump(results, f)

@@ -4,7 +4,6 @@ Search the final-reward param space.
 
 from contrib.maskable_ppo import run_maskable_ppo, get_circuits
 
-
 if __name__ == '__main__':
     for path in get_circuits():
         for final_reward in [0.1, 1, 10, 100]:

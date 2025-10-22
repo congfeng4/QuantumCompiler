@@ -69,17 +69,17 @@ def _count_cnots(circuit: QuantumCircuit) -> int:
 
 
 def initial_mapping_from_iterative_forward_backward(
-    quantum_circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
-    mapping_algorithm: ty.Callable[
-        [QuantumCircuit, IBMQHardwareArchitecture, ty.Dict[Qubit, int]],
-        ty.Tuple[QuantumCircuit, ty.Dict[Qubit, int]],
-    ],
-    circuit_cost: ty.Callable[
-        [ty.Dict[Qubit, int], QuantumCircuit, IBMQHardwareArchitecture], float
-    ],
-    initial_mapping: ty.Optional[ty.Dict[Qubit, int]] = None,
-    maximum_mapping_procedure_calls: int = 20,
+        quantum_circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
+        mapping_algorithm: ty.Callable[
+            [QuantumCircuit, IBMQHardwareArchitecture, ty.Dict[Qubit, int]],
+            ty.Tuple[QuantumCircuit, ty.Dict[Qubit, int]],
+        ],
+        circuit_cost: ty.Callable[
+            [ty.Dict[Qubit, int], QuantumCircuit, IBMQHardwareArchitecture], float
+        ],
+        initial_mapping: ty.Optional[ty.Dict[Qubit, int]] = None,
+        maximum_mapping_procedure_calls: int = 20,
 ) -> ty.Tuple[ty.Dict[Qubit, int], float, int]:
     """Implementation of the initial_mapping method used by SABRE.
 
@@ -142,13 +142,13 @@ def initial_mapping_from_iterative_forward_backward(
 
 
 def initial_mapping_from_sabre(
-    quantum_circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
-    mapping_algorithm: ty.Callable[
-        [QuantumCircuit, IBMQHardwareArchitecture, ty.Dict[Qubit, int]],
-        ty.Tuple[QuantumCircuit, ty.Dict[Qubit, int]],
-    ],
-    initial_mapping: ty.Optional[ty.Dict[Qubit, int]] = None,
+        quantum_circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
+        mapping_algorithm: ty.Callable[
+            [QuantumCircuit, IBMQHardwareArchitecture, ty.Dict[Qubit, int]],
+            ty.Tuple[QuantumCircuit, ty.Dict[Qubit, int]],
+        ],
+        initial_mapping: ty.Optional[ty.Dict[Qubit, int]] = None,
 ) -> ty.Dict[Qubit, int]:
     # First make sure that the quantum circuit has the same number of quantum bits as
     # the hardware.
@@ -182,11 +182,11 @@ NeighbourMappingAlgorithmType = ty.Callable[
 
 
 def _random_execution_policy(
-    p1: float,
-    p2: float,
-    algorithms: ty.List[NeighbourMappingAlgorithmType],
-    hardware: IBMQHardwareArchitecture,
-    circuit: QuantumCircuit,
+        p1: float,
+        p2: float,
+        algorithms: ty.List[NeighbourMappingAlgorithmType],
+        hardware: IBMQHardwareArchitecture,
+        circuit: QuantumCircuit,
 ) -> NeighbourMappingAlgorithmType:
     def ret(mapping: ty.Dict[Qubit, int]) -> ty.Dict[Qubit, int]:
         p = random.random()
@@ -202,7 +202,7 @@ def _random_execution_policy(
 
 
 def _random_shuffle(
-    mapping: ty.Dict[Qubit, int], _: QuantumCircuit, _2: IBMQHardwareArchitecture
+        mapping: ty.Dict[Qubit, int], _: QuantumCircuit, _2: IBMQHardwareArchitecture
 ) -> ty.Dict[Qubit, int]:
     values = list(mapping.values())
     random.shuffle(values)
@@ -213,9 +213,9 @@ def _random_shuffle(
 
 
 def _random_expand(
-    mapping: ty.Dict[Qubit, int],
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
+        mapping: ty.Dict[Qubit, int],
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
 ) -> ty.Dict[Qubit, int]:
     qubit_number = hardware.qubit_number
     if len(mapping) == qubit_number:
@@ -233,9 +233,9 @@ def _get_idle_qubits(circuit: QuantumCircuit) -> ty.List[Qubit]:
 
 
 def _hardware_aware_expand(
-    mapping: ty.Dict[Qubit, int],
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
+        mapping: ty.Dict[Qubit, int],
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
 ) -> ty.Dict[Qubit, int]:
     qubits = list(mapping.values())
     idle_qubits = {mapping[qubit] for qubit in _get_idle_qubits(circuit)}
@@ -258,13 +258,13 @@ def _hardware_aware_expand(
             else:
                 if neighbour not in outside_qubits_weights.keys():
                     outside_qubits_weights[neighbour] = 0.5 * (
-                        1 - hardware.get_qubit_readout_error(qubit)
+                            1 - hardware.get_qubit_readout_error(qubit)
                     )
                 else:
                     outside_qubits_weights[neighbour] += (
-                        outside_qubits_weights.get(neighbour, 0)
-                        + 1
-                        - hardware.get_link_error_rate(qubit, neighbour)
+                            outside_qubits_weights.get(neighbour, 0)
+                            + 1
+                            - hardware.get_link_error_rate(qubit, neighbour)
                     )
     worst_qubit_index = _argmin(weights)
     best_outside_qubit_index = None
@@ -283,9 +283,9 @@ def _hardware_aware_expand(
 
 
 def _random_reset(
-    mapping: ty.Dict[Qubit, int],
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
+        mapping: ty.Dict[Qubit, int],
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
 ) -> ty.Dict[Qubit, int]:
     qubits = list(mapping.keys())
     values = random.sample(list(range(hardware.qubit_number)), len(qubits))
@@ -296,9 +296,9 @@ def _random_reset(
 
 
 def _hardware_aware_reset(
-    mapping: ty.Dict[Qubit, int],
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
+        mapping: ty.Dict[Qubit, int],
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
 ) -> ty.Dict[Qubit, int]:
     starting_qubit = random.randint(0, hardware.qubit_number - 1)
     qubits: ty.List[int] = [starting_qubit]
@@ -309,13 +309,13 @@ def _hardware_aware_reset(
             if neighbour not in qubits:
                 if neighbour not in weights.keys():
                     weights[neighbour] = 0.5 * (
-                        1 - hardware.get_qubit_readout_error(neighbour)
+                            1 - hardware.get_qubit_readout_error(neighbour)
                     )
                 else:
                     weights[neighbour] += (
-                        weights.get(neighbour, 0)
-                        + 1
-                        - hardware.get_link_error_rate(qubits[-1], neighbour)
+                            weights.get(neighbour, 0)
+                            + 1
+                            - hardware.get_link_error_rate(qubits[-1], neighbour)
                     )
         # Find the best weighted qubit
         best_weight, best_qubit = 0, None
@@ -331,36 +331,36 @@ def _hardware_aware_reset(
 
 
 def get_neighbour_improved(
-    mapping: ty.Dict[Qubit, int],
-    hardware: IBMQHardwareArchitecture,
-    policy: ty.Callable[
-        [
-            ty.Dict[Qubit, int],
-            IBMQHardwareArchitecture,
-            ty.List[NeighbourMappingAlgorithmType],
+        mapping: ty.Dict[Qubit, int],
+        hardware: IBMQHardwareArchitecture,
+        policy: ty.Callable[
+            [
+                ty.Dict[Qubit, int],
+                IBMQHardwareArchitecture,
+                ty.List[NeighbourMappingAlgorithmType],
+            ],
+            NeighbourMappingAlgorithmType,
         ],
-        NeighbourMappingAlgorithmType,
-    ],
-    algorithms: ty.List[NeighbourMappingAlgorithmType],
+        algorithms: ty.List[NeighbourMappingAlgorithmType],
 ) -> ty.Dict[Qubit, int]:
     algorithm = policy(mapping, hardware, algorithms)
     return algorithm(mapping, hardware)
 
 
 def get_initial_mapping_from_annealing(
-    cost_function: ty.Callable[
-        [ty.Dict[Qubit, int], QuantumCircuit, IBMQHardwareArchitecture], float
-    ],
-    quantum_circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
-    initial_mapping: ty.Optional[ty.Dict[Qubit, int]] = None,
-    get_neighbour_func: ty.Callable[
-        [ty.Dict[Qubit, int]], ty.Dict[Qubit, int]
-    ] = get_neighbour_random,
-    max_steps: int = 1000,
-    temp_begin: float = 10.0,
-    cost_threshold: float = 1e-6,
-    schedule_func: ty.Callable[[float], float] = lambda x: x * 0.99,
+        cost_function: ty.Callable[
+            [ty.Dict[Qubit, int], QuantumCircuit, IBMQHardwareArchitecture], float
+        ],
+        quantum_circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
+        initial_mapping: ty.Optional[ty.Dict[Qubit, int]] = None,
+        get_neighbour_func: ty.Callable[
+            [ty.Dict[Qubit, int]], ty.Dict[Qubit, int]
+        ] = get_neighbour_random,
+        max_steps: int = 1000,
+        temp_begin: float = 10.0,
+        cost_threshold: float = 1e-6,
+        schedule_func: ty.Callable[[float], float] = lambda x: x * 0.99,
 ) -> ty.Tuple[ty.Dict[Qubit, int], float, int]:
     # Generate a random initial mapping
     if initial_mapping is None:
@@ -379,12 +379,12 @@ def get_initial_mapping_from_annealing(
 
 
 def get_best_mapping_random(
-    circuit: QuantumCircuit,
-    cost_function: ty.Callable[
-        [ty.Dict[Qubit, int], QuantumCircuit, IBMQHardwareArchitecture], float
-    ],
-    hardware: IBMQHardwareArchitecture,
-    maximum_allowed_evaluations: int,
+        circuit: QuantumCircuit,
+        cost_function: ty.Callable[
+            [ty.Dict[Qubit, int], QuantumCircuit, IBMQHardwareArchitecture], float
+        ],
+        hardware: IBMQHardwareArchitecture,
+        maximum_allowed_evaluations: int,
 ) -> ty.Dict[Qubit, int]:
     best_mapping = get_random_mapping(circuit)
     best_cost = cost_function(best_mapping, circuit, hardware)
@@ -398,16 +398,16 @@ def get_best_mapping_random(
 
 
 def get_best_mapping_sabre(
-    circuit: QuantumCircuit,
-    mapping_algorithm: ty.Callable[
-        [QuantumCircuit, IBMQHardwareArchitecture, ty.Dict[Qubit, int]],
-        ty.Tuple[QuantumCircuit, ty.Dict[Qubit, int]],
-    ],
-    cost_function: ty.Callable[
-        [ty.Dict[Qubit, int], QuantumCircuit, IBMQHardwareArchitecture], float
-    ],
-    hardware: IBMQHardwareArchitecture,
-    maximum_allowed_evaluations: int,
+        circuit: QuantumCircuit,
+        mapping_algorithm: ty.Callable[
+            [QuantumCircuit, IBMQHardwareArchitecture, ty.Dict[Qubit, int]],
+            ty.Tuple[QuantumCircuit, ty.Dict[Qubit, int]],
+        ],
+        cost_function: ty.Callable[
+            [ty.Dict[Qubit, int], QuantumCircuit, IBMQHardwareArchitecture], float
+        ],
+        hardware: IBMQHardwareArchitecture,
+        maximum_allowed_evaluations: int,
 ) -> ty.Dict[Qubit, int]:
     if maximum_allowed_evaluations < 2:
         print("Not enough allowed evaluations!")
@@ -423,15 +423,15 @@ def get_best_mapping_sabre(
 
 
 def get_best_mapping_from_annealing(
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
-    cost_function: ty.Callable[
-        [ty.Dict[Qubit, int], QuantumCircuit, IBMQHardwareArchitecture], float
-    ],
-    maximum_allowed_evaluations: int,
-    get_neighbour_func: ty.Callable[
-        [ty.Dict[Qubit, int]], ty.Dict[Qubit, int]
-    ] = get_neighbour_random,
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
+        cost_function: ty.Callable[
+            [ty.Dict[Qubit, int], QuantumCircuit, IBMQHardwareArchitecture], float
+        ],
+        maximum_allowed_evaluations: int,
+        get_neighbour_func: ty.Callable[
+            [ty.Dict[Qubit, int]], ty.Dict[Qubit, int]
+        ] = get_neighbour_random,
 ):
     temp_begin = 1000.0
     alpha = math.exp(
@@ -450,16 +450,16 @@ def get_best_mapping_from_annealing(
 
 
 def get_best_mapping_from_iterative_forward_backward(
-    circuit: QuantumCircuit,
-    hardware: IBMQHardwareArchitecture,
-    mapping_algorithm: ty.Callable[
-        [QuantumCircuit, IBMQHardwareArchitecture, ty.Dict[Qubit, int]],
-        ty.Tuple[QuantumCircuit, ty.Dict[Qubit, int]],
-    ],
-    circuit_cost: ty.Callable[
-        [ty.Dict[Qubit, int], QuantumCircuit, IBMQHardwareArchitecture], float
-    ],
-    maximum_allowed_evaluations: int,
+        circuit: QuantumCircuit,
+        hardware: IBMQHardwareArchitecture,
+        mapping_algorithm: ty.Callable[
+            [QuantumCircuit, IBMQHardwareArchitecture, ty.Dict[Qubit, int]],
+            ty.Tuple[QuantumCircuit, ty.Dict[Qubit, int]],
+        ],
+        circuit_cost: ty.Callable[
+            [ty.Dict[Qubit, int], QuantumCircuit, IBMQHardwareArchitecture], float
+        ],
+        maximum_allowed_evaluations: int,
 ):
     (
         best_mapping,

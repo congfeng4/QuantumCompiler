@@ -51,7 +51,9 @@ from hamap.layer import QuantumLayer, update_layer
 from hamap.mapping_to_str import mapping_to_str
 from hamap.swap import get_all_swap_bridge_candidates, get_all_swap_candidates
 import logging
+
 logger = logging.getLogger("hamap.swap")
+
 
 def _create_empty_dagcircuit_from_existing(dagcircuit: DAGCircuit) -> DAGCircuit:
     result = DAGCircuit()
@@ -63,9 +65,9 @@ def _create_empty_dagcircuit_from_existing(dagcircuit: DAGCircuit) -> DAGCircuit
 
 
 def _adapt_quantum_circuit_and_mapping_arity(
-    circuit: QuantumCircuit,
-    initial_mapping: ty.Dict[Qubit, int],
-    hardware: IBMQHardwareArchitecture,
+        circuit: QuantumCircuit,
+        initial_mapping: ty.Dict[Qubit, int],
+        hardware: IBMQHardwareArchitecture,
 ) -> None:
     missing_qubit_number = hardware.qubit_number - circuit.num_qubits
     if missing_qubit_number > 0:
@@ -80,31 +82,32 @@ def _adapt_quantum_circuit_and_mapping_arity(
 
 
 def ha_mapping(
-    quantum_circuit: QuantumCircuit,
-    initial_mapping: ty.Dict[Qubit, int],
-    hardware: IBMQHardwareArchitecture,
-    swap_cost_heuristic: ty.Callable[
-        [
-            IBMQHardwareArchitecture,  # Hardware information
-            QuantumLayer,  # Current front layer
-            ty.List[DAGNode],  # Topologically sorted list of nodes
-            int,  # Index of the first non-processed gate.
-            ty.Dict[Qubit, int],  # The mapping before applying the tested SWAP/Bridge
-            ty.Dict[Qubit, int],  # The initial mapping
-            ty.Dict[Qubit, int],  # The trans mapping
-            numpy.ndarray,  # The distance matrix between each qubits
-            TwoQubitGate,  # The SWAP/Bridge we want to rank
-        ],
-        float,
-    ] = sabre_heuristic,
-    get_candidates: ty.Callable[
-        [QuantumLayer, IBMQHardwareArchitecture, ty.Dict[Qubit, int], ty.Dict[Qubit, int], ty.Dict[Qubit, int], ty.Set[str],],
-        ty.List[TwoQubitGate],
-    ] = get_all_swap_bridge_candidates,
-    get_distance_matrix: ty.Callable[
-        [IBMQHardwareArchitecture], numpy.ndarray
-    ] = get_distance_matrix_swap_number_and_error,
-    trajectory: list = None,
+        quantum_circuit: QuantumCircuit,
+        initial_mapping: ty.Dict[Qubit, int],
+        hardware: IBMQHardwareArchitecture,
+        swap_cost_heuristic: ty.Callable[
+            [
+                IBMQHardwareArchitecture,  # Hardware information
+                QuantumLayer,  # Current front layer
+                ty.List[DAGNode],  # Topologically sorted list of nodes
+                int,  # Index of the first non-processed gate.
+                ty.Dict[Qubit, int],  # The mapping before applying the tested SWAP/Bridge
+                ty.Dict[Qubit, int],  # The initial mapping
+                ty.Dict[Qubit, int],  # The trans mapping
+                numpy.ndarray,  # The distance matrix between each qubits
+                TwoQubitGate,  # The SWAP/Bridge we want to rank
+            ],
+            float,
+        ] = sabre_heuristic,
+        get_candidates: ty.Callable[
+            [QuantumLayer, IBMQHardwareArchitecture, ty.Dict[Qubit, int], ty.Dict[Qubit, int], ty.Dict[Qubit, int],
+             ty.Set[str], ],
+            ty.List[TwoQubitGate],
+        ] = get_all_swap_bridge_candidates,
+        get_distance_matrix: ty.Callable[
+            [IBMQHardwareArchitecture], numpy.ndarray
+        ] = get_distance_matrix_swap_number_and_error,
+        trajectory: list = None,
 ) -> ty.Tuple[QuantumCircuit, ty.Dict[Qubit, int]]:
     """Map the given quantum circuit to the hardware topology provided.
 
@@ -206,13 +209,13 @@ def ha_mapping(
                 best_swap_qubits = SwapTwoQubitGate(
                     swap_control, swap_target
                 )
-                #print("swap gates is :", best_swap_qubits.left, best_swap_qubits.right)
+                # print("swap gates is :", best_swap_qubits.left, best_swap_qubits.right)
                 trans_mapping[best_swap_qubits.left], trans_mapping[best_swap_qubits.right] = (
                     trans_mapping[best_swap_qubits.right],
                     trans_mapping[best_swap_qubits.left],
                 )
             else:
-                #print("brige gate is :", best_swap_qubits.left, best_swap_qubits.middle, best_swap_qubits.right)
+                # print("brige gate is :", best_swap_qubits.left, best_swap_qubits.middle, best_swap_qubits.right)
                 pass
             explored_mappings.add(mapping_to_str(current_mapping))
             best_swap_qubits.apply(resulting_dag_quantum_circuit, front_layer, initial_mapping, trans_mapping)
@@ -228,33 +231,33 @@ def ha_mapping(
 
 
 def ha_mapping_paper_compliant(
-    quantum_circuit: QuantumCircuit,
-    initial_mapping: ty.Dict[Qubit, int],
-    hardware: IBMQHardwareArchitecture,
-    swap_cost_and_effect_heuristic: ty.Callable[
-        [
-            IBMQHardwareArchitecture,  # Hardware information
-            QuantumLayer,  # Current front layer
-            ty.List[DAGNode],  # Topologically sorted list of nodes
-            int,  # Index of the first non-processed gate.
-            ty.Dict[Qubit, int],  # The mapping before applying the tested SWAP/Bridge
-            ty.Dict[Qubit, int],  # The initial mapping
-            ty.Dict[Qubit, int],  # The trans mapping
-            numpy.ndarray,  # The distance matrix between each qubits
-            TwoQubitGate,  # The SWAP/Bridge we want to rank
-        ],
-        ty.Tuple[
-            float,  # Cost of the SWAP pair
-            float,  # Effect of the SWAP pair on the other gates
-        ],
-    ] = sabre_heuristic_with_effect,
-    get_candidates: ty.Callable[
-        [QuantumLayer, IBMQHardwareArchitecture, ty.Dict[Qubit, int], ty.Set[str],],
-        ty.List[SwapTwoQubitGate],
-    ] = get_all_swap_candidates,
-    get_distance_matrix: ty.Callable[
-        [IBMQHardwareArchitecture], numpy.ndarray
-    ] = get_distance_matrix_swap_number_and_error,
+        quantum_circuit: QuantumCircuit,
+        initial_mapping: ty.Dict[Qubit, int],
+        hardware: IBMQHardwareArchitecture,
+        swap_cost_and_effect_heuristic: ty.Callable[
+            [
+                IBMQHardwareArchitecture,  # Hardware information
+                QuantumLayer,  # Current front layer
+                ty.List[DAGNode],  # Topologically sorted list of nodes
+                int,  # Index of the first non-processed gate.
+                ty.Dict[Qubit, int],  # The mapping before applying the tested SWAP/Bridge
+                ty.Dict[Qubit, int],  # The initial mapping
+                ty.Dict[Qubit, int],  # The trans mapping
+                numpy.ndarray,  # The distance matrix between each qubits
+                TwoQubitGate,  # The SWAP/Bridge we want to rank
+            ],
+            ty.Tuple[
+                float,  # Cost of the SWAP pair
+                float,  # Effect of the SWAP pair on the other gates
+            ],
+        ] = sabre_heuristic_with_effect,
+        get_candidates: ty.Callable[
+            [QuantumLayer, IBMQHardwareArchitecture, ty.Dict[Qubit, int], ty.Set[str], ],
+            ty.List[SwapTwoQubitGate],
+        ] = get_all_swap_candidates,
+        get_distance_matrix: ty.Callable[
+            [IBMQHardwareArchitecture], numpy.ndarray
+        ] = get_distance_matrix_swap_number_and_error,
 ) -> ty.Tuple[QuantumCircuit, ty.Dict[Qubit, int]]:
     """Map the given quantum circuit to the hardware topology provided.
 
@@ -386,13 +389,13 @@ def ha_mapping_paper_compliant(
                 best_swap_qubits = SwapTwoQubitGate(
                     swap_control, swap_target
                 )
-                #print("swap gates is :", best_swap_qubits.left, best_swap_qubits.right)
+                # print("swap gates is :", best_swap_qubits.left, best_swap_qubits.right)
                 trans_mapping[best_swap_qubits.left], trans_mapping[best_swap_qubits.right] = (
                     trans_mapping[best_swap_qubits.right],
                     trans_mapping[best_swap_qubits.left],
                 )
             else:
-                #print("brige gate is :", best_swap_qubits.left, best_swap_qubits.middle, best_swap_qubits.right)
+                # print("brige gate is :", best_swap_qubits.left, best_swap_qubits.middle, best_swap_qubits.right)
                 pass
 
             explored_mappings.add(mapping_to_str(current_mapping))

@@ -49,10 +49,10 @@ logger = logging.getLogger("hamap.swap")
 
 
 def get_all_swap_candidates(
-    layer: QuantumLayer,
-    hardware: IBMQHardwareArchitecture,
-    current_mapping: ty.Dict[Qubit, int],
-    explored_mappings: ty.Set[str],
+        layer: QuantumLayer,
+        hardware: IBMQHardwareArchitecture,
+        current_mapping: ty.Dict[Qubit, int],
+        explored_mappings: ty.Set[str],
 ) -> ty.List[SwapTwoQubitGate]:
     # First compute all the qubits involved in the given layer
     qubits_involved_in_front_layer = set()
@@ -72,20 +72,20 @@ def get_all_swap_candidates(
             # Check that the mapping has not already been explored in this
             # SWAP-insertion pass.
             if (
-                mapping_to_str(two_qubit_gate.update_mapping(current_mapping))
-                not in explored_mappings
+                    mapping_to_str(two_qubit_gate.update_mapping(current_mapping))
+                    not in explored_mappings
             ):
                 all_swaps.append(two_qubit_gate)
     return all_swaps
 
 
 def get_all_bridge_candidates(
-    layer: QuantumLayer,
-    hardware: IBMQHardwareArchitecture,
-    initial_mapping: ty.Dict[Qubit, int],
-    trans_mapping: ty.Dict[Qubit, int],
-    current_mapping: ty.Dict[Qubit, int],
-    explored_mappings: ty.Set[str],
+        layer: QuantumLayer,
+        hardware: IBMQHardwareArchitecture,
+        initial_mapping: ty.Dict[Qubit, int],
+        trans_mapping: ty.Dict[Qubit, int],
+        current_mapping: ty.Dict[Qubit, int],
+        explored_mappings: ty.Set[str],
 ) -> ty.List[BridgeTwoQubitGate]:
     all_bridges = []
 
@@ -115,20 +115,20 @@ def get_all_bridge_candidates(
                     # Check that the mapping has not already been explored in this
                     # SWAP-insertion pass.
                     if (
-                        mapping_to_str(two_qubit_gate.update_mapping(current_mapping))
-                        not in explored_mappings
+                            mapping_to_str(two_qubit_gate.update_mapping(current_mapping))
+                            not in explored_mappings
                     ):
                         all_bridges.append(two_qubit_gate)
     return all_bridges
 
 
 def get_all_swap_bridge_candidates(
-    layer: QuantumLayer,
-    hardware: IBMQHardwareArchitecture,
-    initial_mapping: ty.Dict[Qubit, int],
-    current_mapping: ty.Dict[Qubit, int],
-    trans_mapping: ty.Dict[Qubit, int],
-    explored_mappings: ty.Set[str],
+        layer: QuantumLayer,
+        hardware: IBMQHardwareArchitecture,
+        initial_mapping: ty.Dict[Qubit, int],
+        current_mapping: ty.Dict[Qubit, int],
+        trans_mapping: ty.Dict[Qubit, int],
+        explored_mappings: ty.Set[str],
 ) -> ty.List[TwoQubitGate]:
     swap_candidates = get_all_swap_candidates(
         layer, hardware, current_mapping, explored_mappings
@@ -140,9 +140,9 @@ def get_all_swap_bridge_candidates(
 
 
 def change_mapping(
-    start_mapping: ty.Dict[Qubit, int],
-    final_mapping: ty.Dict[Qubit, int],
-    circuit: QuantumCircuit,
+        start_mapping: ty.Dict[Qubit, int],
+        final_mapping: ty.Dict[Qubit, int],
+        circuit: QuantumCircuit,
 ) -> None:
     reverse_initial_mapping = {val: key for key, val in start_mapping.items()}
     reverse_final_mapping = {val: key for key, val in final_mapping.items()}

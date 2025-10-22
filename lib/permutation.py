@@ -1,12 +1,13 @@
 import random as rd
 
 from typing import Iterator, Optional, TypeVar, Sequence, Union
+
 Self = TypeVar("Self")
 from .graph_data import Node, Edge
 
 
 def formatted(src: Node, dst: Node):
-    return str(dst) if dst != src else f"\033[2m{dst}\033[0m" # dimmed
+    return str(dst) if dst != src else f"\033[2m{dst}\033[0m"  # dimmed
 
 
 class Permutation:
@@ -57,9 +58,9 @@ class Permutation:
         return self.__perm
 
     def __apply_map(
-        self,
-        original: Sequence[Node],
-        inplace: bool = False
+            self,
+            original: Sequence[Node],
+            inplace: bool = False
     ) -> Optional[list[Node]]:
 
         sigma = {src: dst for src, dst in self.items()}
@@ -74,9 +75,9 @@ class Permutation:
             return permuted
 
     def __apply_swap(
-        self,
-        original: list[Node],
-        inplace: bool = False
+            self,
+            original: list[Node],
+            inplace: bool = False
     ) -> Optional[list[Node]]:
 
         sigma = {node: original.index(node) for node in original}
@@ -90,9 +91,9 @@ class Permutation:
             return permuted
 
     def apply(
-        self,
-        original: list[Node],
-        inplace: bool = False
+            self,
+            original: list[Node],
+            inplace: bool = False
     ) -> Optional[list[Node]]:
         """
         Apply the permutation on the original sequence.
@@ -109,10 +110,10 @@ class Permutation:
         return self.__apply_swap(original, inplace)
 
     def oneline(
-        self,
-        original: Optional[list[Node]] = None,
-        highlight: bool = True,
-        padding: str = ""
+            self,
+            original: Optional[list[Node]] = None,
+            highlight: bool = True,
+            padding: str = ""
     ) -> str:
 
         if original is None:
@@ -127,10 +128,10 @@ class Permutation:
         )
 
     def twoline(
-        self,
-        original: list[Node],
-        highlight: bool = True,
-        padding: str = ""
+            self,
+            original: list[Node],
+            highlight: bool = True,
+            padding: str = ""
     ) -> str:
 
         if highlight:

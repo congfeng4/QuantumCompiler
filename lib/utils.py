@@ -16,10 +16,12 @@ class OptType(Enum):
     OPT2 = 2
     DEPTH = None
 
+
 class SubgraphSize(Enum):
     TOKYO = 5
     SMALL = 8
     LARGE = 16
+
 
 class QBGRatio(Enum):
     TFL = 1.5
@@ -37,14 +39,14 @@ def is_disjoint(edges: Iterable[Optional[Edge]]) -> bool:
     - True if `edges` is (pairwise) disjoint.
     """
     nodes = [node for edge in edges for node in edge if not edge.is_null]
-    return len(nodes) == len(set(nodes)) # disjoint if no duplicates
+    return len(nodes) == len(set(nodes))  # disjoint if no duplicates
 
 
 def is_strong_glink(
-    archgraph: Graph,
-    prev_subgraph: Graph,
-    next_subgraph: Graph,
-    perm: Permutation
+        archgraph: Graph,
+        prev_subgraph: Graph,
+        next_subgraph: Graph,
+        perm: Permutation
 ) -> bool:
     """
     Determine whether the given glink is strong.
@@ -61,7 +63,7 @@ def is_strong_glink(
     # Construct permuted graph
     perm_graph = next_subgraph.copy()
     for src, dst in perm.items():
-        perm_graph.permute(src, dst, inplace = True)
+        perm_graph.permute(src, dst, inplace=True)
 
     # If no changes have been made then the glink cannot be strong
     if perm_graph == next_subgraph:
@@ -71,6 +73,6 @@ def is_strong_glink(
     return is_subgraph_isomorphic(
         archgraph.pygraph(),
         prev_subgraph.union(perm_graph).pygraph(),
-        induced = False,
-        call_limit = VF2_CALL_LIMIT
+        induced=False,
+        call_limit=VF2_CALL_LIMIT
     )

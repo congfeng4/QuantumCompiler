@@ -106,7 +106,7 @@ class _BridgeGate(Gate):
 
 
 def get_updated_mapping(
-    current_mapping: ty.Dict[Qubit, int], swap: ty.Tuple[Qubit, Qubit]
+        current_mapping: ty.Dict[Qubit, int], swap: ty.Tuple[Qubit, Qubit]
 ) -> ty.Dict[Qubit, int]:
     source, sink = swap
     new_mapping = copy(current_mapping)
@@ -128,7 +128,7 @@ class TwoQubitGate:
         return self._right
 
     def update_mapping(
-        self, previous_mapping: ty.Dict[Qubit, int]
+            self, previous_mapping: ty.Dict[Qubit, int]
     ) -> ty.Dict[Qubit, int]:
         raise NotImplementedError()
 
@@ -147,7 +147,7 @@ class TwoQubitGate:
                              ) -> bool:
         raise NotImplementedError()
 
-    def cost(self, hardware, mapping, distance_matrix,) -> float:
+    def cost(self, hardware, mapping, distance_matrix, ) -> float:
         raise NotImplementedError()
 
 
@@ -156,7 +156,7 @@ class SwapTwoQubitGate(TwoQubitGate):
         super().__init__(left, right)
 
     def update_mapping(
-        self, previous_mapping: ty.Dict[Qubit, int]
+            self, previous_mapping: ty.Dict[Qubit, int]
     ) -> ty.Dict[Qubit, int]:
         return get_updated_mapping(previous_mapping, (self.left, self.right))
 
@@ -196,7 +196,7 @@ class BridgeTwoQubitGate(TwoQubitGate):
         self._middle = middle
 
     def update_mapping(
-        self, previous_mapping: ty.Dict[Qubit, int]
+            self, previous_mapping: ty.Dict[Qubit, int]
     ) -> ty.Dict[Qubit, int]:
         # Do nothing, we do not change the mapping with a Bridge gate.
         return previous_mapping
@@ -224,9 +224,9 @@ class BridgeTwoQubitGate(TwoQubitGate):
         for op in front_layer.ops:
             q1, q2 = initial_mapping[op.qargs[0]], initial_mapping[op.qargs[1]]
             if (
-                len(op.qargs) == 2
-                and q1 == trans_mapping[self.left]
-                and q2 == trans_mapping[self.right]
+                    len(op.qargs) == 2
+                    and q1 == trans_mapping[self.left]
+                    and q2 == trans_mapping[self.right]
             ):
                 op_to_remove = op
         if op_to_remove is None:
@@ -246,11 +246,11 @@ class BridgeTwoQubitGate(TwoQubitGate):
         # The Bridge gate implements a CNOT from the circuit
         q1, q2 = initial_mapping[op.qargs[0]], initial_mapping[op.qargs[1]]
         return (
-            len(op.qargs) == 2
-            # and op.qargs[0] == self.left
-            # and op.qargs[1] == self.right
-            and q1 == trans_mapping[self.left]
-            and q2 == trans_mapping[self.right]
+                len(op.qargs) == 2
+                # and op.qargs[0] == self.left
+                # and op.qargs[1] == self.right
+                and q1 == trans_mapping[self.left]
+                and q2 == trans_mapping[self.right]
         )
 
     def cost(
