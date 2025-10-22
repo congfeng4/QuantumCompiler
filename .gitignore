@@ -295,3 +295,4 @@ pip-selfcheck.json
 best_model.zip
 .vscode
 __MACOSX
+/result

@@ -104,6 +104,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         if new_dag_cnt < old_dag_cnt:
             print(f'Reduce op count by transform {action_pass} from {old_dag_cnt} to {new_dag_cnt}')
         self.dag_circuit = new_dag
+        print(f'Apply transform {action_pass}')
         return None
 
     def finalize_result(self):

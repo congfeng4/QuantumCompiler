@@ -15,6 +15,8 @@ import math
 import itertools
 import sys
 
+from contrib.maskable_ppo import CircuitDataset
+
 
 def closest_factors(n):
     if n < 1:
@@ -231,7 +233,12 @@ def transpile_circuit_on_random_topology(circuit_path: Path,
     else:
         raise ValueError(opt_method)
 
-    coupling_graph = generate_graph_for_num_qubits(graph_model, num_qubits=qc_before.num_qubits)
+    if isinstance(graph_model, str):
+        coupling_graph = generate_graph_for_num_qubits(graph_model, num_qubits=qc_before.num_qubits)
+    elif isinstance(graph_model, nx.Graph):
+        coupling_graph = graph_model
+    else:
+        raise TypeError(graph_model)
     coupling_map = create_coupling_graph(coupling_graph)
 
     if verbose:
@@ -246,7 +253,12 @@ def transpile_circuit_on_random_topology(circuit_path: Path,
                          routing_method=routing_method,
                          )
     qc_after = CircuitStats(qc_after, qc_before.name)
-    transpile_stats = TranspileStats(qc_before, qc_after, graph_model,
+    if isinstance(graph_model, str):
+        graph_model_name = graph_model
+    else:
+        graph_model_name = graph_model.name
+
+    transpile_stats = TranspileStats(qc_before, qc_after, graph_model_name,
                                      transpile_param=dict(opt_method=opt_method,
                                                           layout_method=layout_method,
                                                           routing_method=routing_method))
@@ -266,14 +278,15 @@ def dict_product(input_dict):
     return result
 
 
-def make_rounds(circuit_dir: Path, opt_methods: list, repeats=3, verbose=False):
+def make_rounds(circuit_dir: Path, opt_methods: list, repeats=3, graph=None, verbose=False):
     assert circuit_dir.is_dir(), circuit_dir
     circuit_paths = list(circuit_dir.glob('*.qasm'))
 
     assert len(circuit_paths), f'No qasm file found in {circuit_dir}'
+
     rounds = dict_product({
         'circuit_path': circuit_paths,
-        'graph_model': SUPPORTED_GRAPH_MODEL,
+        'graph_model': SUPPORTED_GRAPH_MODEL if graph is None else [graph],
         'opt_method': opt_methods,
     }) * repeats
 
@@ -325,12 +338,16 @@ def quartz_optimize(qasm_file: Path, gate_set, ecc_file, verbose=True) -> Quantu
     return QuantumCircuit.from_qasm_str(qasm_str)
 
 
-def run_transpile_and_save_results(circuit_dir: Path, opt_methods: list,
-                                   save_file: Path,
-                                   gate_set, ecc_file,
+def run_transpile_and_save_results(circuit_dir: Path,
+                                   opt_methods: list,
+                                   gate_set,
+                                   save_file: Path=None,
+                                   ecc_file=None,
                                    n_jobs=-1,
+                                   graph=None,
+                                   repeats: int = 3,
                                    verbose=True):
-    rounds = make_rounds(circuit_dir, opt_methods, verbose=verbose)
+    rounds = make_rounds(circuit_dir, opt_methods, repeats=repeats, graph=graph, verbose=verbose)
 
     results = Parallel(n_jobs=n_jobs, verbose=1)(delayed(transpile_circuit_on_random_topology)(
         gate_set=gate_set,
@@ -339,6 +356,9 @@ def run_transpile_and_save_results(circuit_dir: Path, opt_methods: list,
     ) for rnd in rounds)
 
     df = pd.DataFrame.from_records(rec.__dict__ for rec in results)
+    if save_file is None:
+        save_file = f'./tranpile-result-{time.time()}.csv'
+
     save_file = Path(save_file)
     save_dir = save_file.parent
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -348,4 +368,11 @@ def run_transpile_and_save_results(circuit_dir: Path, opt_methods: list,
 
 
 if __name__ == '__main__':
-    pass
+    data_list = '20Q_gate_Tokyo 20Q_depth_Tokyo 53Q_depth_Rochester 53Q_depth_Sycamore 53Q_gate_Rochester 53Q_gate_Sycamore'.split()
+    for data in data_list:
+        dataset = CircuitDataset(data, sort=True)
+        run_transpile_and_save_results(dataset.circuit_dir,
+                                       opt_methods=['qiskit:0'],
+                                       gate_set='h cx'.split(),
+                                       save_file=f'./result/{data}.csv',
+                                       graph=dataset.hardware)

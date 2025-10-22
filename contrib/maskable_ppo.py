@@ -374,13 +374,14 @@ class CircuitDataset:
         if sort:
             circuit_paths.sort(key=lambda path: get_cnot_num(read_circuit(path)))
         self.circuit_paths = circuit_paths
+        self.circuit_dir = circuit_dir
 
     @cached_property
     def hardware(self):
         return IBMQHardwareArchitecture(self.dataname.split('_')[-1])
 
     @cached_property
-    def _circuits(self):
+    def circuits(self):
         return [QuantumCircuit.from_qasm_file(str(p)) for p in self.circuit_paths]
 
     def __len__(self):
@@ -388,11 +389,11 @@ class CircuitDataset:
 
     @cached_property
     def depth_range(self):
-        return min(qc.depth() for qc in self._circuits), max(qc.depth() for qc in self._circuits)
+        return min(qc.depth() for qc in self.circuits), max(qc.depth() for qc in self.circuits)
 
     @cached_property
     def cx_num_range(self):
-        return min(get_cnot_num(qc) for qc in self._circuits), max(get_cnot_num(qc) for qc in self._circuits)
+        return min(get_cnot_num(qc) for qc in self.circuits), max(get_cnot_num(qc) for qc in self.circuits)
 
     def sample(self, num_circuits=None, min_gatelen=10, max_gatelen=100):
         """
@@ -400,7 +401,7 @@ class CircuitDataset:
         若 num_circuits 为 None，则持续返回直到遍历完所有电路。
         """
         count = 0
-        for qc, path in zip(self._circuits, self.circuit_paths):
+        for qc, path in zip(self.circuits, self.circuit_paths):
             cx = get_cnot_num(qc)
             if min_gatelen <= cx <= max_gatelen:
                 yield path
@@ -433,7 +434,7 @@ class CircuitDataset:
         entry = stats_map[stats]
 
         # 收集 CX 数量
-        cx_counts = [entry['func'](qc) for qc in self._circuits]
+        cx_counts = [entry['func'](qc) for qc in self.circuits]
 
         # 默认 seaborn 样式
         sns.set_theme(style="whitegrid")
