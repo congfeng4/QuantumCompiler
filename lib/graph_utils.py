@@ -5,25 +5,24 @@ from .graph import Graph
 
 def graph_from_name(name: str, **kwargs) -> Graph:
 
-    match name.lower():
-        case "grid":
-            return Grid(kwargs["rows"], kwargs["cols"])
-        case "line":
-            return Line(kwargs["num_nodes"])
-        case "ring":
-            return Ring(kwargs["num_nodes"])
-        case "star":
-            return Star(kwargs["num_nodes"])
-        case "tokyo":
-            return Tokyo()
-        case "rochester":
-            return Rochester()
-        case "sycamore54":
-            return Sycamore54()
-        case "sycamore":
-            return Sycamore()
-        case _:
-            raise ValueError(f"unknown graph name '{name}'")
+    if name == "grid":
+        return Grid(kwargs["rows"], kwargs["cols"])
+    elif name == "line":
+        return Line(kwargs["num_nodes"])
+    elif name == "ring":
+        return Ring(kwargs["num_nodes"])
+    elif name == "star":
+        return Star(kwargs["num_nodes"])
+    elif name == "tokyo":
+        return Tokyo()
+    elif name == "rochester":
+        return Rochester()
+    elif name == "sycamore54":
+        return Sycamore54()
+    elif name == "sycamore":
+        return Sycamore()
+    else:
+        raise ValueError(f"unknown graph name '{name}'")
 
 
 class Grid(Graph):

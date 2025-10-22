@@ -60,7 +60,7 @@ class Graph:
     def __eq__(self, other: Self) -> bool:
         return set(self.nodes) == set(other.nodes) and set(self.edges) == set(other.edges)
 
-    def __getitem__(self, key: Union[int, Node]) -> Node | int:
+    def __getitem__(self, key: Union[int, Node]) -> Union[Node, int]:
         return self.__i2n[key] if isinstance(key, int) else self.__n2i[key]
 
     def __repr__(self) -> str:
