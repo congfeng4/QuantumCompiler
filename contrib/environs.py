@@ -78,6 +78,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.trans_mapping = self.initial_mapping.copy()
         self.inverse_mapping = {val: key for key, val in self.initial_mapping.items()}
         self.state_potential = None
+        self.transform_state_potential = 0 # Initially resulting dag has no ops.
         self.dag_circuit = circuit_to_dag(self.input_circuit)
         self.resulting_dag_quantum_circuit = _create_empty_dagcircuit_from_existing(self.dag_circuit)
         self.action_stats = defaultdict(int)
@@ -85,26 +86,35 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.update_state_potential()
         return self._get_obs(), {}
 
-    def update_state_potential(self, mapping=None):
-        mapping = mapping or self.current_mapping
+    def update_state_potential(self):
         old_potential = self.state_potential
         # Phi(s) = - cost(s)
-        self.state_potential = -get_circuit_cost(self.dag_circuit, mapping, self.distance_matrix, self.hardware)
+        self.state_potential = -get_circuit_cost(self.dag_circuit, self.current_mapping,
+                                                 self.distance_matrix, self.hardware)
+        return old_potential
+
+    def update_transform_state_potential(self):
+        old_potential = self.transform_state_potential
+        self.transform_state_potential = -sum(self.resulting_dag_quantum_circuit.count_ops().values())
         return old_potential
 
     def _get_obs(self):
         return self.state.encode(self.dag_circuit, self.current_mapping)
 
     def apply_transform_action(self, action_pass: TransformationPass):
+        old_dag = self.resulting_dag_quantum_circuit
         try:
-            new_dag: DAGCircuit = action_pass.run(self.dag_circuit)
+            new_dag: DAGCircuit = action_pass.run(old_dag)
         except Exception as e:
             return f'Failed to run transformation {action_pass}, error: {e}'
-        old_dag_cnt = sum(self.dag_circuit.count_ops().values())
+
+        old_dag_cnt = sum(old_dag.count_ops().values())
         new_dag_cnt = sum(new_dag.count_ops().values())
+
         if new_dag_cnt < old_dag_cnt:
             print(f'Reduce op count by transform {action_pass} from {old_dag_cnt} to {new_dag_cnt}')
-        self.dag_circuit = new_dag
+
+        self.resulting_dag_quantum_circuit = new_dag
         self.action_stats['t:' + action_pass.name()] += 1
         return None
 
@@ -206,11 +216,20 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         best_swap_qubits = self.action.decode(policy, self.initial_mapping,
                                               inverse_current_mapping,
                                               self.inverse_mapping, self.hardware)
-
+        # print(best_swap_qubits)
         if msg := self.apply_action(best_swap_qubits):
             return self.step_invalid(why=msg)
 
         self.invalid_actions = 0
+        info = {}
+
+        if isinstance(best_swap_qubits, TransformationPass):
+            # The resulting dag is modified.
+            prev_potential = self.update_transform_state_potential()
+            rs = self.transform_state_potential * self.gamma - prev_potential
+            reward = self.reward_shaping_weight * rs
+            return self._get_obs(), reward, False, False, info
+
         num_exe_cnot = self.update()
         prev_potential = self.update_state_potential()
         # The cost of a circuit is a potential function of the state.
@@ -218,7 +237,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         rs = self.state_potential * self.gamma - prev_potential
         reward = self.reward_shaping_weight * rs - 1 + num_exe_cnot
         done = sum(self.dag_circuit.count_ops().values()) == 0
-        info = {}
         if not done:
             return self._get_obs(), reward, done, False, info
 
@@ -231,7 +249,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
     def action_masks(self):
         masks = np.zeros(self.action.get_size(), dtype=bool)
-        masks[:self.action.num_transformation] = True  # Assume all transformations are valid.
+        # Since we apply transformations in the routed subscircuit, it needs to non-empty.
+        masks[:self.action.num_transformation] = sum(self.resulting_dag_quantum_circuit.count_ops().values()) != 0
         self.swap_masks(masks)
         self.bridge_masks(masks)
         return masks.tolist()
