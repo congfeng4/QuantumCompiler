@@ -114,11 +114,11 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
         metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
         for key, value in metrics.items():
-            record['metric/' + key] = round(value, 2)
+            record['metric/' + key] = value
 
         total = sum(self.action_stats.values()) # py39 has no total() in Counter
         for key, value in self.action_stats.items():
-            record['action/' + key] = round(value / total, 2)
+            record['action/' + key] = value / total * 100
 
         for key, value in self.metrics_baseline.items():
             record['diff/' + key] = metrics[key] - value
