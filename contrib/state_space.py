@@ -1,87 +1,92 @@
 """
 State space encoding.
 """
-
-import gymnasium as gym
-import numpy as np
-from qiskit.circuit import Qubit
-from qiskit.dagcircuit import DAGOpNode, DAGCircuit
-from typing import Any, Optional, SupportsFloat
-
+from enum import IntEnum
 import gymnasium as gym
 import numpy as np
 
 from qiskit.circuit import Qubit
 from qiskit.dagcircuit import DAGOpNode, DAGCircuit
+from contrib.common import build_op_node_level
 
-from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost, TopologicalOrderMode, \
-    build_op_node_level
 
-from hamap.layer import QuantumLayer, update_layer
+class GateType(IntEnum):
+    H = 0 # Will be embedded so just use 0
+    CX = 1
+    SWAP = 2
 
-from hamap.layer import QuantumLayer
+    @classmethod
+    def from_name(cls, name):
+        if name == 'h':
+            return cls.H
+        if name == 'cx':
+            return cls.CX
+        if name == 'swap':
+            return cls.SWAP
+        raise ValueError(name)
+
+    @property
+    def num_qubits(self):
+        if self == self.H:
+            return 1
+        return 2
+
+
+class RoutedStatus(IntEnum):
+    ROUTED = -1
+    UNROUNTED = 1
+
+
+class OpRepPosition(IntEnum):
+    POS_GATE_TYPE = 0
+    POS_ROUNTED = 1
+    POS_DISTANCE = 2
+    POS_LEVEL = 3
+    POS_QUBIT_ONE = 4
+    POS_QUBIT_TWO = 5
+    POS_SIZE = 6
 
 
 class StateSpace:
 
-    def __init__(self, N: int, L: int):
-        self.N = N
-        self.L = L
-
-    def get_space(self):
-        N, L = self.N, self.L
-
-        return gym.spaces.Dict({
-            # 逻辑 → 物理映射 (permutation)
-            "mapping": gym.spaces.Box(
-                low=0, high=N - 1, shape=(N,), dtype=np.int64
-            ),
-
-            # 门序列：每行是 (q0, q1) 两个逻辑比特编号
-            "gate_seq": gym.spaces.Box(
-                low=0, high=N - 1, shape=(L, 2), dtype=np.int64
-            ),
-
-            # 真实门序列长度
-            "gate_len": gym.spaces.Box(
-                low=0, high=L, shape=(), dtype=np.int64
-            ),
-
-            # 门的层级（整数）
-            "gate_level": gym.spaces.Box(
-                low=0, high=L, shape=(L, 1), dtype=np.int64
-            ),
-        })
-
-    def encode(self, dag: DAGCircuit, current_mapping: dict[Qubit, int]):
-        mapping = np.zeros((self.N,), np.int64)
-        for qb, j in current_mapping.items():
-            mapping[j] = qb._index  # Phy to logic
+    def encode(self, dag: DAGCircuit,
+               routed_status: RoutedStatus,
+               current_mapping: dict[Qubit, int] = None,
+               level_offset: int = 0, # Should be able to differentiate routed and unrouted.
+               distance_matrix: np.ndarray = None):
 
         topological_nodes: list[DAGOpNode] = list(dag.topological_op_nodes())
         # Resort according to node levels.
         gate_levels = build_op_node_level(dag, topological_nodes, sort_by_level=True)
+        seqlen = len(topological_nodes)
+        gate_seq = np.zeros((seqlen, OpRepPosition.POS_SIZE), np.int64)
 
-        front_layer = QuantumLayer()  # Obtain the front layer, ensuring they are in the sequence front.
-        current_node_index = update_layer(
-            front_layer, topological_nodes, 0,
-        )
+        for i, op in enumerate(topological_nodes):
+            gate_type = GateType.from_name(op.name)
+            gate_seq[i, OpRepPosition.POS_GATE_TYPE] = gate_type
+            gate_seq[i, OpRepPosition.POS_ROUNTED] = routed_status
+            gate_seq[i, OpRepPosition.POS_LEVEL] = level_offset + gate_levels[op._node_id]
 
-        gate_seq = np.zeros((self.L, 2), np.int64)
-        gate_level = np.zeros((self.L, 1), np.int64)
-        ops: list[DAGOpNode] = front_layer.ops + topological_nodes[current_node_index:]
-        gate_len = min(len(ops), self.L)
+            num_qubits = gate_type.num_qubits
+            qargs = op.qargs if num_qubits == 2 else op.qargs * 2
 
-        for i, op in zip(range(gate_len), ops):
-            if op.name == 'cx':
-                gate_seq[i] = current_mapping[op.qargs[0]], current_mapping[op.qargs[1]]
-            elif op.name == 'h':
-                gate_seq[i] = current_mapping[op.qargs[0]], current_mapping[op.qargs[0]]
+            if routed_status == RoutedStatus.ROUTED:
+                qargs = [q._index for q in qargs]  # No need to translate to physical
+            else:
+                qargs = [current_mapping[q] for q in qargs]
 
-            gate_level[i] = gate_levels[op._node_id]
+            gate_seq[i, OpRepPosition.POS_QUBIT_ONE] = qargs[0]
+            gate_seq[i, OpRepPosition.POS_QUBIT_TWO] = qargs[1]
 
-        if gate_len > 0:
-            gate_level[:gate_len] -= gate_level[0]
-            assert np.all(gate_level >= 0), gate_level
+            if num_qubits == 1 or routed_status == RoutedStatus.ROUTED:
+                gate_seq[i, OpRepPosition.POS_DISTANCE] = -1 # 0 is bad for NN.
+            else:
+                # Two qubit ops needed to route.
+                gate_seq[i, OpRepPosition.POS_DISTANCE] = distance_matrix[qargs[0], qargs[1]]
 
-        return dict(mapping=mapping, gate_seq=gate_seq, gate_len=gate_len, gate_level=gate_level)
+        return gate_seq
+
+    def get_space(self):
+        # Use sequence instead of box since our length is hard to tell in advance.
+        return gym.spaces.Sequence(space=gym.spaces.Box(low=0, high=float('inf'),
+                                                        shape=(OpRepPosition.POS_SIZE,)))

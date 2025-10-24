@@ -18,7 +18,7 @@ from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost,
 from contrib.expert import ha_baseline
 from contrib.common import get_cnot_num, get_distance_matrix
 from contrib.action_space import ActionSpace
-from contrib.state_space import StateSpace
+from contrib.state_space import StateSpace, RoutedStatus
 
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
 from hamap.layer import QuantumLayer, update_layer
@@ -110,7 +110,11 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
     #     return old_potential
 
     def _get_obs(self):
-        return self.state.encode(self.remaining_dag, self.current_mapping)
+        routed_rep = self.state.encode(self.resulting_dag, RoutedStatus.ROUTED)
+        unrouted_rep = self.state.encode(self.remaining_dag, RoutedStatus.UNROUNTED,
+                                         current_mapping=self.current_mapping,
+                                         distance_matrix=self.distance_matrix)
+        return np.concatenate((routed_rep, unrouted_rep), axis=0)
 
     def apply_transform_action(self, action: Tuple[int, TransformationPass]) -> Tuple[DAGCircuit, DAGCircuit]:
         phase, opt_pass = action
