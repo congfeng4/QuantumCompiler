@@ -11,7 +11,7 @@ from contrib.common import build_op_node_level
 
 
 class GateType(IntEnum):
-    H = 0 # Will be embedded so just use 0
+    H = 0  # Will be embedded so just use 0
     CX = 1
     SWAP = 2
     GATE_TYPE_MAX = 3
@@ -61,7 +61,7 @@ class StateSpace:
     def encode(self, dag: DAGCircuit,
                routed_status: RoutedStatus,
                current_mapping: dict[Qubit, int] = None,
-               level_offset: int = 0, # Should be able to differentiate routed and unrouted.
+               level_offset: int = 0,  # Should be able to differentiate routed and unrouted.
                distance_matrix: np.ndarray = None):
 
         topological_nodes: list[DAGOpNode] = list(dag.topological_op_nodes())
@@ -88,7 +88,7 @@ class StateSpace:
             gate_seq[i, OpRepPosition.POS_QUBIT_TWO] = qargs[1]
 
             if num_qubits == 1 or routed_status == RoutedStatus.ROUTED:
-                gate_seq[i, OpRepPosition.POS_DISTANCE] = -1 # 0 is bad for NN.
+                gate_seq[i, OpRepPosition.POS_DISTANCE] = -1  # 0 is bad for NN.
             else:
                 # Two qubit ops needed to route.
                 gate_seq[i, OpRepPosition.POS_DISTANCE] = distance_matrix[qargs[0], qargs[1]]

@@ -54,7 +54,6 @@ def make_symmetric(pairs: set[tuple[int, int]]):
 
 
 class ActionSpace:
-
     ACTION_FINISH = '<finish>'
     ACTION_START = '<start>'
 
@@ -88,7 +87,7 @@ class ActionSpace:
         self.num_swap = len(swap_set)
 
         def make_trans_action():
-            return [(opt, num) for opt in self.OPT_PASSES for num in [self.TRANS_ROUTED, self.TRANS_UNROUTED]]
+            return [(num, opt) for opt in self.OPT_PASSES for num in [self.TRANS_ROUTED, self.TRANS_UNROUTED]]
 
         # [SpecialActions, RoutingActions, TransActions]
         self.index_to_action = [self.ACTION_START, self.ACTION_FINISH] + routing_actions + make_trans_action()
@@ -108,7 +107,7 @@ class ActionSpace:
         return 2 * self.num_trans
 
     def __repr__(self):
-        return f'{self.__class__.__name__}(Size={self.size})'
+        return f'{self.__class__.__name__}({self.size})'
 
     @property
     def size(self):
