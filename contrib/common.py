@@ -83,6 +83,11 @@ def get_total_ops(qc):
     return sum(qc.count_ops().values())
 
 
+def get_weighted_ops(ops_count: dict, one_qubit_gate_weight: float):
+    total = sum(ops_count.values())
+    return ops_count['h'] * one_qubit_gate_weight + (total - ops_count['h']) * (1 - one_qubit_gate_weight)
+
+
 def show_mapping(mapping: dict[Qubit, int]):
     return {bit._index: int(idx) for bit, idx in mapping.items()}
 

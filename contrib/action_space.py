@@ -56,42 +56,44 @@ def make_symmetric(pairs: set[tuple[int, int]]):
 class ActionSpace:
 
     ACTION_FINISH = '<finish>'
+    ACTION_START = '<start>'
+
     TRANS_ROUTED = 0
     TRANS_UNROUTED = 1
-    action_list: List[Union[Tuple[int, int], Tuple[int, TransformationPass], str]]
+
+    OPT_PASSES = [
+        CommutativeCancellation(),
+        CommutativeInverseCancellation(),
+        InverseCancellation(),
+        Optimize1qGates(),
+        Optimize1qGatesSimpleCommutation(),
+        OptimizeSwapBeforeMeasure(),
+        RemoveIdentityEquivalent(),
+        # RemoveDiagonalGatesBeforeMeasure,
+        # RemoveFinalReset,
+        # ElidePermutations,
+    ]
+
+    index_to_action: List[Union[Tuple[int, int], Tuple[int, TransformationPass], str]]
 
     def __init__(self, hardware: IBMQHardwareArchitecture):
         self.num_qubits = hardware.qubit_number
         swap_set = set(hardware.edges)
         bridge_set = set(non_adj_common_pairs(hardware.to_undirected()))
         make_symmetric(bridge_set)
-        self.action_list = sorted(swap_set) + sorted(bridge_set)
-        check_symmetric(self.action_list)
-        assert len(self.action_list) == len(swap_set) + len(bridge_set), \
-            f'{len(swap_set)=} {len(bridge_set)=} {len(self.action_list)=}'
+        routing_actions = sorted(swap_set) + sorted(bridge_set)
+        check_symmetric(routing_actions)
+        assert len(routing_actions) == len(swap_set) + len(bridge_set)
         self.num_bridge = len(bridge_set)
         self.num_swap = len(swap_set)
 
-        self.OPT_PASSES = [
-            CommutativeCancellation(),
-            CommutativeInverseCancellation(),
-            InverseCancellation(),
-            Optimize1qGates(),
-            Optimize1qGatesSimpleCommutation(),
-            OptimizeSwapBeforeMeasure(),
-            RemoveIdentityEquivalent(),
-            # RemoveDiagonalGatesBeforeMeasure,
-            # RemoveFinalReset,
-            # ElidePermutations,
-        ]
+        def make_trans_action():
+            return [(opt, num) for opt in self.OPT_PASSES for num in [self.TRANS_ROUTED, self.TRANS_UNROUTED]]
 
-        def make_trans_action(num: int):
-            return [(opt, num) for opt in self.OPT_PASSES]
+        # [SpecialActions, RoutingActions, TransActions]
+        self.index_to_action = [self.ACTION_START, self.ACTION_FINISH] + routing_actions + make_trans_action()
 
-        self.action_list = make_trans_action(self.TRANS_ROUTED) + self.action_list + make_trans_action(self.TRANS_UNROUTED)
-        self.action_list.append(self.ACTION_FINISH)
-
-        self.action_to_index = {act: i for i, act in enumerate(self.action_list)}
+        self.action_to_index = {act: i for i, act in enumerate(self.index_to_action)}
 
     @property
     def num_trans(self):
@@ -110,7 +112,7 @@ class ActionSpace:
 
     @property
     def size(self):
-        return len(self.action_list)
+        return len(self.action_to_index)
 
     def to_gym_space(self):
         return gym.spaces.Discrete(self.size)
@@ -122,7 +124,7 @@ class ActionSpace:
     def decode(self, policy: int, initial_mapping,
                inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit],
                hardware: IBMQHardwareArchitecture):
-        action = self.action_list[policy]
+        action = self.index_to_action[policy]
         if isinstance(action[1], TransformationPass):
             return action
         left, right = action

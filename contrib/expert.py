@@ -194,7 +194,6 @@ def heuristic_algorithm(
         get_distance_matrix: ty.Callable[
             [IBMQHardwareArchitecture], numpy.ndarray
         ] = get_distance_matrix_swap_number_and_error,
-        topological_order_mode: TopologicalOrderMode = TopologicalOrderMode.DEFAULT_ORDER,
 ) -> ty.Tuple[QuantumCircuit, dict[Qubit, int]]:
     if collector:
         collector.begin_trajectory()
@@ -209,8 +208,6 @@ def heuristic_algorithm(
     # Sorting all the quantum operations in topological order once for all.
     # May require significant memory on large circuits...
     topological_nodes: ty.List[DAGOpNode] = list(dag_circuit.topological_op_nodes())
-    if topological_order_mode == TopologicalOrderMode.LEVEL_ORDER:
-        build_op_node_level(dag_circuit, topological_nodes, sort_by_level=True)
 
     current_node_index = 0
     # Creating the initial front layer.
@@ -331,14 +328,13 @@ def rollout_expert_trajectory(env: gym.Env, trajectory: 'Trajectory'):
     return info['metrics']
 
 
-def ha_baseline(qc: QuantumCircuit, hardware: IBMQHardwareArchitecture, initial_mapping: dict[Qubit, int],
-                topological_order_mode: TopologicalOrderMode):
+def ha_baseline(qc: QuantumCircuit, hardware: IBMQHardwareArchitecture, initial_mapping: dict[Qubit, int]):
     """
     Run HA baseline and return QKNOB metrics.
     """
     mapped_circuit, final_mapping = heuristic_algorithm(None, qc, initial_mapping, hardware,
                                                         get_distance_matrix=common.get_distance_matrix,
-                                                        topological_order_mode=topological_order_mode)
+                                                        )
     metrics = qknob_metrics(qc, mapped_circuit)
 
     return metrics
