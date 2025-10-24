@@ -1,7 +1,5 @@
 from contrib.common import Unit
 from contrib.maskable_ppo import run_maskable_ppo, CircuitDataset
-from contrib.feature_extractor import QubitEmbeddingMode, PositionalEncodingMode
-from contrib.environs import TopologicalOrderMode
 from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
 
 if __name__ == '__main__':
@@ -18,12 +16,10 @@ if __name__ == '__main__':
     for path in dataset.circuit_paths:
         *_, metrics = run_maskable_ppo(
             init_strategy=InitialMappingStrategy.SABRE,
-            embed_dim=128,
+            feature_dim=128,
             hardware=dataset.hardware,
             circuit_path=path,
-            seqlen=seqlen,
             output_dirname=dataset.dataname,
-            reward_shaping_weight=10,
             mode=mode,
             save_result=True,
             skip_existing=True,
@@ -34,8 +30,6 @@ if __name__ == '__main__':
             num_envs=8,
             nhead=4,
             num_layers=8,
-            topological_order_mode=TopologicalOrderMode.LEVEL_ORDER,
-            pe_mode=PositionalEncodingMode.LEVEL_PE,
             max_no_improvement_evals=4,
         )
 

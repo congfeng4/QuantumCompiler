@@ -162,11 +162,6 @@ def write_circuit(out_file: Union[Path, str], qc: QuantumCircuit):
     out_file.write_text(dumps(qc), encoding='utf8')
 
 
-class TopologicalOrderMode(Enum):
-    DEFAULT_ORDER = 0
-    LEVEL_ORDER = 1
-
-
 def build_op_node_level(dag: DAGCircuit, topological_nodes: list[DAGOpNode], sort_by_level: bool = False):
     """
     Compute the level of all op nodes using a lookup table.

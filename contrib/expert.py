@@ -27,7 +27,7 @@ from qiskit.converters.circuit_to_dag import circuit_to_dag
 from qiskit.converters.dag_to_circuit import dag_to_circuit
 from qiskit.dagcircuit import DAGNode
 
-from contrib.common import qknob_metrics, TopologicalOrderMode, build_op_node_level
+from contrib.common import qknob_metrics, build_op_node_level
 from contrib.state_space import StateSpace
 from contrib.action_space import ActionSpace
 from contrib.common import get_circuit_cost

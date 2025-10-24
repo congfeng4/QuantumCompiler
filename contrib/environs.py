@@ -1,5 +1,4 @@
-from collections import Counter, defaultdict
-from copy import deepcopy
+from collections import defaultdict
 from typing import Any, Optional, SupportsFloat, Tuple, Union
 
 import gymnasium as gym
@@ -13,8 +12,7 @@ from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGOpNode, DAGCircuit
 from qiskit.transpiler import TransformationPass
 
-from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost, TopologicalOrderMode, get_front_layer, \
-    get_total_ops, get_weighted_ops
+from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost, get_front_layer, get_weighted_ops
 from contrib.expert import ha_baseline
 from contrib.common import get_cnot_num, get_distance_matrix
 from contrib.action_space import ActionSpace
