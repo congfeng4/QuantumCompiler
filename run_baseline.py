@@ -220,19 +220,8 @@ def transpile_circuit_on_random_topology(circuit_path: Path,
     if opt_method.startswith('qiskit'):  # qiskit:1 means using qiskit's builtin opt level 1
         optimization_level = int(opt_method.split(':')[-1])
         assert optimization_level in SUPPORTED_OPT_LEVEL
-        qc_before = CircuitStats.from_qasm_file(circuit_path)
-    elif opt_method == 'quartz':
-        assert ecc_file and gate_set
-        qc_opt = quartz_optimize(circuit_path, gate_set, ecc_file, verbose)
-        qc_before = CircuitStats(qc_opt, name=circuit_path.stem)
-    elif opt_method == 'quarl':
-        assert ecc_file and gate_set and max_iterations
-        qc_opt = quarl_optimize(circuit_path, gate_set, ecc_file, max_iterations=max_iterations,
-                                verbose=verbose)
-        qc_before = CircuitStats(qc_opt, name=circuit_path.stem)
-    else:
-        raise ValueError(opt_method)
 
+    qc_before = CircuitStats.from_qasm_file(circuit_path)
     if isinstance(graph_model, str):
         coupling_graph = generate_graph_for_num_qubits(graph_model, num_qubits=qc_before.num_qubits)
     elif isinstance(graph_model, nx.Graph):
@@ -252,6 +241,19 @@ def transpile_circuit_on_random_topology(circuit_path: Path,
                          layout_method=layout_method,
                          routing_method=routing_method,
                          )
+
+    if opt_method == 'quartz':
+        assert ecc_file and gate_set
+        qc_opt = quartz_optimize(circuit_path, gate_set, ecc_file, verbose)
+        qc_before = CircuitStats(qc_opt, name=circuit_path.stem)
+    elif opt_method == 'quarl':
+        assert ecc_file and gate_set and max_iterations
+        qc_opt = quarl_optimize(circuit_path, gate_set, ecc_file, max_iterations=max_iterations,
+                                verbose=verbose)
+        qc_before = CircuitStats(qc_opt, name=circuit_path.stem)
+    else:
+        print('Warning:', opt_method)
+
     qc_after = CircuitStats(qc_after, qc_before.name)
     if isinstance(graph_model, str):
         graph_model_name = graph_model

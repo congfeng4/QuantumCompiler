@@ -76,8 +76,11 @@ def qknob_metrics(in_cirt: QuantumCircuit, out_cirt: Union[QuantumCircuit, DAGCi
     in_cx_num = get_cnot_num(in_cirt)
     out_cx_num = get_cnot_num(out_cirt)
     cx_ratio = out_cx_num / in_cx_num
-    swap_num = out_cirt.count_ops().get('swap', 0)
-    return dict(depth_ratio=depth_ratio, cx_ratio=cx_ratio, swap_num=swap_num)
+    return dict(depth_ratio=depth_ratio, cx_ratio=cx_ratio)
+
+
+def get_total_ops(qc):
+    return sum(qc.count_ops().values())
 
 
 def show_mapping(mapping: dict[Qubit, int]):

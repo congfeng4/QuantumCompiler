@@ -29,7 +29,7 @@ from qiskit.dagcircuit import DAGNode
 
 from contrib.common import qknob_metrics, TopologicalOrderMode, build_op_node_level
 from contrib.state_space import StateSpace
-from contrib.action_space import ActionSpaceEdge
+from contrib.action_space import ActionSpace
 from contrib.common import get_circuit_cost
 
 from hamap.distance_matrix import (
@@ -65,7 +65,7 @@ class TrajectoryCollector:
         self.outdir = outdir
         self.prefix = prefix
         self.obs_space = StateSpace(N, L)
-        self.act_space = ActionSpaceEdge(hardware)
+        self.act_space = ActionSpace(hardware)
         self.action_count = Counter()
 
     def begin_trajectory(self):
