@@ -44,8 +44,8 @@ class BaseCircuitEnv(gym.Env):
         self.action = ActionSpace(hardware)
         self.state = StateSpace(N, L)
 
-        self.action_space = self.action.get_space()
-        self.observation_space = self.state.get_space()
+        self.action_space = self.action.to_gym_space()
+        self.observation_space = self.state.to_gym_space()
 
 
 class CircuitEnvWithInitialMapping(BaseCircuitEnv):
@@ -226,7 +226,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         return self._get_obs(), -self.invalid_action_penalty, False, False, {}
 
     def apply_action(self, action: Union[TwoQubitGate, Tuple[int, TransformationPass]]):
-        if isinstance(action[1], TransformationPass):
+        if isinstance(action[0], TransformationPass):
             return self.apply_transform_action(action)
         if isinstance(action, TwoQubitGate):
             return self.apply_route_action(action)
@@ -286,7 +286,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         return num_executed_cnot
 
     def action_masks(self):
-        masks = np.zeros(self.action.get_size(), dtype=bool)
+        masks = np.zeros(self.action.size(), dtype=bool)
         # Since we apply transformations in the routed subscircuit, it needs to non-empty.
         self.swap_masks(masks)
         self.bridge_masks(masks)

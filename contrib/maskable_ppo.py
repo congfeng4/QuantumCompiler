@@ -329,7 +329,7 @@ def run_maskable_ppo(
         clip_range=clip_range,
         policy_kwargs=get_policy_kwargs(
             hardware=hardware,
-            embed_dim=embed_dim,
+            feature_dim=embed_dim,
             mode=mode,
             nhead=nhead,
             num_layers=num_layers,

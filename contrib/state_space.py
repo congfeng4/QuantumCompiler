@@ -14,6 +14,7 @@ class GateType(IntEnum):
     H = 0 # Will be embedded so just use 0
     CX = 1
     SWAP = 2
+    GATE_TYPE_MAX = 3
 
     @classmethod
     def from_name(cls, name):
@@ -38,16 +39,24 @@ class RoutedStatus(IntEnum):
 
 
 class OpRepPosition(IntEnum):
-    POS_GATE_TYPE = 0
-    POS_ROUNTED = 1
-    POS_DISTANCE = 2
-    POS_LEVEL = 3
+    POS_ROUNTED = 0
+    POS_DISTANCE = 1
+    POS_LEVEL = 2
+    POS_GATE_TYPE = 3
     POS_QUBIT_ONE = 4
     POS_QUBIT_TWO = 5
     POS_SIZE = 6
+    POS_EMB_OFFSET = 2  # Starting from 2, features need embedding.
 
 
 class StateSpace:
+
+    @property
+    def num_op_features(self):
+        return int(OpRepPosition.POS_SIZE)
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.num_op_features})'
 
     def encode(self, dag: DAGCircuit,
                routed_status: RoutedStatus,
@@ -86,7 +95,7 @@ class StateSpace:
 
         return gate_seq
 
-    def get_space(self):
+    def to_gym_space(self):
         # Use sequence instead of box since our length is hard to tell in advance.
-        return gym.spaces.Sequence(space=gym.spaces.Box(low=0, high=float('inf'),
-                                                        shape=(OpRepPosition.POS_SIZE,)))
+        return gym.spaces.Sequence(space=gym.spaces.Box(low=float('-inf'), high=float('inf'),
+                                                        shape=(self.num_op_features,)))

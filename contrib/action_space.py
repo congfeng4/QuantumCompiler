@@ -55,7 +55,7 @@ def make_symmetric(pairs: set[tuple[int, int]]):
 
 class ActionSpace:
 
-    ACTION_FINISH = '<end>'
+    ACTION_FINISH = '<finish>'
     TRANS_ROUTED = 0
     TRANS_UNROUTED = 1
     action_list: List[Union[Tuple[int, int], Tuple[int, TransformationPass], str]]
@@ -106,13 +106,14 @@ class ActionSpace:
         return 2 * self.num_trans
 
     def __repr__(self):
-        return f'<{self.__class__.__name__}(Size={self.get_size()})>'
+        return f'{self.__class__.__name__}(Size={self.size})'
 
-    def get_size(self):
+    @property
+    def size(self):
         return len(self.action_list)
 
-    def get_space(self):
-        return gym.spaces.Discrete(self.get_size())
+    def to_gym_space(self):
+        return gym.spaces.Discrete(self.size)
 
     def encode(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):
         _, q0, q1 = two_qubit_gate_to_tuple(swap, current_mapping, initial_mapping)
@@ -138,4 +139,4 @@ if __name__ == '__main__':
     for name in ['tokyo', 'sycamore', 'rochester']:
         hardware = IBMQHardwareArchitecture(name)
         space = ActionSpace(hardware)
-        print(space)
+        print(space.action_to_index)
