@@ -154,9 +154,9 @@ def piecewise_linear(initial: float, plateau: float = 0.5, final: float = 1e-5):
 def run_maskable_ppo(
         hardware: Union[IBMQHardwareArchitecture, str],
         circuit_path: Union[Path, str, QuantumCircuit],
-        batch_size: int = Unit.K,
-        n_steps: int = 16 * Unit.K,
-        eval_freq: int = 16 * Unit.K,
+        batch_size: int = 64,
+        n_steps: int = 2048,
+        eval_freq: int = 1024,
         feature_dim: int = 64,
         init_strategy: Union[InitialMappingStrategy, dict[Qubit, int]] = InitialMappingStrategy.SABRE,
         num_epochs: int = 100,
@@ -252,7 +252,7 @@ def run_maskable_ppo(
     pprint(config)
 
     circuit_name = Path(circuit_path).stem if not isinstance(circuit_path, QuantumCircuit) else None
-    log_name = f'Q={circuit_name}-{datetime.datetime.now()}'
+    log_name = f'{datetime.datetime.now()}'
     log_dir = f'./log/{output_dirname}'
     result_dir = f"./result/{output_dirname}"
     if not os.path.exists(result_dir):

@@ -230,7 +230,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             if isinstance(action, BridgeTwoQubitGate):
                 executed_ops['cx'] += 1
             # A bridge must let a cx executed but update() can't get that.
-            reward += get_weighted_ops(executed_ops, self.one_qubit_gate_weight)
+            reward += get_weighted_ops(executed_ops, self.one_qubit_gate_weight) - self.step_penalty
         else:
             assert isinstance(action, SwapTwoQubitGate), 'Bridge is not allowed before routing'
             if self.swaps_before_routing == self.swaps_before_routing_limit:
@@ -257,12 +257,14 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         if self.is_done:
             # Routing is finished and agent just reaches transformation limit or outputs 'finish' action.
             self.finalize_result()
-            reward += self.num_qubits * self.bonus_weight  # Final bonus to motivate agent to finish faster.
+            cx_ratio, depth_ratio = self.metrics['metric/cx_ratio'], self.metrics['metric/depth_ratio']
+            reward += np.exp(2 - cx_ratio - depth_ratio) * self.bonus_weight
+            # Final bonus to motivate agent to finish faster.
             if self.verbose:
                 readable_metrics = readable_float_dict(self.metrics)
                 print(f'Game ends {readable_metrics}')
-        else:
-            reward -= self.step_penalty  # Except the last step, all preceding steps get a step penalty.
+        # else:
+            # reward -= self.step_penalty  # Except the last step, all preceding steps get a step penalty.
 
         self.reward_stats[action_name] += reward
         if self.verbose:
