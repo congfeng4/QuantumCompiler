@@ -53,6 +53,20 @@ def make_symmetric(pairs: set[tuple[int, int]]):
         pairs.add((b, a))
 
 
+OPT_PASSES = [
+    CommutativeCancellation(),
+    CommutativeInverseCancellation(),
+    InverseCancellation(),
+    Optimize1qGates(),
+    Optimize1qGatesSimpleCommutation(),
+    OptimizeSwapBeforeMeasure(),
+    RemoveIdentityEquivalent(),
+    # RemoveDiagonalGatesBeforeMeasure,
+    # RemoveFinalReset,
+    # ElidePermutations,
+]
+
+
 class ActionSpace:
     ACTION_FINISH = '<finish>'
     ACTION_START = '<start>'
@@ -60,22 +74,13 @@ class ActionSpace:
     TRANS_ROUTED = 0
     TRANS_UNROUTED = 1
 
-    OPT_PASSES = [
-        CommutativeCancellation(),
-        CommutativeInverseCancellation(),
-        InverseCancellation(),
-        Optimize1qGates(),
-        Optimize1qGatesSimpleCommutation(),
-        OptimizeSwapBeforeMeasure(),
-        RemoveIdentityEquivalent(),
-        # RemoveDiagonalGatesBeforeMeasure,
-        # RemoveFinalReset,
-        # ElidePermutations,
-    ]
-
     index_to_action: List[Union[Tuple[int, int], Tuple[int, TransformationPass], str]]
 
-    def __init__(self, hardware: IBMQHardwareArchitecture):
+    def __init__(self, hardware: IBMQHardwareArchitecture, transformations: List[TransformationPass]=None):
+        if transformations is None:
+            transformations = OPT_PASSES
+        self.trans = transformations
+
         self.num_qubits = hardware.qubit_number
         swap_set = set(hardware.edges)
         bridge_set = set(non_adj_common_pairs(hardware.to_undirected()))
@@ -87,7 +92,7 @@ class ActionSpace:
         self.num_swap = len(swap_set)
 
         def make_trans_action():
-            return [(num, opt) for opt in self.OPT_PASSES for num in [self.TRANS_ROUTED, self.TRANS_UNROUTED]]
+            return [(num, opt) for opt in self.trans for num in [self.TRANS_ROUTED, self.TRANS_UNROUTED]]
 
         # [SpecialActions, RoutingActions, TransActions]
         self.index_to_action = [self.ACTION_START, self.ACTION_FINISH] + routing_actions + make_trans_action()
@@ -96,7 +101,7 @@ class ActionSpace:
 
     @property
     def num_trans(self):
-        return len(self.OPT_PASSES)
+        return len(self.trans)
 
     @property
     def num_route_actions(self):
@@ -124,7 +129,9 @@ class ActionSpace:
                inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit],
                hardware: IBMQHardwareArchitecture):
         action = self.index_to_action[policy]
-        if isinstance(action, (tuple, str)) and isinstance(action[1], TransformationPass): # transform or special.
+        if isinstance(action, str): # special
+            return action
+        if  isinstance(action, tuple) and isinstance(action[1], TransformationPass): # transform
             return action
         left, right = action
         swap_class = SWAP_INDEX if (left, right) in hardware.edges else BRIDGE_INDEX

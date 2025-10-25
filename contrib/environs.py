@@ -354,7 +354,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
     def special_action_masks(self, masks):
         allow_start = not self.is_routing_started
-        allow_finish = not self.is_routing_finished()
+        allow_finish = self.is_routing_finished()
         masks[self.action.action_to_index[ActionSpace.ACTION_START]] = allow_start
         masks[self.action.action_to_index[ActionSpace.ACTION_FINISH]] = allow_finish
 
@@ -365,7 +365,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         if self.is_routing_finished():
             allow_transform_routed &= self.trans_after_routing < self.trans_after_routing_limit
 
-        for opt in self.action.OPT_PASSES:
+        for opt in self.action.trans:
             masks[self.action.action_to_index[ActionSpace.TRANS_ROUTED, opt]] = allow_transform_routed
             masks[self.action.action_to_index[ActionSpace.TRANS_UNROUTED, opt]] = allow_transform_unrouted
 

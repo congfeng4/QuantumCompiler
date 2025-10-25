@@ -1,4 +1,5 @@
 import json
+from collections import defaultdict
 from enum import IntEnum, Enum
 from typing import Union
 import numpy as np
@@ -7,7 +8,7 @@ from pathlib import Path
 import networkx as nx
 
 from qiskit.dagcircuit import DAGNode, DAGCircuit, DAGOpNode
-
+from qiskit.circuit.library import get_standard_gate_name_mapping
 from hamap.distance_matrix import get_distance_matrix_swap_number, get_distance_matrix_swap_number_and_error
 from hamap.gates import TwoQubitGate
 from hamap.hardware import IBMQHardwareArchitecture
@@ -30,6 +31,8 @@ class Unit(IntEnum):
 
 
 get_distance_matrix = get_distance_matrix_swap_number_and_error
+
+GATE_NAME_MAPPING = get_standard_gate_name_mapping()
 
 
 def get_cnot_num(cirt: Union[QuantumCircuit, DAGCircuit]):
@@ -84,8 +87,12 @@ def get_total_ops(qc):
 
 
 def get_weighted_ops(ops_count: dict, one_qubit_gate_weight: float):
-    total = sum(ops_count.values())
-    return ops_count['h'] * one_qubit_gate_weight + (total - ops_count['h']) * (1 - one_qubit_gate_weight)
+    qubits_to_count = defaultdict(int)
+    for name, count in ops_count.items():
+        num_qubits = GATE_NAME_MAPPING[name].num_qubits
+        qubits_to_count[num_qubits] += 1
+    assert max(qubits_to_count.keys()) <= 2, qubits_to_count
+    return qubits_to_count[1] * one_qubit_gate_weight + qubits_to_count[2] * (1 - one_qubit_gate_weight)
 
 
 def show_mapping(mapping: dict[Qubit, int]):
