@@ -4,7 +4,7 @@ import torch
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from torch import nn
 import math
-from contrib.state_space import GateType, OpRepPosition
+from contrib.state_space import GATE_NAME_TO_ID, OpRepPosition
 
 
 def positional_encoding_matrix(position: torch.Tensor, d_model: int):
@@ -43,7 +43,7 @@ class OpsEmbedding(nn.Module):
             params = {}
         self.feature_dim = feature_dim
         # Allow model distinguish different gate-types.
-        self.gate_type_embed = nn.Embedding(GateType.GATE_TYPE_MAX, params.get('gate_type_embed_dim', 4))
+        self.gate_type_embed = nn.Embedding(len(GATE_NAME_TO_ID), params.get('gate_type_embed_dim', 4))
         self.qubit_embed = nn.Embedding(qubit_number, params.get('qubit_embed_dim', 16))
         self.hidden_size = sum([self.gate_type_embed.embedding_dim, 2 * self.qubit_embed.embedding_dim,
                                 OpRepPosition.POS_EMB_OFFSET])

@@ -87,6 +87,8 @@ def get_total_ops(qc):
 
 
 def get_weighted_ops(ops_count: dict, one_qubit_gate_weight: float):
+    if not ops_count:
+        return 0
     qubits_to_count = defaultdict(int)
     for name, count in ops_count.items():
         num_qubits = GATE_NAME_MAPPING[name].num_qubits

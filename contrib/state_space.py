@@ -8,30 +8,11 @@ from gymnasium.spaces import Box
 
 from qiskit.circuit import Qubit
 from qiskit.dagcircuit import DAGOpNode, DAGCircuit
-from contrib.common import build_op_node_level
+from contrib.common import build_op_node_level, GATE_NAME_MAPPING
 
+GATE_NAME_LIST = 'h cx swap u2 u3'.split()
 
-class GateType(IntEnum):
-    H = 0  # Will be embedded so just use 0
-    CX = 1
-    SWAP = 2
-    GATE_TYPE_MAX = 3
-
-    @classmethod
-    def from_name(cls, name):
-        if name == 'h':
-            return cls.H
-        if name == 'cx':
-            return cls.CX
-        if name == 'swap':
-            return cls.SWAP
-        raise ValueError(name)
-
-    @property
-    def num_qubits(self):
-        if self == self.H:
-            return 1
-        return 2
+GATE_NAME_TO_ID = {name: i for i, name in enumerate(GATE_NAME_LIST)}
 
 
 class RoutedStatus(IntEnum):
@@ -104,12 +85,13 @@ class StateSpace:
         gate_seq = np.zeros((seqlen, self.feature_dim), np.int64)
 
         for i, op in enumerate(topological_nodes):
-            gate_type = GateType.from_name(op.name)
-            gate_seq[i, OpRepPosition.POS_GATE_TYPE] = gate_type
+            gate_type = GATE_NAME_MAPPING[op.name]
+            gate_seq[i, OpRepPosition.POS_GATE_TYPE] = GATE_NAME_TO_ID[op.name]
             gate_seq[i, OpRepPosition.POS_ROUNTED] = routed_status
             gate_seq[i, OpRepPosition.POS_LEVEL] = level_offset + gate_levels[op._node_id]
 
             num_qubits = gate_type.num_qubits
+            assert num_qubits <= 2, f'Three qubits gate should not be used: {gate_type}'
             qargs = op.qargs if num_qubits == 2 else op.qargs * 2
 
             if routed_status == RoutedStatus.ROUTED:

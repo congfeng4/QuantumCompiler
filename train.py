@@ -27,7 +27,7 @@ if __name__ == '__main__':
             batch_size=batch_size,
             eval_freq=eval_freq,
             n_steps=n_steps,
-            num_envs=8,
+            num_envs=1,
             nhead=4,
             num_layers=8,
             max_no_improvement_evals=4,
