@@ -289,10 +289,9 @@ pip-selfcheck.json
 
 /data
 .DS_Store
-/result/expert/
 /log*
 *.trans
 best_model.zip
 .vscode
 __MACOSX
-/result
+/output

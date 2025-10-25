@@ -91,12 +91,12 @@ class MetricEvalCallback(BaseCallback):
     def _on_step(self) -> bool:
         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
             metrics, input_circuit, final_circuit, mapping = evaluate_policy_for_metrics(self.model, self.eval_env)
-            mapping = {q._index: p for q, p in mapping.items()} # Convert to int=>int.
             depth_ratio = metrics['metric/depth_ratio']
 
             if self.best_depth_ratio is None or depth_ratio < self.best_depth_ratio:
                 self.best_depth_ratio = depth_ratio
                 print('New best depth_ratio', depth_ratio)
+                # mapping = {q._index: p for q, p in mapping.items()} # Convert to int=>int.
 
                 if self.verify_circuit:
                     print('Begin to verify circuit...')
@@ -105,7 +105,7 @@ class MetricEvalCallback(BaseCallback):
                 if self.best_save_dir is not None:
                     write_circuit(self.best_save_dir / 'final_circuit.qasm', final_circuit)
                     write_circuit(self.best_save_dir / 'input_circuit.qasm', input_circuit)
-                    write_json(self.best_save_dir / 'initial_mapping.json', mapping)
+                    # write_json(self.best_save_dir / 'initial_mapping.json', mapping)
                     write_json(self.best_save_dir / 'metrics.json', metrics)
 
             for key, value in metrics.items():
@@ -193,8 +193,6 @@ def run_maskable_ppo(
         total_timesteps: int = 100 * Unit.K,
         eval_freq: int = 1024,
         feature_dim: int = 64,
-        learning_rate: float = 3e-4,
-        num_epochs: int = 100,
         n_eval_episodes: int = 10,
         max_no_improvement_evals=100,
         num_envs: int = None,
@@ -260,9 +258,6 @@ def run_maskable_ppo(
         params=env_params,
     )
 
-    if total_timesteps is None:
-        total_timesteps = num_epochs * n_steps
-
     circuit_name = Path(circuit_path).stem if not isinstance(circuit_path, QuantumCircuit) else 'unknown'
 
     config = dict(
@@ -273,20 +268,18 @@ def run_maskable_ppo(
         feature_dim=feature_dim,
         init_strategy=init_strategy if isinstance(init_strategy, InitialMappingStrategy) else None,
         total_timesteps=total_timesteps,
-        num_epochs=num_epochs,
         n_steps=n_steps,
         qubit_number=hardware.qubit_number,
-        learning_rate=learning_rate,
         model_params=model_params,
         ppo_params=ppo_params,
         env_params=env_params,
     )
     pprint(config)
 
-    output_dir = f'./output/' + hardware.name + "/" + circuit_name
+    output_dir = f'./output/ours/{hardware.name}/{circuit_name}'
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    log_dir = f"./log/{datetime.datetime.now()}"
+    log_dir = f"./output/log/{hardware.name}/{datetime.datetime.now()}"
 
     metrics_callback = MetricEvalCallback(
         eval_env=eval_env,

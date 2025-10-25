@@ -79,10 +79,10 @@ def get_circuit_cost(dag: DAGCircuit, current_mapping: dict[Qubit, int],
 def qknob_metrics(in_cirt: QuantumCircuit, out_cirt: Union[QuantumCircuit, DAGCircuit]):
     depth_ratio = out_cirt.depth() / in_cirt.depth()
     gate_ratio = get_total_ops(out_cirt) / get_total_ops(in_cirt)
-    # in_cx_num = get_cnot_num(in_cirt)
-    # out_cx_num = get_cnot_num(out_cirt)
-    # cx_ratio = out_cx_num / in_cx_num
-    return dict(depth_ratio=depth_ratio, gate_ratio=gate_ratio)
+    in_cx_num = get_cnot_num(in_cirt)
+    out_cx_num = get_cnot_num(out_cirt)
+    cx_ratio = out_cx_num / in_cx_num
+    return dict(depth_ratio=depth_ratio, gate_ratio=gate_ratio, cx_ratio=cx_ratio)
 
 
 def get_total_ops(qc):

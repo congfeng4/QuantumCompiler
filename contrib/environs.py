@@ -157,7 +157,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             action_name = f'unrouted/{opt_pass.name()}'
 
         old_dag = self.resulting_dag if phase == ActionSpace.TRANS_ROUTED else self.remaining_dag
-        old_dag_count = get_weighted_ops(old_dag.count_ops())
+        old_dag_count = get_weighted_ops(old_dag.count_ops()) + old_dag.depth()
         try:
             new_dag: DAGCircuit = opt_pass.run(old_dag)
         except Exception as e:
@@ -168,7 +168,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             if self.trans_after_routing == self.trans_after_routing_limit:
                 self.is_done = True
 
-        new_dag_count = get_weighted_ops(new_dag.count_ops())
+        new_dag_count = get_weighted_ops(new_dag.count_ops()) + new_dag.depth()
         reward = old_dag_count - new_dag_count * self.gamma
         # print('old_dag_count', old_dag_count, 'new_dag_count', new_dag_count)
         if phase == ActionSpace.TRANS_ROUTED:

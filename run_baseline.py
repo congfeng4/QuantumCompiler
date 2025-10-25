@@ -374,7 +374,7 @@ if __name__ == '__main__':
     for data in data_list:
         dataset = CircuitDataset(data, sort=True)
         run_transpile_and_save_results(dataset.circuit_dir,
-                                       opt_methods=['qiskit:0'],
-                                       gate_set='h cx'.split(),
-                                       save_file=f'./result/{data}.csv',
+                                       opt_methods=['qiskit:0', 'qiskit:1', 'qiskit:2'],
+                                       gate_set='h cx u'.split(),
+                                       save_file=f'./output/baseline/{data}.csv',
                                        graph=dataset.hardware)
