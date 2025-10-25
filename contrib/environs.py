@@ -6,6 +6,7 @@ import numpy as np
 from gymnasium.core import ObsType
 from gymnasium.utils.env_checker import check_env
 
+from pygame import ver
 from qiskit import QuantumCircuit
 from qiskit.circuit import Qubit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
@@ -17,7 +18,8 @@ from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost,
 from contrib.expert import ha_baseline
 from contrib.common import get_cnot_num, get_distance_matrix
 from contrib.action_space import ActionSpace
-from contrib.state_space import StateSpace, RoutedStatus
+from contrib.state_space import StateSpace
+from contrib.verify_circuit import verify_under_mapping
 
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
 from hamap.layer import QuantumLayer, update_layer
@@ -114,6 +116,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.current_mapping = self.initial_mapping.copy()
         self.trans_mapping = self.initial_mapping.copy()
         self.inverse_mapping = {val: key for key, val in self.initial_mapping.items()}
+        self.initial_mapping_adapted = None
 
         # Circuits/DAGs.
         self.remaining_dag = circuit_to_dag(self.input_circuit)
@@ -187,6 +190,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         assert not self.is_routing_started, 'Make sure self.is_routing_started is False!'
         if self.verbose: print('Routing is started')
         self.is_routing_started = True
+        self.initial_mapping_adapted = self.current_mapping.copy()
         self.update()
 
     def apply_route_action(self, action: TwoQubitGate):
@@ -257,7 +261,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             # Routing is finished and agent just reaches transformation limit or outputs 'finish' action.
             self.finalize_result()
             gate_ratio, depth_ratio = self.metrics['metric/gate_ratio'], self.metrics['metric/depth_ratio']
-            reward += self.bonus_weight #np.exp(2 - gate_ratio - depth_ratio) * self.bonus_weight
+            reward += np.exp(1 - depth_ratio) * self.bonus_weight
             # Final bonus to motivate agent to finish faster.
             if self.verbose:
                 readable_metrics = readable_float_dict(self.metrics)

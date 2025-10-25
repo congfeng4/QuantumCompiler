@@ -222,6 +222,8 @@ class BridgeTwoQubitGate(TwoQubitGate):
         # front layer.
         op_to_remove: ty.Optional[DAGNode] = None
         for op in front_layer.ops:
+            if len(op.qargs) != 2:
+                continue
             q1, q2 = initial_mapping[op.qargs[0]], initial_mapping[op.qargs[1]]
             if (
                     len(op.qargs) == 2

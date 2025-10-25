@@ -2,8 +2,10 @@ import json
 from collections import defaultdict
 from enum import IntEnum, Enum
 from typing import Union
+import jsons
 import numpy as np
 from qiskit.circuit import Qubit, QuantumCircuit
+from qiskit.quantum_info import Operator
 from pathlib import Path
 import networkx as nx
 
@@ -151,7 +153,7 @@ def write_json(out_file: Union[Path, str], data):
     if not isinstance(out_file, Path):
         out_file = Path(out_file)
     out_file.parent.mkdir(parents=True, exist_ok=True)
-    out_file.write_text(json.dumps(data, indent=4, ensure_ascii=False), encoding='utf8')
+    out_file.write_text(json.dumps(jsons.dump(data), indent=4, ensure_ascii=False), encoding='utf8')
 
 
 def read_json(in_file: Union[Path, str]):

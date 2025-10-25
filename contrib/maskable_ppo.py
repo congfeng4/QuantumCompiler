@@ -3,6 +3,7 @@
 至少需要用MaskablePPO，并且把Action Mask定义好。
 ☀️🌛🎉🖼🏊🏻🏓✈️🚗
 """
+import numpy as np
 import datetime
 from collections import defaultdict
 import os
@@ -13,13 +14,14 @@ from pathlib import Path
 from typing import Callable, Optional, Literal
 from pprint import pprint
 from typing import Union
+from pathlib import Path
 
 import gymnasium
 import jsons
 import torch.cuda
 from stable_baselines3.common.env_util import make_vec_env
 
-from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_json, get_cnot_num, readable_float_dict, \
+from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_circuit, write_json, get_cnot_num, readable_float_dict, \
     read_json, show_mapping, Qubit, Unit, get_circuit_depth, read_circuit, qknob_metrics
 
 from sb3_contrib.ppo_mask import MaskablePPO
@@ -33,6 +35,7 @@ from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from stable_baselines3.common.callbacks import BaseCallback
 
+from contrib.verify_circuit import verify_under_mapping
 from hamap.initial_mapping import initial_mapping_from_sabre
 
 
@@ -51,33 +54,59 @@ def average_metrics(metrics_list):
         for key, value in item.items():
             avg_metrics[key].append(value)
 
-    avg_metrics = {key: sum(val) / len(val) for key, val in avg_metrics.items()}
+    avg_metrics = {key: np.mean(val) for key, val in avg_metrics.items()}
     return avg_metrics
 
 
-def evaluate_policy_for_metrics(model, eval_env, use_masking):
-    evaluate_policy(model, eval_env, n_eval_episodes=1, use_masking=use_masking, deterministic=False)
+def evaluate_policy_for_metrics(model, eval_env, key_metric='metric/depth_ratio'):
+    evaluate_policy(model, eval_env, n_eval_episodes=1, use_masking=True, deterministic=False)
     metrics_list = eval_env.get_attr('metrics')
-    k = random.choice(range(eval_env.num_envs))
+    k = np.argmin([m[key_metric] for m in  metrics_list])
     final_circuit = eval_env.get_attr('resulting_circuit')[k]
-    final_mapping = eval_env.get_attr('current_mapping')[k]
+    input_circuit = eval_env.get_attr('input_circuit')[k]
+    initial_mapping_adapted = eval_env.get_attr('initial_mapping_adapted')[k]
     metrics = average_metrics(metrics_list)
-    return metrics, final_circuit, final_mapping
+    return metrics, input_circuit, final_circuit, initial_mapping_adapted
 
 
 class MetricEvalCallback(BaseCallback):
     model: MaskablePPO
 
-    def __init__(self, eval_env, eval_freq, use_masking):
+    def __init__(self, eval_env, eval_freq,
+                 verify_circuit=False,
+                 best_save_dir=None):
         # deterministic=True，早期评估非常慢，几乎卡死。
         super().__init__()
         self.eval_env = eval_env
         self.eval_freq = eval_freq
-        self.use_masking = use_masking
+        # Monitor depth_ratio, more important than gate_ratio.
+        self.best_depth_ratio = None
+        self.best_save_dir = None
+        self.verify_circuit = verify_circuit
+
+        if best_save_dir is not None:
+            self.best_save_dir = Path(best_save_dir)
+            self.best_save_dir.mkdir(parents=True, exist_ok=True)
 
     def _on_step(self) -> bool:
         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
-            metrics, *_ = evaluate_policy_for_metrics(self.model, self.eval_env, self.use_masking)
+            metrics, input_circuit, final_circuit, mapping = evaluate_policy_for_metrics(self.model, self.eval_env)
+            mapping = {q._index: p for q, p in mapping.items()} # Convert to int=>int.
+            depth_ratio = metrics['metric/depth_ratio']
+
+            if self.best_depth_ratio is None or depth_ratio < self.best_depth_ratio:
+                self.best_depth_ratio = depth_ratio
+                print('New best depth_ratio', depth_ratio)
+
+                if self.verify_circuit:
+                    print('Begin to verify circuit...')
+                    assert verify_under_mapping(input_circuit, final_circuit, mapping)
+
+                if self.best_save_dir is not None:
+                    write_circuit(self.best_save_dir / 'final_circuit.qasm', final_circuit)
+                    write_circuit(self.best_save_dir / 'input_circuit.qasm', input_circuit)
+                    write_json(self.best_save_dir / 'initial_mapping.json', mapping)
+                    write_json(self.best_save_dir / 'metrics.json', metrics)
 
             for key, value in metrics.items():
                 self.logger.record(key, round(value, 2))
@@ -156,24 +185,27 @@ def piecewise_linear(initial: float, plateau: float = 0.5, final: float = 1e-5):
 def run_maskable_ppo(
         hardware: Union[IBMQHardwareArchitecture, str],
         circuit_path: Union[Path, str, QuantumCircuit],
+        init_strategy: Union[InitialMappingStrategy, dict[Qubit, int]] = InitialMappingStrategy.SABRE,
+        env_cls: gymnasium.Env = CircuitEnvWithInitialMapping,
+
+        # Numeric options.
         n_steps: int = 2048,
+        total_timesteps: int = 100 * Unit.K,
         eval_freq: int = 1024,
         feature_dim: int = 64,
-        init_strategy: Union[InitialMappingStrategy, dict[Qubit, int]] = InitialMappingStrategy.SABRE,
+        learning_rate: float = 3e-4,
         num_epochs: int = 100,
-        total_timesteps: int = 800 * Unit.K,
-        output_dirname: str = None,
-        pretrain: Path = None,
-        save_result: bool = True,
-        save_model: bool = False,
-        skip_existing: bool = True,
         n_eval_episodes: int = 10,
         max_no_improvement_evals=100,
         num_envs: int = None,
-        learning_rate: float = 3e-4,
-        env_cls: gymnasium.Env = CircuitEnvWithInitialMapping,
         min_evals: int = 5,
+
+        # Boolean flags.
+        save_model: bool = False,
         verbose=False,
+        verify_circuit=False,
+
+        # Other flags.
         ppo_params=None,
         model_params=None,
         env_params=None,
@@ -191,13 +223,6 @@ def run_maskable_ppo(
     num_envs = num_envs or max(os.cpu_count() // 4, 8)
     while n_steps % num_envs != 0:
         num_envs += 1
-
-    if output_dirname is None:
-        output_dirname = 'test'
-
-    output_dir = f'./result/{output_dirname}'
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
 
     if not isinstance(hardware, IBMQHardwareArchitecture):
         hardware = IBMQHardwareArchitecture(hardware)
@@ -238,11 +263,14 @@ def run_maskable_ppo(
     if total_timesteps is None:
         total_timesteps = num_epochs * n_steps
 
+    circuit_name = Path(circuit_path).stem if not isinstance(circuit_path, QuantumCircuit) else 'unknown'
+
     config = dict(
-        env_cls=env_cls.__name__,
-        circuit_path=str(circuit_path) if not isinstance(circuit_path, QuantumCircuit) else None,
+        env=env_cls.__name__,
+        hardware=hardware.name,
+        circuit=circuit_name,
         num_envs=num_envs,
-        embed_dim=feature_dim,
+        feature_dim=feature_dim,
         init_strategy=init_strategy if isinstance(init_strategy, InitialMappingStrategy) else None,
         total_timesteps=total_timesteps,
         num_epochs=num_epochs,
@@ -255,19 +283,17 @@ def run_maskable_ppo(
     )
     pprint(config)
 
-    circuit_name = Path(circuit_path).stem if not isinstance(circuit_path, QuantumCircuit) else None
-    log_name = f'{datetime.datetime.now()}'
-    log_dir = f'./log/{output_dirname}'
-    result_dir = f"./result/{output_dirname}"
-    if not os.path.exists(result_dir):
-        os.mkdir(result_dir)
-    best_model_path = output_dir + "/models/" + log_name
-    result_file = result_dir + f"/Q={circuit_name}-result.json"
-    if os.path.exists(result_file) and skip_existing:
-        print(f'Result exists: {result_file}')
-        return read_json(result_file)
+    output_dir = f'./output/' + hardware.name + "/" + circuit_name
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    log_dir = f"./log/{datetime.datetime.now()}"
 
-    metrics_callback = MetricEvalCallback(eval_env=eval_env, eval_freq=eval_freq // num_envs, use_masking=True)
+    metrics_callback = MetricEvalCallback(
+        eval_env=eval_env,
+        eval_freq=eval_freq // num_envs,
+        verify_circuit=verify_circuit,
+        best_save_dir=output_dir,
+    )
 
     eval_callback = MaskableEvalCallback(
         eval_env,
@@ -279,7 +305,7 @@ def run_maskable_ppo(
         verbose=1,
         deterministic=False,
         use_masking=True,
-        best_model_save_path=best_model_path if save_model else None,
+        best_model_save_path=output_dir if save_model else None,
         n_eval_episodes=n_eval_episodes,
     )
 
@@ -295,33 +321,19 @@ def run_maskable_ppo(
             params=model_params,
         ),
         **ppo_params,
-    ) if pretrain is None else MaskablePPO.load(pretrain, env)
+    )
 
     ppo.tensorboard_log = log_dir
     print(f'Model loaded: {ppo}')
-    learn_start = time.time()
     ppo.learn(
         total_timesteps=total_timesteps,
-        tb_log_name=log_name,
+        tb_log_name=str(datetime.datetime.now()),
         progress_bar=True,
         callback=[eval_callback, metrics_callback],
         use_masking=True,
     )
-    learn_end = time.time()
-
-    print('Eval policy')
-    metrics, final_circuit, final_mapping = evaluate_policy_for_metrics(ppo, eval_env, use_masking=True)
-    metrics.update(train_time=learn_end - learn_start)
-    metrics = readable_float_dict(metrics)
-
-    result = dict(config=config, metrics=metrics, init=show_mapping(init))
-    if save_result:
-        write_json(result_file, jsons.dump(result))
-
     env.close()
     eval_env.close()
-
-    return final_circuit, final_mapping, metrics
 
 
 class CircuitDataset:

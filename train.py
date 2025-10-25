@@ -4,7 +4,7 @@ from contrib.initial_mapping import get_initial_mapping, InitialMappingStrategy
 
 if __name__ == '__main__':
 
-    dataset = CircuitDataset('20Q_gate_Tokyo', sort=True)
+    dataset = CircuitDataset('20Q_gate_Tokyo', sort=False)
 
     for path in dataset.circuit_paths:
         *_, metrics = run_maskable_ppo(
@@ -12,7 +12,6 @@ if __name__ == '__main__':
             feature_dim=64,
             hardware=dataset.hardware,
             circuit_path=path,
-            output_dirname=dataset.dataname,
             save_result=True,
             skip_existing=True,
             num_envs=4,
