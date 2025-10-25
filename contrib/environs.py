@@ -125,11 +125,10 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         return self.remaining_dag.size() == 0
 
     def _get_obs(self):
-        routed_rep = self.state.encode(self.resulting_dag, RoutedStatus.ROUTED)
-        unrouted_rep = self.state.encode(self.remaining_dag, RoutedStatus.UNROUNTED,
-                                         current_mapping=self.current_mapping,
-                                         distance_matrix=self.distance_matrix)
-        return np.concatenate((routed_rep, unrouted_rep), axis=0)
+        return self.state.encode(resulting_dag=self.resulting_dag,
+                                 remaining_dag=self.remaining_dag,
+                                 current_mapping=self.current_mapping,
+                                 distance_matrix=self.distance_matrix)
 
     def apply_transform_action(self, action: Tuple[int, TransformationPass]):
         assert isinstance(action[0], int), action[0]
@@ -171,8 +170,9 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         # So, don't evaluate the swap cost potential.
         # Our hope is that a transformation can reduce ops and make some gate executable.
         self.remaining_dag = new_dag
-        executed_ops = self.update()
-        reward += get_weighted_ops(executed_ops, self.one_qubit_gate_weight)
+        if self.is_routing_started:
+            executed_ops = self.update()
+            reward += get_weighted_ops(executed_ops, self.one_qubit_gate_weight)
         return reward, action_name
 
     def get_circuit_routing_cost(self):
@@ -283,7 +283,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         raise ValueError(f'Invalid special action: {action}')
 
     def apply_action(self, action: Union[str, TwoQubitGate, Tuple[int, TransformationPass]]):
-        if isinstance(action[1], TransformationPass):
+        if isinstance(action, tuple):
             return self.apply_transform_action(action)
         if isinstance(action, TwoQubitGate):
             return self.apply_route_action(action)
@@ -313,6 +313,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.metrics = record
 
     def update(self):
+        assert self.is_routing_started, 'We cannot update the boundary unless routing is started.'
+
         executed_ops = defaultdict(int)
         front_layer = QuantumLayer()
         topological_nodes = list(self.remaining_dag.topological_op_nodes())
@@ -342,7 +344,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         return executed_ops
 
     def action_masks(self):
-        masks = np.zeros(self.action.size(), dtype=bool)
+        masks = np.zeros(self.action.size, dtype=bool)
         # Since we apply transformations in the routed subscircuit, it needs to non-empty.
         self.swap_masks(masks)
         self.bridge_masks(masks)

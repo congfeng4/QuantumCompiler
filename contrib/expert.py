@@ -102,7 +102,7 @@ class TrajectoryCollector:
         print(f'End trajectory. len {len(traj)}, metrics {metrics}')
 
     def add_state(self, front_layer: QuantumLayer, gates: list[DAGNode], current_mapping: dict[Qubit, int]):
-        observation = self.obs_space.encode(front_layer, gates, current_mapping)
+        observation = self.obs_space.encode_dag(front_layer, gates, current_mapping)
         self.current_traj['obs'].append(observation)
 
     def add_action(self, swap: TwoQubitGate, current_mapping: dict[Qubit, int], initial_mapping: dict[Qubit, int]):

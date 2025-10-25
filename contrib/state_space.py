@@ -4,6 +4,7 @@ State space encoding.
 from enum import IntEnum
 import gymnasium as gym
 import numpy as np
+from gymnasium.spaces import Box
 
 from qiskit.circuit import Qubit
 from qiskit.dagcircuit import DAGOpNode, DAGCircuit
@@ -49,26 +50,58 @@ class OpRepPosition(IntEnum):
     POS_EMB_OFFSET = 2  # Starting from 2, features need embedding.
 
 
+def pad_truncate_2d(arr, maxlen: int):
+    """
+    仅对第 0 维（batch）截断或补零，第 1 维保持不变
+    """
+    arr = np.asarray(arr)
+    B = arr.shape[0]
+    if B >= maxlen:                      # 截断
+        return arr[:maxlen]
+    else:                                # 补零
+        pad_width = ((0, maxlen - B), (0, 0))
+        return np.pad(arr, pad_width, 'constant')
+
+
 class StateSpace:
 
+    def __init__(self, max_len: int=500):
+        self.max_len = max_len
+
     @property
-    def num_op_features(self):
+    def feature_dim(self):
         return int(OpRepPosition.POS_SIZE)
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({self.num_op_features})'
+        return f'{self.__class__.__name__}({self.feature_dim}, {self.max_len})'
 
-    def encode(self, dag: DAGCircuit,
-               routed_status: RoutedStatus,
+    def encode(self,
+               resulting_dag: DAGCircuit,
+               remaining_dag: DAGCircuit,
                current_mapping: dict[Qubit, int] = None,
-               level_offset: int = 0,  # Should be able to differentiate routed and unrouted.
-               distance_matrix: np.ndarray = None):
+               distance_matrix: np.ndarray = None
+               ):
+        routed_seq = self.encode_dag(resulting_dag, RoutedStatus.ROUTED)
+        unrouted_seq = self.encode_dag(remaining_dag, RoutedStatus.UNROUNTED,
+                                             current_mapping=current_mapping,
+                                             distance_matrix=distance_matrix)
+        ops = np.concatenate((routed_seq, unrouted_seq), axis=0)
+        x = pad_truncate_2d(ops, self.max_len)
+        mask = np.ones((self.max_len,), np.int32)
+        mask[:len(x)] = 0
+        return {'x': x, 'mask': mask} # x [S, F], mask [S, 1]
+
+    def encode_dag(self, dag: DAGCircuit,
+                   routed_status: RoutedStatus,
+                   current_mapping: dict[Qubit, int] = None,
+                   level_offset: int = 0,  # Should be able to differentiate routed and unrouted.
+                   distance_matrix: np.ndarray = None):
 
         topological_nodes: list[DAGOpNode] = list(dag.topological_op_nodes())
         # Resort according to node levels.
         gate_levels = build_op_node_level(dag, topological_nodes, sort_by_level=True)
         seqlen = len(topological_nodes)
-        gate_seq = np.zeros((seqlen, OpRepPosition.POS_SIZE), np.int64)
+        gate_seq = np.zeros((seqlen, self.feature_dim), np.int64)
 
         for i, op in enumerate(topological_nodes):
             gate_type = GateType.from_name(op.name)
@@ -97,5 +130,10 @@ class StateSpace:
 
     def to_gym_space(self):
         # Use sequence instead of box since our length is hard to tell in advance.
-        return gym.spaces.Sequence(space=gym.spaces.Box(low=float('-inf'), high=float('inf'),
-                                                        shape=(self.num_op_features,)))
+        # Fixme: stable-baseline3 don't support Sequence currently.
+        # return gym.spaces.Sequence(space=gym.spaces.Box(low=float('-inf'), high=float('inf'),
+        #                                                 shape=(self.num_op_features,)))
+        return gym.spaces.Dict({
+            "x": Box(low=-1, high=1, shape=(self.max_len, self.feature_dim), dtype=np.int32),
+            "mask": Box(low=0, high=1, shape=(self.max_len,), dtype=np.int32)
+        })

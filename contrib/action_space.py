@@ -124,7 +124,7 @@ class ActionSpace:
                inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit],
                hardware: IBMQHardwareArchitecture):
         action = self.index_to_action[policy]
-        if isinstance(action[1], TransformationPass):
+        if isinstance(action, (tuple, str)) and isinstance(action[1], TransformationPass): # transform or special.
             return action
         left, right = action
         swap_class = SWAP_INDEX if (left, right) in hardware.edges else BRIDGE_INDEX
