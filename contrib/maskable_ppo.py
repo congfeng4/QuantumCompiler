@@ -93,6 +93,7 @@ def create_vec_env_from_circuits(
         num_envs: int = 1,
         use_subproc: bool = False,
         verbose=False,
+        params=None,
 ):
     assert num_envs >= 1
 
@@ -102,6 +103,7 @@ def create_vec_env_from_circuits(
             hardware=hardware,
             initial_mapping=init,
             verbose=verbose,
+            params=params,
         )
 
     print(f'Create env with {num_envs} circuits {use_subproc=}')
@@ -154,7 +156,6 @@ def piecewise_linear(initial: float, plateau: float = 0.5, final: float = 1e-5):
 def run_maskable_ppo(
         hardware: Union[IBMQHardwareArchitecture, str],
         circuit_path: Union[Path, str, QuantumCircuit],
-        batch_size: int = 64,
         n_steps: int = 2048,
         eval_freq: int = 1024,
         feature_dim: int = 64,
@@ -162,7 +163,6 @@ def run_maskable_ppo(
         num_epochs: int = 100,
         total_timesteps: int = 800 * Unit.K,
         output_dirname: str = None,
-        ent_coef: float = 0,
         pretrain: Path = None,
         save_result: bool = True,
         save_model: bool = False,
@@ -172,16 +172,21 @@ def run_maskable_ppo(
         num_envs: int = None,
         learning_rate: float = 3e-4,
         env_cls: gymnasium.Env = CircuitEnvWithInitialMapping,
-        use_masking: bool = True,
-        clip_range: float = 0.2,
-        nhead: int = 4,
-        num_layers: int = 8,
         min_evals: int = 5,
         verbose=False,
+        ppo_params=None,
+        model_params=None,
+        env_params=None,
 ):
     """
     ✅ Run MaskablePPO on a circuit and return the metrics.
     """
+    if model_params is None:
+        model_params = {}
+    if ppo_params is None:
+        ppo_params = {}
+    if env_params is None:
+        env_params = {}
 
     num_envs = num_envs or max(os.cpu_count() // 4, 8)
     while n_steps % num_envs != 0:
@@ -217,6 +222,7 @@ def run_maskable_ppo(
         num_envs=num_envs,
         use_subproc=use_subproc,
         verbose=verbose,
+        params=env_params,
     )
 
     eval_env = create_vec_env_from_circuits(
@@ -226,6 +232,7 @@ def run_maskable_ppo(
         init=init,
         num_envs=n_eval_episodes,
         use_subproc=use_subproc,
+        params=env_params,
     )
 
     if total_timesteps is None:
@@ -234,20 +241,17 @@ def run_maskable_ppo(
     config = dict(
         env_cls=env_cls.__name__,
         circuit_path=str(circuit_path) if not isinstance(circuit_path, QuantumCircuit) else None,
-        batch_size=batch_size,
         num_envs=num_envs,
         embed_dim=feature_dim,
         init_strategy=init_strategy if isinstance(init_strategy, InitialMappingStrategy) else None,
         total_timesteps=total_timesteps,
         num_epochs=num_epochs,
         n_steps=n_steps,
-        ent_coef=ent_coef,
         qubit_number=hardware.qubit_number,
         learning_rate=learning_rate,
-        clip_range=clip_range,
-        use_masking=use_masking,
-        nhead=nhead,
-        num_layers=num_layers,
+        model_params=model_params,
+        ppo_params=ppo_params,
+        env_params=env_params,
     )
     pprint(config)
 
@@ -263,7 +267,7 @@ def run_maskable_ppo(
         print(f'Result exists: {result_file}')
         return read_json(result_file)
 
-    metrics_callback = MetricEvalCallback(eval_env=eval_env, eval_freq=eval_freq // num_envs, use_masking=use_masking)
+    metrics_callback = MetricEvalCallback(eval_env=eval_env, eval_freq=eval_freq // num_envs, use_masking=True)
 
     eval_callback = MaskableEvalCallback(
         eval_env,
@@ -274,7 +278,7 @@ def run_maskable_ppo(
         ) if max_no_improvement_evals > 0 else None,
         verbose=1,
         deterministic=False,
-        use_masking=use_masking,
+        use_masking=True,
         best_model_save_path=best_model_path if save_model else None,
         n_eval_episodes=n_eval_episodes,
     )
@@ -283,21 +287,16 @@ def run_maskable_ppo(
         policy="MultiInputPolicy",
         env=env,
         n_steps=n_steps // num_envs,
-        batch_size=batch_size,
         tensorboard_log=log_dir,
         verbose=1,
-        ent_coef=ent_coef,
-        learning_rate=learning_rate,
-        clip_range=clip_range,
         policy_kwargs=get_policy_kwargs(
             qubit_number=hardware.qubit_number,
             feature_dim=feature_dim,
-            params=dict(
-                nhead=nhead,
-                num_layers=num_layers,
-            )
+            params=model_params,
         ),
+        **ppo_params,
     ) if pretrain is None else MaskablePPO.load(pretrain, env)
+
     ppo.tensorboard_log = log_dir
     print(f'Model loaded: {ppo}')
     learn_start = time.time()
@@ -306,12 +305,12 @@ def run_maskable_ppo(
         tb_log_name=log_name,
         progress_bar=True,
         callback=[eval_callback, metrics_callback],
-        use_masking=use_masking,
+        use_masking=True,
     )
     learn_end = time.time()
 
     print('Eval policy')
-    metrics, final_circuit, final_mapping = evaluate_policy_for_metrics(ppo, eval_env, use_masking)
+    metrics, final_circuit, final_mapping = evaluate_policy_for_metrics(ppo, eval_env, use_masking=True)
     metrics.update(train_time=learn_end - learn_start)
     metrics = readable_float_dict(metrics)
 

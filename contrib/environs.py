@@ -154,7 +154,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             action_name = f'unrouted/{opt_pass.name()}'
 
         old_dag = self.resulting_dag if phase == ActionSpace.TRANS_ROUTED else self.remaining_dag
-        old_dag_count = get_weighted_ops(old_dag.count_ops(), self.one_qubit_gate_weight)
+        old_dag_count = get_weighted_ops(old_dag.count_ops())
         try:
             new_dag: DAGCircuit = opt_pass.run(old_dag)
         except Exception as e:
@@ -165,8 +165,9 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             if self.trans_after_routing == self.trans_after_routing_limit:
                 self.is_done = True
 
-        new_dag_count = get_weighted_ops(new_dag.count_ops(), self.one_qubit_gate_weight)
+        new_dag_count = get_weighted_ops(new_dag.count_ops())
         reward = old_dag_count - new_dag_count
+        # print('old_dag_count', old_dag_count, 'new_dag_count', new_dag_count)
         if phase == ActionSpace.TRANS_ROUTED:
             self.resulting_dag = new_dag
             return reward, action_name
@@ -177,7 +178,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.remaining_dag = new_dag
         if self.is_routing_started:
             executed_ops = self.update()
-            reward += get_weighted_ops(executed_ops, self.one_qubit_gate_weight)
+            reward += get_weighted_ops(executed_ops)
         return reward, action_name
 
     def get_circuit_routing_cost(self):
@@ -188,7 +189,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         if self.verbose: print('Routing is started')
         self.is_routing_started = True
         execute_ops = self.update()
-        return get_weighted_ops(execute_ops, self.one_qubit_gate_weight)  # reward
+        return get_weighted_ops(execute_ops)  # reward
 
     def apply_route_action(self, action: TwoQubitGate):
         trans_mapping = self.trans_mapping
@@ -230,7 +231,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             if isinstance(action, BridgeTwoQubitGate):
                 executed_ops['cx'] += 1
             # A bridge must let a cx executed but update() can't get that.
-            reward += get_weighted_ops(executed_ops, self.one_qubit_gate_weight) - self.step_penalty
+            reward += get_weighted_ops(executed_ops) - self.step_penalty
         else:
             assert isinstance(action, SwapTwoQubitGate), 'Bridge is not allowed before routing'
             if self.swaps_before_routing == self.swaps_before_routing_limit:
@@ -257,8 +258,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         if self.is_done:
             # Routing is finished and agent just reaches transformation limit or outputs 'finish' action.
             self.finalize_result()
-            cx_ratio, depth_ratio = self.metrics['metric/cx_ratio'], self.metrics['metric/depth_ratio']
-            reward += np.exp(2 - cx_ratio - depth_ratio) * self.bonus_weight
+            gate_ratio, depth_ratio = self.metrics['metric/gate_ratio'], self.metrics['metric/depth_ratio']
+            reward += np.exp(2 - gate_ratio - depth_ratio) * self.bonus_weight
             # Final bonus to motivate agent to finish faster.
             if self.verbose:
                 readable_metrics = readable_float_dict(self.metrics)
@@ -267,7 +268,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             # reward -= self.step_penalty  # Except the last step, all preceding steps get a step penalty.
 
         self.reward_stats[action_name] += reward
-        if self.verbose:
+        if self.verbose and any(x in action_name for x in 'routed unrouted'.split()):
             print(action_name, 'reward', round(reward, 2),
                   'remain', get_total_ops(self.remaining_dag), 'result', get_total_ops(self.resulting_dag))
 

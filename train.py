@@ -17,8 +17,6 @@ if __name__ == '__main__':
             skip_existing=True,
             num_envs=4,
             n_eval_episodes=4,
-            nhead=4,
-            num_layers=8,
             max_no_improvement_evals=4,
             verbose=False,
         )

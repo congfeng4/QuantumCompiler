@@ -1,1 +1,1 @@
-watch -n 1 nvidia-smi
+56374.pts-144.v100d0
