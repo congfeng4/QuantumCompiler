@@ -20,7 +20,6 @@ if __name__ == '__main__':
             hardware=dataset.hardware,
             circuit_path=path,
             output_dirname=dataset.dataname,
-            mode=mode,
             save_result=True,
             skip_existing=True,
             total_timesteps=total_timesteps,
@@ -31,5 +30,6 @@ if __name__ == '__main__':
             nhead=4,
             num_layers=8,
             max_no_improvement_evals=4,
+            verbose=True,
         )
 

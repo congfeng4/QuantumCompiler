@@ -51,7 +51,9 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
     def __init__(self,
                  input_circuit: QuantumCircuit,
                  hardware: IBMQHardwareArchitecture,
-                 initial_mapping: dict[Qubit, int], params=None):
+                 initial_mapping: dict[Qubit, int],
+                 verbose=False,
+                 params=None):
         super().__init__(hardware)
         if params is None:
             params = {}
@@ -59,7 +61,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.input_circuit = input_circuit
         self.initial_mapping = initial_mapping
         self.distance_matrix = get_distance_matrix(self.hardware)
-
+        self.verbose = verbose
         # Hyperparameters
 
         # Discount factor for future rewards.
@@ -97,7 +99,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         # check_env(self)
 
     def reset(self, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:
-        print('reset')
+        if self.verbose: print('reset')
         super().reset(seed=seed)
         # Boolean flags.
         self.is_routing_started = False
@@ -145,10 +147,11 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                 # When too many trans after routing, although it is done, still give a penalty.
                 # Although, this may not be possible since once limit is reached, we set is_done=True.
                 raise ValueError(f'Attempt more trans after routing. Limit is {self.trans_after_routing_limit}')
+            action_name = f'after/{opt_pass.name()}'
         elif phase == ActionSpace.TRANS_ROUTED:
-            action_name = f'routed:{opt_pass.name()}'
+            action_name = f'routed/{opt_pass.name()}'
         else:
-            action_name = f'unrouted:{opt_pass.name()}'
+            action_name = f'unrouted/{opt_pass.name()}'
 
         old_dag = self.resulting_dag if phase == ActionSpace.TRANS_ROUTED else self.remaining_dag
         old_dag_count = get_weighted_ops(old_dag.count_ops(), self.one_qubit_gate_weight)
@@ -182,7 +185,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
     def start_routing(self):
         assert not self.is_routing_started, 'Make sure self.is_routing_started is False!'
-        print('Routing is started')
+        if self.verbose: print('Routing is started')
         self.is_routing_started = True
         execute_ops = self.update()
         return get_weighted_ops(execute_ops, self.one_qubit_gate_weight)  # reward
@@ -202,7 +205,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         # We now have our best SWAP/Bridge, let's perform it!
         self.current_mapping = action.update_mapping(self.current_mapping)
         if isinstance(action, SwapTwoQubitGate):  # Recover the swap gate.
-            action_name = 'route:swap' if self.is_routing_started else 'before:swap'
+            action_name = 'route/swap' if self.is_routing_started else 'before/swap'
             control, target = self.current_mapping[action.left], self.current_mapping[action.right]
             swap_control, swap_target = inverse_mapping[control], inverse_mapping[target]
             action = SwapTwoQubitGate(swap_control, swap_target)
@@ -214,7 +217,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             new_cost = self.get_circuit_routing_cost()
         else:
             assert self.is_routing_started, 'Bridge is only allowed after routing is started!'
-            action_name = 'route:bridge'
+            action_name = 'route/bridge'
             new_cost = old_cost  # Bridge doesn't change the mapping. The cost should be the same.
 
         reward = old_cost - new_cost
@@ -224,6 +227,9 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                                 trans_mapping):
                 raise ValueError(f'Cannot apply swap/bridge: {action}')
             executed_ops = self.update()
+            if isinstance(action, BridgeTwoQubitGate):
+                executed_ops['cx'] += 1
+            # A bridge must let a cx executed but update() can't get that.
             reward += get_weighted_ops(executed_ops, self.one_qubit_gate_weight)
         else:
             assert isinstance(action, SwapTwoQubitGate), 'Bridge is not allowed before routing'
@@ -247,18 +253,22 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             return self.invalid_action(why=str(e))
         self.invalid_actions = 0  # Clear the counter since we get a valid action.
         self.action_stats[action_name] += 1
-        print(action_name, 'remain', get_total_ops(self.remaining_dag), 'result', get_total_ops(self.resulting_dag))
 
         if self.is_done:
             # Routing is finished and agent just reaches transformation limit or outputs 'finish' action.
             self.finalize_result()
             reward += self.num_qubits * self.bonus_weight  # Final bonus to motivate agent to finish faster.
-            readable_metrics = readable_float_dict(self.metrics)
-            print(f'Game ends {readable_metrics}')
+            if self.verbose:
+                readable_metrics = readable_float_dict(self.metrics)
+                print(f'Game ends {readable_metrics}')
         else:
             reward -= self.step_penalty  # Except the last step, all preceding steps get a step penalty.
 
         self.reward_stats[action_name] += reward
+        if self.verbose:
+            print(action_name, 'reward', round(reward, 2),
+                  'remain', get_total_ops(self.remaining_dag), 'result', get_total_ops(self.resulting_dag))
+
         return self._get_obs(), reward, self.is_done, False, info
 
     @property

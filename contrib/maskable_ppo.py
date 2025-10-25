@@ -92,6 +92,7 @@ def create_vec_env_from_circuits(
         init: dict[Qubit, int],
         num_envs: int = 1,
         use_subproc: bool = False,
+        verbose=False,
 ):
     assert num_envs >= 1
 
@@ -100,6 +101,7 @@ def create_vec_env_from_circuits(
             input_circuit=circuit,
             hardware=hardware,
             initial_mapping=init,
+            verbose=verbose,
         )
 
     print(f'Create env with {num_envs} circuits {use_subproc=}')
@@ -155,12 +157,11 @@ def run_maskable_ppo(
         batch_size: int = Unit.K,
         n_steps: int = 16 * Unit.K,
         eval_freq: int = 16 * Unit.K,
-        feature_dim: int = 128,
+        feature_dim: int = 64,
         init_strategy: Union[InitialMappingStrategy, dict[Qubit, int]] = InitialMappingStrategy.SABRE,
         num_epochs: int = 100,
         total_timesteps: int = 800 * Unit.K,
         output_dirname: str = None,
-        mode: str = 'transformer',
         ent_coef: float = 0,
         pretrain: Path = None,
         save_result: bool = True,
@@ -176,6 +177,7 @@ def run_maskable_ppo(
         nhead: int = 4,
         num_layers: int = 8,
         min_evals: int = 5,
+        verbose=False,
 ):
     """
     ✅ Run MaskablePPO on a circuit and return the metrics.
@@ -214,6 +216,7 @@ def run_maskable_ppo(
         init=init,
         num_envs=num_envs,
         use_subproc=use_subproc,
+        verbose=verbose,
     )
 
     eval_env = create_vec_env_from_circuits(
@@ -238,7 +241,6 @@ def run_maskable_ppo(
         total_timesteps=total_timesteps,
         num_epochs=num_epochs,
         n_steps=n_steps,
-        mode=mode,
         ent_coef=ent_coef,
         qubit_number=hardware.qubit_number,
         learning_rate=learning_rate,

@@ -90,6 +90,7 @@ class TransformerCircuitEncoder(nn.Module):
         self.transformer = nn.TransformerEncoder(
             encoder_layer=encoder_layer,
             num_layers=params.get('num_layers', 4),
+            enable_nested_tensor=False, # Prevent warning.
         )
 
     def forward(self, x, mask):
