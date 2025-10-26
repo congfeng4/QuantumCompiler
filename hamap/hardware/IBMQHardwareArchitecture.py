@@ -144,11 +144,11 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
         return backend
 
     @staticmethod
-    def _get_backend_fake(backend_name: str):
+    def _get_backend_fake(backend_name: str, **kwargs):
         from qiskit.providers.fake_provider import GenericBackendV2
         from lib.graph_utils import graph_from_name
 
-        graph = graph_from_name(backend_name)
+        graph = graph_from_name(backend_name, **kwargs)
         # CouplingMap of qiskit requires directed graph but qknob's graphs are undirected.
         coupling_map = []
         for e in graph.edges:
@@ -188,7 +188,7 @@ class IBMQHardwareArchitecture(HardwareArchitecture):
 
         self._weight_func = weight_func
 
-        backend = IBMQHardwareArchitecture._get_backend_fake(backend_name.lower())
+        backend = IBMQHardwareArchitecture._get_backend_fake(backend_name.lower(), **kwargs)
 
         # Get the configuration data
         qubit_number = backend.num_qubits

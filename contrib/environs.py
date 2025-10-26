@@ -13,12 +13,11 @@ from qiskit.dagcircuit import DAGOpNode, DAGCircuit
 from qiskit.transpiler import TransformationPass
 
 from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost, get_front_layer, get_weighted_ops, \
-    get_total_ops
+    get_total_ops, get_inverse_mapping
 from contrib.expert import ha_baseline
 from contrib.common import get_cnot_num, get_distance_matrix
 from contrib.action_space import ActionSpace
 from contrib.state_space import StateSpace
-from contrib.verify_circuit import verify_under_mapping
 
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
 from hamap.layer import QuantumLayer, update_layer
@@ -60,7 +59,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             params = {}
 
         self.input_circuit = input_circuit
-        self.initial_mapping = initial_mapping
+        self.initial_mapping_orig = initial_mapping.copy()
         self.distance_matrix = get_distance_matrix(self.hardware)
         self.verbose = verbose
         # Hyperparameters
@@ -112,10 +111,10 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.swaps_before_routing = 0
 
         # Mappings.
-        self.current_mapping = self.initial_mapping.copy()
-        self.trans_mapping = self.initial_mapping.copy()
-        self.inverse_mapping = {val: key for key, val in self.initial_mapping.items()}
-        self.initial_mapping_adapted = None
+        self.current_mapping = self.initial_mapping_orig.copy()
+        self.trans_mapping = self.current_mapping.copy()
+        self.initial_mapping = self.current_mapping.copy()
+        self.inverse_mapping = get_inverse_mapping(self.initial_mapping)  # Inverse of initial-mapping.
 
         # Circuits/DAGs.
         self.remaining_dag = circuit_to_dag(self.input_circuit)
@@ -189,7 +188,9 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         assert not self.is_routing_started, 'Make sure self.is_routing_started is False!'
         if self.verbose: print('Routing is started')
         self.is_routing_started = True
-        self.initial_mapping_adapted = self.current_mapping.copy()
+        self.initial_mapping = self.current_mapping.copy()
+        self.trans_mapping = self.initial_mapping.copy()
+        self.inverse_mapping = get_inverse_mapping(self.initial_mapping)
         self.update()
 
     def apply_route_action(self, action: TwoQubitGate):

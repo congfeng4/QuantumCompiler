@@ -107,7 +107,7 @@ def get_weighted_ops(ops_count: dict, one_qubit_gate_weight: float = None):
     return qubits_to_count[1] * one_qubit_gate_weight + qubits_to_count[2] * (1 - one_qubit_gate_weight)
 
 
-def show_mapping(mapping: dict[Qubit, int]):
+def convert_to_int_mapping(mapping: dict[Qubit, int]):
     return {bit._index: int(idx) for bit, idx in mapping.items()}
 
 
@@ -211,3 +211,6 @@ def dict_product(input_dict):
     result = [dict(zip(keys, combo)) for combo in value_combinations]
 
     return result
+
+def get_inverse_mapping(m: dict):
+    return {val: key for key, val in m.items()}

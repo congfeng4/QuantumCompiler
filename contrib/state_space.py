@@ -10,9 +10,7 @@ from qiskit.circuit import Qubit
 from qiskit.dagcircuit import DAGOpNode, DAGCircuit
 from contrib.common import build_op_node_level, GATE_NAME_MAPPING
 
-GATE_NAME_LIST = 'h cx swap u2 u3'.split()
-
-GATE_NAME_TO_ID = {name: i for i, name in enumerate(GATE_NAME_LIST)}
+GATE_NAME_TO_ID = {name: i for i, name in enumerate(GATE_NAME_MAPPING.keys())}
 
 
 class RoutedStatus(IntEnum):

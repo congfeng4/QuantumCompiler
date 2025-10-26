@@ -8,7 +8,6 @@ import datetime
 from collections import defaultdict
 import os
 import random
-import time
 from functools import cached_property
 from pathlib import Path
 from typing import Callable, Optional, Literal
@@ -17,13 +16,11 @@ from typing import Union
 from pathlib import Path
 
 import gymnasium
-import jsons
 import torch.cuda
 from stable_baselines3.common.env_util import make_vec_env
 
 from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_circuit, write_json, get_cnot_num, \
-    readable_float_dict, \
-    read_json, show_mapping, Qubit, Unit, get_circuit_depth, read_circuit, qknob_metrics
+    Qubit, Unit, get_circuit_depth, read_circuit, qknob_metrics, convert_to_int_mapping
 
 from sb3_contrib.ppo_mask import MaskablePPO
 from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
@@ -36,7 +33,7 @@ from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from stable_baselines3.common.callbacks import BaseCallback
 
-from contrib.verify_circuit import verify_under_mapping
+from contrib.verify_circuit import verify_circuit_equivalent
 from hamap.initial_mapping import initial_mapping_from_sabre
 
 
@@ -63,11 +60,12 @@ def evaluate_policy_for_metrics(model, eval_env, key_metric='metric/depth_ratio'
     evaluate_policy(model, eval_env, n_eval_episodes=1, use_masking=True, deterministic=False)
     metrics_list = eval_env.get_attr('metrics')
     k = np.argmin([m[key_metric] for m in metrics_list])
-    final_circuit = eval_env.get_attr('resulting_circuit')[k]
+    output_circuit = eval_env.get_attr('resulting_circuit')[k]
     input_circuit = eval_env.get_attr('input_circuit')[k]
-    initial_mapping_adapted = eval_env.get_attr('initial_mapping_adapted')[k]
+    initial_mapping = eval_env.get_attr('initial_mapping')[k]
+    initial_mapping_orig = eval_env.get_attr('initial_mapping_orig')[k]
     metrics = average_metrics(metrics_list)
-    return metrics, input_circuit, final_circuit, initial_mapping_adapted
+    return metrics, input_circuit, output_circuit, initial_mapping, initial_mapping_orig
 
 
 class MetricEvalCallback(BaseCallback):
@@ -91,24 +89,26 @@ class MetricEvalCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
-            metrics, input_circuit, final_circuit, mapping = evaluate_policy_for_metrics(self.model, self.eval_env)
+            metrics, input_circuit, output_circuit, initial_mapping, initial_mapping_orig = \
+                evaluate_policy_for_metrics(self.model, self.eval_env)
             depth_ratio = metrics['metric/depth_ratio']
 
             if self.best_depth_ratio is None or depth_ratio < self.best_depth_ratio:
                 self.best_depth_ratio = depth_ratio
                 print('New best depth_ratio', depth_ratio)
-                # mapping = {q._index: p for q, p in mapping.items()} # Convert to int=>int.
-
-                if self.verify_circuit:
-                    print('Begin to verify circuit...')
-                    assert verify_under_mapping(input_circuit, final_circuit, mapping)
 
                 if self.best_save_dir is not None:
-                    write_circuit(self.best_save_dir / 'final_circuit.qasm', final_circuit)
+                    write_circuit(self.best_save_dir / 'output_circuit.qasm', output_circuit)
                     write_circuit(self.best_save_dir / 'input_circuit.qasm', input_circuit)
-                    # write_json(self.best_save_dir / 'initial_mapping.json', mapping)
                     clean_metrics = {key: value for key, value in metrics.items() if key.startswith('metric/')}
                     write_json(self.best_save_dir / 'metrics.json', clean_metrics)
+
+            if self.verify_circuit and initial_mapping is not None:
+                print('Begin to verify circuit...')
+                write_json(self.best_save_dir / 'initial_mapping.json', convert_to_int_mapping(initial_mapping))
+                write_json(self.best_save_dir / 'initial_mapping_orig.json', convert_to_int_mapping(initial_mapping_orig))
+
+                assert verify_circuit_equivalent(input_circuit, output_circuit)
 
             for key, value in metrics.items():
                 self.logger.record(key, round(value, 2))
@@ -204,7 +204,7 @@ def run_maskable_ppo(
         # Boolean flags.
         save_model: bool = False,
         verbose=False,
-        verify_circuit=False,
+        verify_circuit=True,
 
         # Other flags.
         ppo_params=None,
@@ -232,6 +232,11 @@ def run_maskable_ppo(
         qc = QuantumCircuit.from_qasm_file(str(circuit_path))
     else:
         qc = circuit_path
+
+    if qc.num_qubits > 10:
+        if verify_circuit:
+            print('Turn off verify_circuit because num_qubits is', qc.num_qubits)
+        verify_circuit = False
 
     if not isinstance(init_strategy, dict):
         init = get_initial_mapping(qc, hardware, init_strategy)
@@ -276,15 +281,18 @@ def run_maskable_ppo(
         model_params=model_params,
         ppo_params=ppo_params,
         env_params=env_params,
+        verify_circuit=verify_circuit,
     )
     pprint(config)
 
     if output_dir is None:
         output_dir = f'./output/ours/{hardware.name}/{circuit_name}'
 
+    write_json(output_dir + '/config.json', config)
+
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    log_dir = f"./output/log/{hardware.name}/{datetime.datetime.now()}"
+    log_dir = output_dir + "/tb_log"
 
     metrics_callback = MetricEvalCallback(
         eval_env=eval_env,
