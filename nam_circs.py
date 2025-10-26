@@ -22,12 +22,15 @@ if __name__ == '__main__':
             continue
 
         output_dir = Path('./output/ours/nam_circs') / db_key
-        metrics = Parallel(1)([delayed(run_maskable_ppo)(
-            hardware=hardware,
-            circuit_path=path,
-            init_strategy=InitialMappingStrategy.SABRE,
-            output_dir=output_dir,
-        )])[0]
+        try:
+            metrics = Parallel(1)([delayed(run_maskable_ppo)(
+                hardware=hardware,
+                circuit_path=path,
+                init_strategy=InitialMappingStrategy.SABRE,
+                output_dir=output_dir,
+            )])[0]
+        except:
+            continue
 
         db[db_key] = metrics
 

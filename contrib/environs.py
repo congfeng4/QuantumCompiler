@@ -66,7 +66,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         # Hyperparameters
 
         # Discount factor for future rewards.
-        self.gamma = params.get('gamma', 1)
+        self.gamma = params.get('gamma', 0.99)
 
         # After the whole circuit is routed, perform some extra transformations.
         self.trans_after_routing_limit = params.get('trans_after_routing_limit', 5)
@@ -75,7 +75,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.step_penalty = params.get('step_penalty', 1)
 
         # Weight for the final bonus reward.
-        self.bonus_weight = params.get('bonus_weight', 5)
+        self.bonus_weight1 = params.get('bonus_weight1', 5)
+        self.bonus_weight2 = params.get('bonus_weight2', 10)
 
         # Penalty for each invalid action.
         self.invalid_action_penalty = params.get('invalid_action_penalty', 10)
@@ -168,7 +169,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                 self.is_done = True
 
         new_dag_count = get_weighted_ops(new_dag.count_ops()) + new_dag.depth()
-        reward = old_dag_count - new_dag_count * self.gamma
+        reward = old_dag_count * self.gamma - new_dag_count
         # print('old_dag_count', old_dag_count, 'new_dag_count', new_dag_count)
         if phase == ActionSpace.TRANS_ROUTED:
             self.resulting_dag = new_dag
@@ -226,7 +227,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             action_name = 'route/bridge'
             new_cost = old_cost  # Bridge doesn't change the mapping. The cost should be the same.
 
-        reward = old_cost - self.gamma * new_cost
+        reward = self.gamma * old_cost - new_cost
         if self.is_routing_started:  # Insert the routing gates.
             front_layer = get_front_layer(self.remaining_dag)
             if not action.apply(self.resulting_dag, front_layer, self.initial_mapping,
@@ -234,7 +235,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                 raise ValueError(f'Cannot apply swap/bridge: {action}')
             self.update()
             new_ops = get_total_ops(self.remaining_dag)
-            reward += old_ops - self.gamma * new_ops
+            reward += self.gamma * old_ops - new_ops
         else:
             assert isinstance(action, SwapTwoQubitGate), 'Bridge is not allowed before routing'
             if self.swaps_before_routing == self.swaps_before_routing_limit:
@@ -262,7 +263,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             # Routing is finished and agent just reaches transformation limit or outputs 'finish' action.
             self.finalize_result()
             ops_ratio, depth_ratio = self.metrics['metric/ops_ratio'], self.metrics['metric/depth_ratio']
-            reward += np.exp(1 - depth_ratio) * self.bonus_weight
+            reward += np.exp((2 - depth_ratio - ops_ratio) / self.bonus_weight1) * self.bonus_weight2
             # Final bonus to motivate agent to finish faster.
             if self.verbose:
                 readable_metrics = readable_float_dict(self.metrics)
@@ -367,7 +368,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.swap_masks(masks)
         self.bridge_masks(masks)
         self.transformation_masks(masks)
-        self.special_action_masks(masks)
+        # self.special_action_masks(masks)
         return masks.tolist()
 
     def special_action_masks(self, masks):
@@ -380,8 +381,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         # To transform something, you need to have something :)
         allow_transform_routed = self.resulting_dag.size() > 0
         # allow_transform_unrouted = self.remaining_dag.size() > 0
-        if self.is_routing_finished():
-            allow_transform_routed &= self.trans_after_routing < self.trans_after_routing_limit
+        # if self.is_routing_finished():
+        #     allow_transform_routed &= self.trans_after_routing < self.trans_after_routing_limit
 
         for opt in self.action.trans:
             masks[self.action.action_to_index[ActionSpace.TRANS_ROUTED, opt]] = allow_transform_routed
