@@ -1,12 +1,12 @@
 import subprocess
 import sys
-import os
 from contrib.baselines import SUPPORTED_LAYOUT_METHOD
 from contrib.common import dict_product, read_json
 from contrib.maskable_ppo import CircuitDataset
 from argparse import ArgumentParser
 from pathlib import Path
 import shelve
+from pprint import pp
 
 data_choices = list(Path('./data').iterdir())
 
@@ -16,6 +16,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     db = shelve.open(f'./output/db/{args.data}', writeback=True)
+    pp(list(db.items()))
 
     dataset = CircuitDataset(args.data, dataroot=Path('./data'))
 
@@ -24,27 +25,34 @@ if __name__ == '__main__':
         'circuit_path': dataset.circuit_paths,
     })
 
-    for key in all_keys:
-        layout_method = key['layout_method']
-        circuit_path = key['circuit_path']
-        db_key = '-'.join([layout_method, circuit_path.name])
-        output_dir = Path('./output') / db_key
+    try:
+        for key in all_keys:
+            layout_method = key['layout_method']
+            circuit_path = key['circuit_path']
+            db_key = '-'.join([layout_method.value, circuit_path.name])
+            output_dir = Path('./output') / db_key
 
-        if db_key in db:
-            continue
+            if db_key in db:
+                continue
 
-        cmd = (f'{sys.executable} train.py '
-               f'--path {circuit_path} '
-               f'--layout {layout_method} '
-               f'--output {output_dir} '
-               f'--hardware {dataset.hardware_name}').split()
+            cmd = (f'{sys.executable} train.py '
+                   f'--path {circuit_path} '
+                   f'--layout {layout_method.value} '
+                   f'--output {output_dir} '
+                   f'--hardware {dataset.hardware_name}').split()
 
-        try:
-            subprocess.run(cmd, cwd=Path.cwd().absolute())
-        except Exception as e:
-            print(key, 'failed', 'error', e)
-            continue
+            try:
+                subprocess.check_call(cmd, cwd=Path.cwd().absolute())
+            except Exception as e:
+                print(key, 'failed', 'error', e)
+                continue
 
-        metrics = read_json(output_dir / 'metrics.json')
-        db[db_key] = metrics
-        print('Run', db_key, metrics)
+            metrics = read_json(output_dir / 'metrics.json')
+            db[db_key] = metrics
+            print('Run', db_key, metrics)
+    except:
+        import traceback
+
+        traceback.print_exc()
+    finally:
+        db.close()

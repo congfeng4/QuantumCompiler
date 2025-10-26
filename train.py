@@ -24,6 +24,6 @@ if __name__ == '__main__':
         num_envs=4,
         n_eval_episodes=4,
         max_no_improvement_evals=4,
-        output_dir=args.output_dir,
+        output_dir=args.output,
         verbose=False,
     )
