@@ -13,14 +13,13 @@ import tempfile
 from qiskit.transpiler import PassManager
 
 from contrib.initial_mapping import InitialMappingStrategy
-from contrib.random_graphs import generate_graph_for_num_qubits
+from contrib.random_graphs import generate_graph_for_num_qubits, create_coupling_graph
 from contrib.action_space import OPT_PASSES
 from contrib.common import qknob_metrics, get_total_ops, get_cnot_num, get_gate_set
+from hamap import IBMQHardwareArchitecture
 
-SUPPORTED_LAYOUT_METHOD = ('trivial', 'sabre')  # dense
-SUPPORTED_ROUTING_METHOD = ('basic', 'sabre', 'ha')  # lookahead
 SUPPORTED_GRAPH_MODEL = ('line', 'star', 'grid', 'random')
-SUPPORTED_OPT_LEVEL = tuple(range(4))
+SUPPORTED_OPT_LEVEL = tuple(range(3))
 
 
 class OptOrder(Enum):
@@ -52,6 +51,11 @@ class RoutingMethod(Enum):
     BASIC = 'basic'
     HA = 'ha'
 
+
+SUPPORTED_LAYOUT_METHOD = (LayoutMethod.SABRE, LayoutMethod.TRIVIAL)  # dense
+SUPPORTED_ROUTING_METHOD = (RoutingMethod.SABRE, RoutingMethod.HA, RoutingMethod.BASIC)  # lookahead
+SUPPORTED_OPT_ORDER = (OptOrder.AFTER_ROUTING, OptOrder.BEFORE_ROUTING)
+# SUPPORTED_OPT_METHOD = (OptMethod.QUARL, Op)
 
 @dataclass
 class CircuitStats:
@@ -86,7 +90,9 @@ def route_circuit(qc: QuantumCircuit, coupling_map, routing_method: RoutingMetho
         qc_output, _ = ha_mapping(qc, initial_mapping=initial_mapping, hardware=coupling_map)
         return qc_output
 
-    if routing_method == RoutingMethod.SABRE:
+    if routing_method in (RoutingMethod.SABRE, RoutingMethod.BASIC):
+        if isinstance(coupling_map, nx.Graph):
+            coupling_map = create_coupling_graph(coupling_map)
         qc_output = transpile(qc,
                               basis_gates=gate_set,
                               coupling_map=coupling_map,
@@ -95,6 +101,7 @@ def route_circuit(qc: QuantumCircuit, coupling_map, routing_method: RoutingMetho
                               routing_method=routing_method.value,
                               )
         return qc_output
+
     raise ValueError(routing_method)
 
 
@@ -186,17 +193,21 @@ def transpile_circuit(
 ):
     """Transpile to a physical coupling graph without optimization (right now)"""
     circuit_path = Path(circuit_path)
-
     assert circuit_path.is_file(), circuit_path
-    assert layout_method in SUPPORTED_LAYOUT_METHOD, layout_method
-    assert routing_method in SUPPORTED_ROUTING_METHOD, routing_method
+
+    opt_params.update(gate_set=gate_set)
 
     # Load the input circuit.
     qc_input = QuantumCircuit.from_qasm_file(str(circuit_path))
     num_qubits = qc_input.num_qubits
 
-    coupling_map, graph_name = generate_graph_for_num_qubits(graph_model, num_qubits=num_qubits)
-    print('Generated coupling_map')
+    if isinstance(graph_model, str):
+        coupling_map, graph_name = generate_graph_for_num_qubits(graph_model, num_qubits=num_qubits)
+    elif isinstance(graph_model, IBMQHardwareArchitecture):
+        coupling_map = graph_model
+        graph_name = graph_model.name
+    else:
+        raise TypeError(graph_model)
 
     # Before routing, do xfers.
     if opt_order == OptOrder.BEFORE_ROUTING:
@@ -216,6 +227,7 @@ def transpile_circuit(
         opt_method=opt_method.value,
         layout_method=layout_method.value,
         routing_method=routing_method.value,
+        graph_name=graph_name,
         **qknob_metrics(qc_input, qc_output),
     )
 

@@ -47,3 +47,4 @@ if __name__ == '__main__':
 
         metrics = read_json(output_dir / 'metrics.json')
         db[db_key] = metrics
+        print('Run', db_key, metrics)
