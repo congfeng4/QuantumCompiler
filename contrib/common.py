@@ -1,3 +1,4 @@
+import itertools
 import json
 from collections import defaultdict
 from enum import IntEnum, Enum
@@ -78,15 +79,19 @@ def get_circuit_cost(dag: DAGCircuit, current_mapping: dict[Qubit, int],
 
 def qknob_metrics(in_cirt: QuantumCircuit, out_cirt: Union[QuantumCircuit, DAGCircuit]):
     depth_ratio = out_cirt.depth() / in_cirt.depth()
-    gate_ratio = get_total_ops(out_cirt) / get_total_ops(in_cirt)
+    ops_ratio = get_total_ops(out_cirt) / get_total_ops(in_cirt)
     in_cx_num = get_cnot_num(in_cirt)
     out_cx_num = get_cnot_num(out_cirt)
     cx_ratio = out_cx_num / in_cx_num
-    return dict(depth_ratio=depth_ratio, gate_ratio=gate_ratio, cx_ratio=cx_ratio)
+    return dict(depth_ratio=depth_ratio, ops_ratio=ops_ratio, cx_ratio=cx_ratio)
 
 
 def get_total_ops(qc):
     return sum(qc.count_ops().values())
+
+
+def get_gate_set(qc: QuantumCircuit):
+    return list(qc.count_ops().keys())
 
 
 def get_weighted_ops(ops_count: dict, one_qubit_gate_weight: float = None):
@@ -193,3 +198,16 @@ def build_op_node_level(dag: DAGCircuit, topological_nodes: list[DAGOpNode], sor
         # Sort by level. Note that H gates also have their levels.
         topological_nodes.sort(key=lambda nd: memo[nd._node_id])
     return memo
+
+
+def dict_product(input_dict):
+    keys = input_dict.keys()
+    value_lists = input_dict.values()
+
+    # 使用itertools.product生成所有值的组合
+    value_combinations = itertools.product(*value_lists)
+
+    # 将每个值的组合与键配对，生成字典列表
+    result = [dict(zip(keys, combo)) for combo in value_combinations]
+
+    return result

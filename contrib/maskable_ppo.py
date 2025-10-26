@@ -21,7 +21,8 @@ import jsons
 import torch.cuda
 from stable_baselines3.common.env_util import make_vec_env
 
-from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_circuit, write_json, get_cnot_num, readable_float_dict, \
+from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_circuit, write_json, get_cnot_num, \
+    readable_float_dict, \
     read_json, show_mapping, Qubit, Unit, get_circuit_depth, read_circuit, qknob_metrics
 
 from sb3_contrib.ppo_mask import MaskablePPO
@@ -61,7 +62,7 @@ def average_metrics(metrics_list):
 def evaluate_policy_for_metrics(model, eval_env, key_metric='metric/depth_ratio'):
     evaluate_policy(model, eval_env, n_eval_episodes=1, use_masking=True, deterministic=False)
     metrics_list = eval_env.get_attr('metrics')
-    k = np.argmin([m[key_metric] for m in  metrics_list])
+    k = np.argmin([m[key_metric] for m in metrics_list])
     final_circuit = eval_env.get_attr('resulting_circuit')[k]
     input_circuit = eval_env.get_attr('input_circuit')[k]
     initial_mapping_adapted = eval_env.get_attr('initial_mapping_adapted')[k]
@@ -79,7 +80,7 @@ class MetricEvalCallback(BaseCallback):
         super().__init__()
         self.eval_env = eval_env
         self.eval_freq = eval_freq
-        # Monitor depth_ratio, more important than gate_ratio.
+        # Monitor depth_ratio, more important than ops_ratio.
         self.best_depth_ratio = None
         self.best_save_dir = None
         self.verify_circuit = verify_circuit
@@ -106,7 +107,8 @@ class MetricEvalCallback(BaseCallback):
                     write_circuit(self.best_save_dir / 'final_circuit.qasm', final_circuit)
                     write_circuit(self.best_save_dir / 'input_circuit.qasm', input_circuit)
                     # write_json(self.best_save_dir / 'initial_mapping.json', mapping)
-                    write_json(self.best_save_dir / 'metrics.json', metrics)
+                    clean_metrics = {key: value for key, value in metrics.items() if key.startswith('metric/')}
+                    write_json(self.best_save_dir / 'metrics.json', clean_metrics)
 
             for key, value in metrics.items():
                 self.logger.record(key, round(value, 2))
@@ -187,6 +189,7 @@ def run_maskable_ppo(
         circuit_path: Union[Path, str, QuantumCircuit],
         init_strategy: Union[InitialMappingStrategy, dict[Qubit, int]] = InitialMappingStrategy.SABRE,
         env_cls: gymnasium.Env = CircuitEnvWithInitialMapping,
+        output_dir: Path = None,
 
         # Numeric options.
         n_steps: int = 2048,
@@ -276,7 +279,9 @@ def run_maskable_ppo(
     )
     pprint(config)
 
-    output_dir = f'./output/ours/{hardware.name}/{circuit_name}'
+    if output_dir is None:
+        output_dir = f'./output/ours/{hardware.name}/{circuit_name}'
+
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     log_dir = f"./output/log/{hardware.name}/{datetime.datetime.now()}"
@@ -346,9 +351,13 @@ class CircuitDataset:
         self.circuit_paths = circuit_paths
         self.circuit_dir = circuit_dir
 
+    @property
+    def hardware_name(self):
+        return self.dataname.split('_')[-1]
+
     @cached_property
     def hardware(self):
-        return IBMQHardwareArchitecture(self.dataname.split('_')[-1])
+        return IBMQHardwareArchitecture(self.hardware_name)
 
     @cached_property
     def circuits(self):

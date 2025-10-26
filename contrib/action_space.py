@@ -76,7 +76,7 @@ class ActionSpace:
 
     index_to_action: List[Union[Tuple[int, int], Tuple[int, TransformationPass], str]]
 
-    def __init__(self, hardware: IBMQHardwareArchitecture, transformations: List[TransformationPass]=None):
+    def __init__(self, hardware: IBMQHardwareArchitecture, transformations: List[TransformationPass] = None):
         if transformations is None:
             transformations = OPT_PASSES
         self.trans = transformations
@@ -129,9 +129,9 @@ class ActionSpace:
                inverse_current_mapping: dict[int, Qubit], inverse_mapping: dict[int, Qubit],
                hardware: IBMQHardwareArchitecture):
         action = self.index_to_action[policy]
-        if isinstance(action, str): # special
+        if isinstance(action, str):  # special
             return action
-        if  isinstance(action, tuple) and isinstance(action[1], TransformationPass): # transform
+        if isinstance(action, tuple) and isinstance(action[1], TransformationPass):  # transform
             return action
         left, right = action
         swap_class = SWAP_INDEX if (left, right) in hardware.edges else BRIDGE_INDEX

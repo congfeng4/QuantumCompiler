@@ -3,7 +3,8 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Operator
 
-THRESHOLD = 1e-10   # 误差容忍
+THRESHOLD = 1e-10  # 误差容忍
+
 
 def remap_circuit(qc: QuantumCircuit, P: dict) -> QuantumCircuit:
     """
@@ -15,10 +16,11 @@ def remap_circuit(qc: QuantumCircuit, P: dict) -> QuantumCircuit:
     # 按原始电路 gate 顺序重放，只改 qubit 索引
     for inst in qc.data:
         gate = inst.operation
-        old_qargs = inst.qubits           # 虚拟 qubit 对象
+        old_qargs = inst.qubits  # 虚拟 qubit 对象
         new_qargs = [new_qc.qubits[P[q._index]] for q in old_qargs]
         new_qc.append(gate, new_qargs)
     return new_qc
+
 
 def verify_under_mapping(qc_origin: QuantumCircuit,
                          qc_mapped: QuantumCircuit,
@@ -36,6 +38,7 @@ def verify_under_mapping(qc_origin: QuantumCircuit,
     err = np.linalg.norm(U_origin - U_mapped)
     print("Operator error (Frobenius):", err)
     return err < threshold
+
 
 if __name__ == '__main__':
     pass

@@ -37,16 +37,16 @@ def pad_truncate_2d(arr, maxlen: int):
     """
     arr = np.asarray(arr)
     B = arr.shape[0]
-    if B >= maxlen:                      # 截断
+    if B >= maxlen:  # 截断
         return arr[:maxlen]
-    else:                                # 补零
+    else:  # 补零
         pad_width = ((0, maxlen - B), (0, 0))
         return np.pad(arr, pad_width, 'constant')
 
 
 class StateSpace:
 
-    def __init__(self, max_len: int=500):
+    def __init__(self, max_len: int = 500):
         self.max_len = max_len
 
     @property
@@ -64,13 +64,13 @@ class StateSpace:
                ):
         routed_seq = self.encode_dag(resulting_dag, RoutedStatus.ROUTED)
         unrouted_seq = self.encode_dag(remaining_dag, RoutedStatus.UNROUNTED,
-                                             current_mapping=current_mapping,
-                                             distance_matrix=distance_matrix)
+                                       current_mapping=current_mapping,
+                                       distance_matrix=distance_matrix)
         ops = np.concatenate((routed_seq, unrouted_seq), axis=0)
         x = pad_truncate_2d(ops, self.max_len)
         mask = np.ones((self.max_len,), np.int32)
         mask[:len(x)] = 0
-        return {'x': x, 'mask': mask} # x [S, F], mask [S, 1]
+        return {'x': x, 'mask': mask}  # x [S, F], mask [S, 1]
 
     def encode_dag(self, dag: DAGCircuit,
                    routed_status: RoutedStatus,

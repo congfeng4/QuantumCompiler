@@ -21,8 +21,8 @@ def positional_encoding_matrix(position: torch.Tensor, d_model: int):
     angle = position.unsqueeze(-1) * div_term.unsqueeze(0).unsqueeze(0)  # [B, S, d_model//2]
 
     # 3. 计算 sin/cos
-    pe_sin = torch.sin(angle)        # [B, S, d_model//2]
-    pe_cos = torch.cos(angle)        # [B, S, d_model//2]
+    pe_sin = torch.sin(angle)  # [B, S, d_model//2]
+    pe_cos = torch.cos(angle)  # [B, S, d_model//2]
 
     # 4. 交错放入最终张量
     pe = torch.zeros(B, S, d_model, dtype=torch.float32, device=position.device)
@@ -69,7 +69,7 @@ class OpsEmbedding(nn.Module):
         feature = self.encode(x)
         feature = torch.cat([self.cls_token.expand(B, 1, self.feature_dim), feature], dim=1)
         level = x[:, :, OpRepPosition.POS_LEVEL]  # [B, S]
-        position = torch.cat([torch.zeros(B, 1, device=level.device), level + 1], dim=1) # [B, S+1]
+        position = torch.cat([torch.zeros(B, 1, device=level.device), level + 1], dim=1)  # [B, S+1]
         pe = positional_encoding_matrix(position=position, d_model=self.feature_dim)
         # mask: [B, S] => [B, S+1]
         mask = torch.cat([torch.zeros(B, 1, device=mask.device), mask], dim=1)
@@ -90,7 +90,7 @@ class TransformerCircuitEncoder(nn.Module):
         self.transformer = nn.TransformerEncoder(
             encoder_layer=encoder_layer,
             num_layers=params.get('num_layers', 4),
-            enable_nested_tensor=False, # Prevent warning.
+            enable_nested_tensor=False,  # Prevent warning.
         )
 
     def forward(self, x, mask):

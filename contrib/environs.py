@@ -6,7 +6,6 @@ import numpy as np
 from gymnasium.core import ObsType
 from gymnasium.utils.env_checker import check_env
 
-from pygame import ver
 from qiskit import QuantumCircuit
 from qiskit.circuit import Qubit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
@@ -260,7 +259,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         if self.is_done:
             # Routing is finished and agent just reaches transformation limit or outputs 'finish' action.
             self.finalize_result()
-            gate_ratio, depth_ratio = self.metrics['metric/gate_ratio'], self.metrics['metric/depth_ratio']
+            ops_ratio, depth_ratio = self.metrics['metric/ops_ratio'], self.metrics['metric/depth_ratio']
             reward += np.exp(1 - depth_ratio) * self.bonus_weight
             # Final bonus to motivate agent to finish faster.
             if self.verbose:
