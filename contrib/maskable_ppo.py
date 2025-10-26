@@ -19,7 +19,7 @@ import gymnasium
 import torch.cuda
 from stable_baselines3.common.env_util import make_vec_env
 
-from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, write_circuit, write_json, get_cnot_num, \
+from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, read_json, write_circuit, write_json, get_cnot_num, \
     Qubit, Unit, get_circuit_depth, read_circuit, qknob_metrics, convert_to_int_mapping
 
 from sb3_contrib.ppo_mask import MaskablePPO
@@ -286,13 +286,13 @@ def run_maskable_ppo(
     pprint(config)
 
     if output_dir is None:
-        output_dir = f'./output/ours/{hardware.name}/{circuit_name}'
+        output_dir = Path(f'./output/ours/{hardware.name}/{circuit_name}')
 
-    write_json(output_dir + '/config.json', config)
+    write_json(output_dir / 'config.json', config)
 
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    log_dir = output_dir + "/tb_log"
+    log_dir = output_dir / "tb_log"
 
     metrics_callback = MetricEvalCallback(
         eval_env=eval_env,
@@ -319,7 +319,7 @@ def run_maskable_ppo(
         policy="MultiInputPolicy",
         env=env,
         n_steps=n_steps // num_envs,
-        tensorboard_log=log_dir,
+        tensorboard_log=str(log_dir),
         verbose=1,
         policy_kwargs=get_policy_kwargs(
             qubit_number=hardware.qubit_number,
@@ -340,6 +340,7 @@ def run_maskable_ppo(
     )
     env.close()
     eval_env.close()
+    return read_json(output_dir / "metrics.json")
 
 
 class CircuitDataset:
