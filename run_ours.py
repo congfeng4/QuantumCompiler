@@ -30,7 +30,7 @@ if __name__ == '__main__':
             layout_method = key['layout_method']
             circuit_path = key['circuit_path']
             db_key = '-'.join([layout_method.value, circuit_path.name])
-            output_dir = Path('./output') / db_key
+            output_dir = Path('./output/ours') / db_key
 
             if db_key in db:
                 continue
