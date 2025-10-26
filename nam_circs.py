@@ -17,15 +17,18 @@ if __name__ == '__main__':
         qc = QuantumCircuit.from_qasm_file(path)
         hardware = IBMQHardwareArchitecture('Star', num_nodes=qc.num_qubits)
         db_key = '-'.join([path.name, 'Star'])
-        output_dir = Path('./output/ours') / db_key
+        if db_key in db:
+            print('Skip', db_key)
+            continue
 
+        output_dir = Path('./output/ours/nam_circs') / db_key
         metrics = Parallel(1)([delayed(run_maskable_ppo)(
             hardware=hardware,
             circuit_path=path,
             init_strategy=InitialMappingStrategy.SABRE,
             output_dir=output_dir,
         )])[0]
-        
+
         db[db_key] = metrics
 
     db.close()

@@ -379,13 +379,13 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
     def transformation_masks(self, masks):
         # To transform something, you need to have something :)
         allow_transform_routed = self.resulting_dag.size() > 0
-        allow_transform_unrouted = self.remaining_dag.size() > 0
+        # allow_transform_unrouted = self.remaining_dag.size() > 0
         if self.is_routing_finished():
             allow_transform_routed &= self.trans_after_routing < self.trans_after_routing_limit
 
         for opt in self.action.trans:
             masks[self.action.action_to_index[ActionSpace.TRANS_ROUTED, opt]] = allow_transform_routed
-            masks[self.action.action_to_index[ActionSpace.TRANS_UNROUTED, opt]] = allow_transform_unrouted
+            # masks[self.action.action_to_index[ActionSpace.TRANS_UNROUTED, opt]] = allow_transform_unrouted
 
     def bridge_masks(self, masks):
         if not self.is_routing_started or self.is_routing_finished():

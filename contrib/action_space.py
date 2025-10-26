@@ -92,7 +92,7 @@ class ActionSpace:
         self.num_swap = len(swap_set)
 
         def make_trans_action():
-            return [(num, opt) for opt in self.trans for num in [self.TRANS_ROUTED, self.TRANS_UNROUTED]]
+            return [(num, opt) for opt in self.trans for num in [self.TRANS_ROUTED]]
 
         # [SpecialActions, RoutingActions, TransActions]
         self.index_to_action = [self.ACTION_START, self.ACTION_FINISH] + routing_actions + make_trans_action()
