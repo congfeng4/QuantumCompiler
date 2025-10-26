@@ -16,6 +16,7 @@ from contrib.initial_mapping import InitialMappingStrategy
 from contrib.random_graphs import generate_graph_for_num_qubits, create_coupling_graph
 from contrib.action_space import OPT_PASSES
 from contrib.common import qknob_metrics, get_total_ops, get_cnot_num, get_gate_set
+from contrib.verify_circuit import verify_circuit_equivalent
 from hamap import IBMQHardwareArchitecture
 
 SUPPORTED_GRAPH_MODEL = ('line', 'star', 'grid', 'random')
@@ -32,6 +33,8 @@ class OptMethod(Enum):
     PASSES = 'passes'
     QUARL = 'quarl'
     QUARTZ = 'quartz'
+    QISKIT_LV1 = 'qiskit:1'
+    QISKIT_LV2 = 'qiskit:2'
 
 
 class LayoutMethod(Enum):
@@ -80,8 +83,10 @@ class CircuitStats:
         self.qc = qc
 
 
-def route_circuit(qc: QuantumCircuit, coupling_map, routing_method: RoutingMethod, layout_method: LayoutMethod,
-                  gate_set):
+def route_circuit(qc: QuantumCircuit, coupling_map,
+                  routing_method: RoutingMethod, layout_method: LayoutMethod,
+                  gate_set, optimization_level):
+
     if routing_method == RoutingMethod.HA:
         from hamap.mapping import ha_mapping
         from contrib.initial_mapping import get_initial_mapping
@@ -93,10 +98,11 @@ def route_circuit(qc: QuantumCircuit, coupling_map, routing_method: RoutingMetho
     if routing_method in (RoutingMethod.SABRE, RoutingMethod.BASIC):
         if isinstance(coupling_map, nx.Graph):
             coupling_map = create_coupling_graph(coupling_map)
+
         qc_output = transpile(qc,
                               basis_gates=gate_set,
                               coupling_map=coupling_map,
-                              optimization_level=0,  # 0 for pure routing without optimization.
+                              optimization_level=optimization_level,  # 0 for pure routing without optimization.
                               layout_method=layout_method.value,
                               routing_method=routing_method.value,
                               )
@@ -120,6 +126,9 @@ def optimize_circuit(qc: QuantumCircuit, opt_method: OptMethod, opt_params: dict
         return quartz_optimize(qc, gate_set=opt_params['gate_set'],
                                ecc_file=opt_params['ecc_file'],
                                verbose=verbose)
+    if opt_method in (OptMethod.QISKIT_LV1, OptMethod.QISKIT_LV2):   # Router should optimize it.
+        return qc
+
     raise ValueError(opt_method)
 
 
@@ -184,22 +193,29 @@ def transpile_circuit(
         circuit_path: Path,
         gate_set: List[str],
         graph_model: Union[str, nx.Graph],
-        opt_method: OptMethod,
-        opt_order: OptOrder,
-        opt_params: dict,
-        layout_method: LayoutMethod,
-        routing_method: RoutingMethod,
+        opt_params: dict = None,
+        opt_method: OptMethod = OptMethod.PASSES,
+        layout_method: LayoutMethod = LayoutMethod.SABRE,
+        routing_method: RoutingMethod = RoutingMethod.SABRE,
+        opt_order: OptOrder = OptOrder.AFTER_ROUTING,  # Always use 'after'
         verbose=True,
+        verify_circuit=True,
 ):
     """Transpile to a physical coupling graph without optimization (right now)"""
+    if opt_params is None:
+        opt_params = {}
+    opt_params.update(gate_set=gate_set)
+
     circuit_path = Path(circuit_path)
     assert circuit_path.is_file(), circuit_path
 
-    opt_params.update(gate_set=gate_set)
-
     # Load the input circuit.
-    qc_input = QuantumCircuit.from_qasm_file(str(circuit_path))
+    qc_input = qc = QuantumCircuit.from_qasm_file(str(circuit_path))
     num_qubits = qc_input.num_qubits
+    if verify_circuit:
+        if num_qubits > 10:
+            print('Turn off verify_circuit because qubits is', num_qubits)
+            verify_circuit = False
 
     if isinstance(graph_model, str):
         coupling_map, graph_name = generate_graph_for_num_qubits(graph_model, num_qubits=num_qubits)
@@ -211,15 +227,23 @@ def transpile_circuit(
 
     # Before routing, do xfers.
     if opt_order == OptOrder.BEFORE_ROUTING:
-        qc_input = optimize_circuit(qc=qc_input, opt_method=opt_method, opt_params=opt_params, verbose=verbose)
+        qc = optimize_circuit(qc=qc, opt_method=opt_method, opt_params=opt_params, verbose=verbose)
+
+    if opt_method.value.startswith('qiskit:'):
+        optimization_level = int(opt_method.value.split(':')[-1])
+    else:
+        optimization_level = 0
 
     # Perform routing & layout.
-    qc_output = route_circuit(qc=qc_input, coupling_map=coupling_map, routing_method=routing_method,
-                              layout_method=layout_method, gate_set=gate_set)
+    qc_output = qc = route_circuit(qc=qc, coupling_map=coupling_map, routing_method=routing_method,
+                              layout_method=layout_method, gate_set=gate_set, optimization_level=optimization_level)
 
     # After routing, do xfers.
     if opt_order == OptOrder.AFTER_ROUTING:
-        qc_output = optimize_circuit(qc=qc_output, opt_method=opt_method, opt_params=opt_params, verbose=verbose)
+        qc_output = optimize_circuit(qc=qc, opt_method=opt_method, opt_params=opt_params, verbose=verbose)
+
+    if verify_circuit:
+        assert verify_circuit_equivalent(qc_input, qc_output)
 
     result = dict(
         circuit=circuit_path.stem,

@@ -12,6 +12,7 @@ from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGOpNode, DAGCircuit
 from qiskit.transpiler import TransformationPass
 
+from contrib.baselines import transpile_circuit
 from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost, get_front_layer, get_weighted_ops, \
     get_total_ops, get_inverse_mapping
 from contrib.expert import ha_baseline
