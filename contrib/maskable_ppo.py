@@ -64,9 +64,9 @@ def evaluate_policy_for_metrics(model, eval_env, key_metric='metric/depth_ratio'
     output_circuit = eval_env.get_attr('resulting_circuit')[k]
     input_circuit = eval_env.get_attr('input_circuit')[k]
     initial_mapping = eval_env.get_attr('initial_mapping')[k]
-    initial_mapping_orig = eval_env.get_attr('initial_mapping_orig')[k]
+    final_mapping = eval_env.get_attr('final_mapping')[k]
     metrics = average_metrics(metrics_list)
-    return metrics, input_circuit, output_circuit, initial_mapping, initial_mapping_orig
+    return metrics, input_circuit, output_circuit, initial_mapping, final_mapping
 
 
 class MetricEvalCallback(BaseCallback):
@@ -90,7 +90,7 @@ class MetricEvalCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
-            metrics, input_circuit, output_circuit, initial_mapping, initial_mapping_orig = \
+            metrics, input_circuit, output_circuit, initial_mapping, final_mapping = \
                 evaluate_policy_for_metrics(self.model, self.eval_env)
             depth_ratio = metrics['metric/depth_ratio']
 
@@ -103,12 +103,11 @@ class MetricEvalCallback(BaseCallback):
                     write_circuit(self.best_save_dir / 'input_circuit.qasm', input_circuit)
                     clean_metrics = {key: value for key, value in metrics.items() if key.startswith('metric/')}
                     write_json(self.best_save_dir / 'metrics.json', clean_metrics)
+                    write_json(self.best_save_dir / 'initial_mapping.json', convert_to_int_mapping(initial_mapping))
+                    write_json(self.best_save_dir / 'final_mapping.json', convert_to_int_mapping(final_mapping))
 
             if self.verify_circuit and initial_mapping is not None:
                 print('Begin to verify circuit...')
-                write_json(self.best_save_dir / 'initial_mapping.json', convert_to_int_mapping(initial_mapping))
-                write_json(self.best_save_dir / 'initial_mapping_orig.json', convert_to_int_mapping(initial_mapping_orig))
-
                 assert verify_circuit_equivalent(input_circuit, output_circuit)
 
             for key, value in metrics.items():

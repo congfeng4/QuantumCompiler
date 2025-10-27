@@ -1,13 +1,8 @@
-import matplotlib.pyplot as plt
-import networkx as nx
 from qiskit import QuantumCircuit
 from pathlib import Path
 import shelve
 from contrib.baselines import SUPPORTED_GRAPH_MODEL, LayoutMethod
-from contrib.initial_mapping import InitialMappingStrategy
-from contrib.maskable_ppo import run_as_subprocess, run_maskable_ppo
-from hamap import IBMQHardwareArchitecture
-from joblib import delayed, Parallel
+from contrib.maskable_ppo import run_as_subprocess
 
 
 if __name__ == '__main__':

@@ -62,7 +62,6 @@ OPT_PASSES = [
     RemoveIdentityEquivalent(),
     RemoveDiagonalGatesBeforeMeasure(),
     RemoveFinalReset(),
-    ElidePermutations(),
     OptimizeSwapBeforeMeasure(),
 ]
 

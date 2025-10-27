@@ -38,10 +38,7 @@ def generate_graph_by_model(graph_model: str, n: int, verbose=False):
             rows, cols = closest_factors(n)
             return IBMQHardwareArchitecture(graph_model, rows=rows, cols=cols)
 
-        if graph_model == 'random':
-            return generate_jellyfish_network(N=n, d=4)
-
-        raise ValueError(f'Bad graph model: {graph_model}')
+        return IBMQHardwareArchitecture(graph_model)
 
     g = generate()
     if verbose:

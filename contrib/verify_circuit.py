@@ -7,6 +7,7 @@ from qiskit.circuit import Instruction, CircuitInstruction
 from qiskit.quantum_info import Statevector, Operator
 from qiskit.transpiler import CouplingMap, Layout
 from qiskit.circuit.library import Permutation
+from qiskit.transpiler.passes import ApplyLayout
 
 from contrib.common import GATE_NAME_MAPPING, get_inverse_mapping
 
