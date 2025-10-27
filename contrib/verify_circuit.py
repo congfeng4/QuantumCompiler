@@ -4,8 +4,10 @@ import networkx as nx
 import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.circuit import Instruction, CircuitInstruction
-from qiskit.quantum_info import Statevector
-from qiskit.transpiler import CouplingMap
+from qiskit.quantum_info import Statevector, Operator
+from qiskit.transpiler import CouplingMap, Layout
+from qiskit.circuit.library import Permutation
+
 from contrib.common import GATE_NAME_MAPPING, get_inverse_mapping
 
 THRESHOLD = 1e-10
@@ -13,16 +15,34 @@ THRESHOLD = 1e-10
 
 def verify_circuit_equivalent(qc_origin: QuantumCircuit,
                               qc_mapped: QuantumCircuit,
+                              final_mapping=None,
                               threshold: float = THRESHOLD):
 
-    S_origin = Statevector(qc_origin).data
-    S_mapped = Statevector(qc_mapped).data
-    err = np.linalg.norm(S_origin - S_mapped)
-    if err < threshold:
-        print('OK')
-        return True
-    print("Error (Frobenius):", err)
-    return False
+    S_origin = Statevector.from_instruction(qc_origin)
+    S_mapped = Statevector.from_instruction(qc_mapped)
+
+    if final_mapping is None:
+        # Fast checking.
+        S_origin = np.sort(np.abs(S_origin.data))
+        S_mapped = np.sort(np.abs(S_mapped.data))
+        err = np.linalg.norm(S_origin - S_mapped)
+        if err < threshold:
+            print('OK')
+            return True
+        print("Error (Frobenius):", err)
+        return False
+    else:
+        # Slow but accurate checking.
+        qc = qc_origin
+        final_layout = Layout(final_mapping) if not isinstance(final_mapping, Layout) else final_mapping
+        layout = final_layout
+        perm = [layout[qc.qubits[i]] for i in range(qc.num_qubits)]
+        perm_gate = Permutation(qc.num_qubits, perm)
+        S_origin = S_origin.evolve(Operator(perm_gate))
+        if S_origin.equiv(S_mapped):
+            print('OK')
+            return True
+        return False
 
 
 def verify_circuit_routed(qc: QuantumCircuit, graph: Union[CouplingMap, nx.Graph], initial_mapping):

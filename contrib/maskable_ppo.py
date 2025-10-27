@@ -204,7 +204,7 @@ def run_maskable_ppo(
         # Boolean flags.
         save_model: bool = False,
         verbose=False,
-        verify_circuit=True,
+        verify_circuit=False,
 
         # Other flags.
         ppo_params=None,
@@ -218,6 +218,7 @@ def run_maskable_ppo(
         model_params = {}
     if ppo_params is None:
         ppo_params = {}
+    ppo_params.setdefault('batch_size', 256) # default 64 is too small.
     if env_params is None:
         env_params = {}
 

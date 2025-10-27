@@ -11,7 +11,7 @@ from contrib.baselines import *
 def run_baseline(
         circuit_paths: list,
         opt_method: list,
-        opt_order: list,
+        # opt_order: list,
         routing_method: list,
         layout_method: list,
         gate_set: list,
@@ -26,7 +26,7 @@ def run_baseline(
         circuit_path=circuit_paths,
         opt_method=opt_method,
         routing_method=routing_method,
-        opt_order=opt_order,
+        # opt_order=opt_order,
         layout_method=layout_method,
     ))
 
@@ -56,15 +56,17 @@ if __name__ == '__main__':
     data_list = '20Q_gate_Tokyo 20Q_depth_Tokyo 53Q_depth_Rochester 53Q_depth_Sycamore 53Q_gate_Rochester 53Q_gate_Sycamore'.split()
     # for data in data_list:
     data = '20Q_gate_Tokyo'
-    dataset = CircuitDataset(data, sort=True)
+    # dataset = CircuitDataset(data, sort=True)
+    circuit_paths = list(Path('./data/nam_circs').glob("*.qasm"))
 
     run_baseline(
-        dataset.circuit_paths,
-        opt_method=[OptMethod.NONE, OptMethod.PASSES],
-        opt_order=SUPPORTED_OPT_ORDER,
+        circuit_paths,
+        opt_method=[OptMethod.NONE, OptMethod.QISKIT_LV1,
+                    OptMethod.QISKIT_LV2, OptMethod.PASSES],
+        # opt_order=SUPPORTED_OPT_ORDER,
         routing_method=SUPPORTED_ROUTING_METHOD,
         layout_method=SUPPORTED_LAYOUT_METHOD,
         gate_set='h cx u'.split(),
-        save_file=Path(f'./output/baseline/{data}.csv'),
-        graph=dataset.hardware,
+        save_file=Path(f'./output/baseline/nam_circs-star.csv'),
+        graph='star',
     )

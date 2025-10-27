@@ -54,15 +54,23 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
                  verbose=False,
+                 max_len=None,
                  params=None):
-        super().__init__(hardware)
+
+
         if params is None:
             params = {}
 
+        if max_len is None:
+            max_len = 2 * get_total_ops(input_circuit)
+        self.max_len = max_len
+
         self.input_circuit = input_circuit
+        self.hardware = hardware
+        self.verbose = verbose
         self.initial_mapping_orig = initial_mapping.copy()
         self.distance_matrix = get_distance_matrix(self.hardware)
-        self.verbose = verbose
+
         # Hyperparameters
 
         # Discount factor for future rewards.
@@ -98,6 +106,12 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.remaining_dag: Optional[DAGCircuit] = None
         self.resulting_circuit = None
         self.metrics_baseline = ha_baseline(input_circuit, hardware, initial_mapping)
+
+        self.action = ActionSpace(hardware)
+        self.state = StateSpace(self.max_len)
+        self.action_space = self.action.to_gym_space()
+        self.observation_space = self.state.to_gym_space()
+
         # check_env(self)
 
     def reset(self, seed=None, options=None) -> tuple[ObsType, dict[str, Any]]:

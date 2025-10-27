@@ -15,7 +15,7 @@ from qiskit.transpiler import PassManager
 from contrib.initial_mapping import InitialMappingStrategy
 from contrib.random_graphs import generate_graph_for_num_qubits, create_coupling_graph
 from contrib.action_space import OPT_PASSES
-from contrib.common import qknob_metrics, get_total_ops, get_cnot_num, get_gate_set
+from contrib.common import qknob_metrics, get_total_ops, get_cnot_num, get_gate_set, write_circuit
 from contrib.verify_circuit import verify_circuit_equivalent
 from hamap import IBMQHardwareArchitecture
 
@@ -92,21 +92,21 @@ def route_circuit(qc: QuantumCircuit, coupling_map,
         from contrib.initial_mapping import get_initial_mapping
 
         initial_mapping = get_initial_mapping(qc, coupling_map, layout_method.to_initial_mapping_strategy())
-        qc_output, _ = ha_mapping(qc, initial_mapping=initial_mapping, hardware=coupling_map)
-        return qc_output
+        qc_output, final_mapping = ha_mapping(qc, initial_mapping=initial_mapping, hardware=coupling_map)
+        return qc_output, final_mapping
 
     if routing_method in (RoutingMethod.SABRE, RoutingMethod.BASIC):
         if isinstance(coupling_map, nx.Graph):
             coupling_map = create_coupling_graph(coupling_map)
 
         qc_output = transpile(qc,
-                              basis_gates=gate_set,
+                            #   basis_gates=gate_set,
                               coupling_map=coupling_map,
                               optimization_level=optimization_level,  # 0 for pure routing without optimization.
                               layout_method=layout_method.value,
                               routing_method=routing_method.value,
                               )
-        return qc_output
+        return qc_output, qc_output.layout.final_layout
 
     raise ValueError(routing_method)
 
@@ -218,7 +218,8 @@ def transpile_circuit(
             verify_circuit = False
 
     if isinstance(graph_model, str):
-        coupling_map, graph_name = generate_graph_for_num_qubits(graph_model, num_qubits=num_qubits)
+        coupling_map, graph_name = generate_graph_for_num_qubits(graph_model, num_qubits=num_qubits,
+                                                                  return_coupling_map=False)
     elif isinstance(graph_model, IBMQHardwareArchitecture):
         coupling_map = graph_model
         graph_name = graph_model.name
@@ -235,15 +236,20 @@ def transpile_circuit(
         optimization_level = 0
 
     # Perform routing & layout.
-    qc_output = qc = route_circuit(qc=qc, coupling_map=coupling_map, routing_method=routing_method,
+    qc_output, final_mapping = route_circuit(qc=qc,
+                                             coupling_map=coupling_map, routing_method=routing_method,
                               layout_method=layout_method, gate_set=gate_set, optimization_level=optimization_level)
 
     # After routing, do xfers.
     if opt_order == OptOrder.AFTER_ROUTING:
-        qc_output = optimize_circuit(qc=qc, opt_method=opt_method, opt_params=opt_params, verbose=verbose)
+        qc_output = optimize_circuit(qc=qc_output,
+                                      opt_method=opt_method, opt_params=opt_params, verbose=verbose)
 
     if verify_circuit:
-        assert verify_circuit_equivalent(qc_input, qc_output)
+        if not verify_circuit_equivalent(qc_input, qc_output):
+            print(opt_method, routing_method, layout_method, circuit_path, graph_model)
+            write_circuit('./output.qasm', qc_output)
+            raise ValueError
 
     result = dict(
         circuit=circuit_path.stem,

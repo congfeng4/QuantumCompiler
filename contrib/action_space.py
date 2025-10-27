@@ -59,11 +59,11 @@ OPT_PASSES = [
     InverseCancellation(),
     # Optimize1qGates(),
     # Optimize1qGatesSimpleCommutation(),
-    # OptimizeSwapBeforeMeasure(),
     # RemoveIdentityEquivalent(),
-    # RemoveDiagonalGatesBeforeMeasure,
-    # RemoveFinalReset,
-    # ElidePermutations,
+    # RemoveDiagonalGatesBeforeMeasure(),
+    # RemoveFinalReset(),
+    # ElidePermutations(),
+    # OptimizeSwapBeforeMeasure(),
 ]
 
 

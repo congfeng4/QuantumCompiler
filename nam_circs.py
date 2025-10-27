@@ -28,7 +28,10 @@ if __name__ == '__main__':
                 circuit_path=path,
                 init_strategy=InitialMappingStrategy.SABRE,
                 output_dir=output_dir,
+                ppo_params=dict(batch_size=256),
             )])[0]
+        except KeyboardInterrupt:
+            break
         except:
             continue
 

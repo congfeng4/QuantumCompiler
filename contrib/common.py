@@ -174,7 +174,7 @@ def read_circuit(in_file: Union[Path, str]):
 
 
 def write_circuit(out_file: Union[Path, str], qc: QuantumCircuit):
-    from qiskit.qasm3 import dumps
+    from qiskit.qasm2 import dumps
 
     if not isinstance(out_file, Path):
         out_file = Path(out_file)

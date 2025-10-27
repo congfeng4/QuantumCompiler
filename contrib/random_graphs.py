@@ -1,8 +1,10 @@
 import random
+from turtle import st
 import networkx as nx
 import numpy as np
 from qiskit.transpiler import CouplingMap
 import math
+from contrib.common import IBMQHardwareArchitecture
 
 
 def closest_factors(n):
@@ -21,25 +23,29 @@ def closest_factors(n):
     return (1, n)
 
 
-def generate_graph_by_model(graph_model: str, n: int, m_or_d: int = None, verbose=False):
+def generate_graph_by_model(graph_model: str, n: int, verbose=False):
     # assert graph_model in 'line star grid random'.split(), f'Bad model {graph_model}'
     def generate():
-        if graph_model == 'line':
-            return nx.path_graph(n=n)
-        if graph_model == 'star':
-            return nx.star_graph(n=n)
+        if graph_model in ('line', 'ring', 'star'):
+            # return nx.path_graph(n=n)
+            return IBMQHardwareArchitecture(graph_model, num_nodes=n)
+        # if graph_model == 'star':
+        #     return nx.star_graph(n=n)
         if graph_model == 'grid':
-            g = nx.grid_2d_graph(m=m_or_d, n=n)
-            node_mapping = {node: idx for idx, node in enumerate(g.nodes)}
-            return nx.relabel_nodes(g, node_mapping)
+            # g = nx.grid_2d_graph(m=m_or_d, n=n)
+            # node_mapping = {node: idx for idx, node in enumerate(g.nodes)}
+            # return nx.relabel_nodes(g, node_mapping)
+            rows, cols = closest_factors(n)
+            return IBMQHardwareArchitecture(graph_model, rows=rows, cols=cols)
+
         if graph_model == 'random':
-            return generate_jellyfish_network(N=n, d=m_or_d)
+            return generate_jellyfish_network(N=n, d=4)
 
         raise ValueError(f'Bad graph model: {graph_model}')
 
     g = generate()
     if verbose:
-        print(f'Generate {graph_model} {n} {m_or_d}')
+        print(f'Generate {graph_model} {n}')
         nx.draw(g)
     return g
 
@@ -123,21 +129,14 @@ def generate_graph_for_num_qubits(graph_model: str, num_qubits: int, return_coup
     assert num_qubits > 0, num_qubits
 
     def gen():
-        if graph_model in ('line', 'star'):
+        if isinstance(graph_model, str):
             return generate_graph_by_model(graph_model, n=num_qubits)
-
-        if graph_model == 'random':  # Use fixed 4 degree.
-            return generate_graph_by_model(graph_model, n=num_qubits, m_or_d=4)
-
-        if graph_model == 'grid':
-            n, m = closest_factors(num_qubits)  # Fatorize into closest two numbers.
-            return generate_graph_by_model(graph_model, n=n, m_or_d=m)
 
         if isinstance(graph_model, nx.Graph):
             assert graph_model.number_of_nodes() == num_qubits
             return graph_model
 
-        raise ValueError(graph_model)
+        raise TypeError(graph_model)
 
     g = gen()
     g_name = graph_model if isinstance(graph_model, str) else g.name
