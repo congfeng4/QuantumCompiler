@@ -11,22 +11,22 @@ from contrib.baselines import *
 def run_baseline(
         circuit_paths: list,
         opt_method: list,
-        # opt_order: list,
+        opt_order: list,
         routing_method: list,
         layout_method: list,
         gate_set: list,
-        graph: nx.Graph,
+        graph_model: list,
         save_file: Path = None,
         ecc_file=None,
         n_jobs=-1,
-        repeats: int = 3,
         verbose=True
 ):
     rounds = dict_product(dict(
         circuit_path=circuit_paths,
         opt_method=opt_method,
         routing_method=routing_method,
-        # opt_order=opt_order,
+        opt_order=opt_order,
+        graph_model=graph_model,
         layout_method=layout_method,
     ))
 
@@ -35,7 +35,6 @@ def run_baseline(
             ecc_file=ecc_file,
         ),
         gate_set=gate_set,
-        graph_model=graph,
         **rnd,
     ) for rnd in rounds)
 
@@ -63,10 +62,10 @@ if __name__ == '__main__':
         circuit_paths,
         opt_method=[OptMethod.NONE, OptMethod.QISKIT_LV1,
                     OptMethod.QISKIT_LV2, OptMethod.PASSES],
-        # opt_order=SUPPORTED_OPT_ORDER,
+        opt_order=SUPPORTED_OPT_ORDER,
         routing_method=SUPPORTED_ROUTING_METHOD,
         layout_method=SUPPORTED_LAYOUT_METHOD,
+        graph_model=SUPPORTED_GRAPH_MODEL,
         gate_set='h cx u'.split(),
         save_file=Path(f'./output/baseline/nam_circs-star.csv'),
-        graph='star',
     )

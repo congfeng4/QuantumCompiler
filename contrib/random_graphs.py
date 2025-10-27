@@ -125,7 +125,7 @@ def create_coupling_graph(g: nx.Graph, check=False):
     return coupling_map
 
 
-def generate_graph_for_num_qubits(graph_model: str, num_qubits: int, return_coupling_map=True):
+def generate_graph_for_num_qubits(graph_model: str, num_qubits: int, return_coupling_map=False):
     assert num_qubits > 0, num_qubits
 
     def gen():

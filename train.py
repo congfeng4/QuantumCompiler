@@ -19,7 +19,7 @@ if __name__ == '__main__':
     run_maskable_ppo(
         init_strategy=args.layout,
         feature_dim=args.feature_dim,
-        hardware=IBMQHardwareArchitecture(args.hardware),
+        hardware=args.hardware,
         circuit_path=args.path,
         num_envs=4,
         n_eval_episodes=4,

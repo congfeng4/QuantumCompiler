@@ -62,7 +62,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             params = {}
 
         if max_len is None:
-            max_len = 2 * get_total_ops(input_circuit)
+            max_len = 4 * get_total_ops(input_circuit)
         self.max_len = max_len
 
         self.input_circuit = input_circuit

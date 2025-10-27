@@ -33,6 +33,7 @@ from sb3_contrib.common.maskable.callbacks import MaskableEvalCallback
 from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from stable_baselines3.common.callbacks import BaseCallback
 
+from contrib.random_graphs import generate_graph_for_num_qubits
 from contrib.verify_circuit import verify_circuit_equivalent
 from hamap.initial_mapping import initial_mapping_from_sabre
 
@@ -226,18 +227,25 @@ def run_maskable_ppo(
     while n_steps % num_envs != 0:
         num_envs += 1
 
-    if not isinstance(hardware, IBMQHardwareArchitecture):
-        hardware = IBMQHardwareArchitecture(hardware)
-
-    if not isinstance(circuit_path, QuantumCircuit):
+    if isinstance(circuit_path, QuantumCircuit):
+        qc = circuit_path
+    elif isinstance(circuit_path, (str, Path)):
         qc = QuantumCircuit.from_qasm_file(str(circuit_path))
     else:
-        qc = circuit_path
+        raise TypeError(circuit_path)
 
     if qc.num_qubits > 10:
         if verify_circuit:
             print('Turn off verify_circuit because num_qubits is', qc.num_qubits)
         verify_circuit = False
+
+    if isinstance(hardware, IBMQHardwareArchitecture):
+        hardware = hardware
+        hardware_name = hardware.name
+    elif isinstance(hardware, str):
+        hardware, hardware_name = generate_graph_for_num_qubits(hardware, num_qubits=qc.num_qubits)
+    else:
+        raise TypeError(hardware)
 
     if not isinstance(init_strategy, dict):
         init = get_initial_mapping(qc, hardware, init_strategy)
@@ -271,7 +279,7 @@ def run_maskable_ppo(
 
     config = dict(
         env=env_cls.__name__,
-        hardware=hardware.name,
+        hardware=hardware_name,
         circuit=circuit_name,
         num_envs=num_envs,
         feature_dim=feature_dim,
@@ -341,7 +349,8 @@ def run_maskable_ppo(
     )
     env.close()
     eval_env.close()
-    return read_json(output_dir / "metrics.json")
+    config.update(read_json(output_dir / "metrics.json"))
+    return config
 
 
 class CircuitDataset:
@@ -444,34 +453,23 @@ class CircuitDataset:
         plt.show()
 
 
-def maskable_ppo_mapping(
-        qc: QuantumCircuit,
-        hardware: IBMQHardwareArchitecture,
-        initial_mapping: dict[Qubit, int],
-        **kwargs,
-):
-    return run_maskable_ppo(
-        hardware=hardware,
-        circuit_path=qc,
-        init_strategy=initial_mapping,
-        save_result=False,
-        skip_existing=False,
-        **kwargs,
-    )
+def run_as_subprocess(circuit_path: Path, layout_method, hardware_name: str, output_dir: Path):
+    assert isinstance(circuit_path, Path)
+    assert isinstance(hardware_name, str)
 
+    import subprocess, sys
 
-def forward_backward_initial_mapping(
-        qc: QuantumCircuit,
-        hardware: IBMQHardwareArchitecture,
-        initial_mapping: dict[Qubit, int] = None,
-        **kwargs,
-):
-    initial_mapping = initial_mapping_from_sabre(
-        quantum_circuit=qc,
-        hardware=hardware,
-        mapping_algorithm=lambda qc, hw, init: maskable_ppo_mapping(qc, hw, init, **kwargs),
-        initial_mapping=initial_mapping
-    )
-    final_circuit, _ = maskable_ppo_mapping(qc=qc, hardware=hardware, initial_mapping=initial_mapping)
-    metrics = qknob_metrics(qc, final_circuit)
-    return metrics, final_circuit, initial_mapping
+    cmd = (f'{sys.executable} train.py '
+           f'--path {circuit_path} '
+           f'--layout {layout_method.value} '
+           f'--output {output_dir} '
+           f'--hardware {hardware_name}').split()
+
+    try:
+        subprocess.check_call(cmd, cwd=Path.cwd().absolute())
+    except Exception as e:
+        print(circuit_path, hardware_name, 'failed', 'error', e)
+        raise
+
+    metrics = read_json(output_dir / 'metrics.json')
+    return metrics

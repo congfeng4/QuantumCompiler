@@ -19,7 +19,7 @@ from contrib.common import qknob_metrics, get_total_ops, get_cnot_num, get_gate_
 from contrib.verify_circuit import verify_circuit_equivalent
 from hamap import IBMQHardwareArchitecture
 
-SUPPORTED_GRAPH_MODEL = ('line', 'star', 'grid', 'random')
+SUPPORTED_GRAPH_MODEL = ('line', 'star', 'grid', 'ring')
 SUPPORTED_OPT_LEVEL = tuple(range(3))
 
 
@@ -83,9 +83,11 @@ class CircuitStats:
         self.qc = qc
 
 
-def route_circuit(qc: QuantumCircuit, coupling_map,
-                  routing_method: RoutingMethod, layout_method: LayoutMethod,
-                  gate_set, optimization_level):
+def route_circuit(qc: QuantumCircuit,
+                  coupling_map,
+                  routing_method: RoutingMethod,
+                  layout_method: LayoutMethod,
+                  optimization_level):
 
     if routing_method == RoutingMethod.HA:
         from hamap.mapping import ha_mapping
@@ -100,7 +102,6 @@ def route_circuit(qc: QuantumCircuit, coupling_map,
             coupling_map = create_coupling_graph(coupling_map)
 
         qc_output = transpile(qc,
-                            #   basis_gates=gate_set,
                               coupling_map=coupling_map,
                               optimization_level=optimization_level,  # 0 for pure routing without optimization.
                               layout_method=layout_method.value,
@@ -238,7 +239,7 @@ def transpile_circuit(
     # Perform routing & layout.
     qc_output, final_mapping = route_circuit(qc=qc,
                                              coupling_map=coupling_map, routing_method=routing_method,
-                              layout_method=layout_method, gate_set=gate_set, optimization_level=optimization_level)
+                              layout_method=layout_method, optimization_level=optimization_level)
 
     # After routing, do xfers.
     if opt_order == OptOrder.AFTER_ROUTING:
