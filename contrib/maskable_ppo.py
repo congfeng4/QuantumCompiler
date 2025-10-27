@@ -194,10 +194,10 @@ def run_maskable_ppo(
 
         # Numeric options.
         n_steps: int = 2048,
-        total_timesteps: int = 100 * Unit.K,
-        eval_freq: int = 1024,
+        total_timesteps: int = 50 * Unit.K,
+        eval_freq: int = 2 * Unit.K,
         feature_dim: int = 64,
-        n_eval_episodes: int = 10,
+        n_eval_episodes: int = 5,
         max_no_improvement_evals=100,
         num_envs: int = None,
         min_evals: int = 5,

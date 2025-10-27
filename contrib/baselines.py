@@ -35,6 +35,7 @@ class OptMethod(Enum):
     QUARTZ = 'quartz'
     QISKIT_LV1 = 'qiskit:1'
     QISKIT_LV2 = 'qiskit:2'
+    QISKIT_LV3 = 'qiskit:3'
 
 
 class LayoutMethod(Enum):
@@ -103,7 +104,7 @@ def route_circuit(qc: QuantumCircuit,
 
         qc_output = transpile(qc,
                               coupling_map=coupling_map,
-                              optimization_level=optimization_level,  # 0 for pure routing without optimization.
+                              optimization_level=optimization_level,
                               layout_method=layout_method.value,
                               routing_method=routing_method.value,
                               )
@@ -127,7 +128,7 @@ def optimize_circuit(qc: QuantumCircuit, opt_method: OptMethod, opt_params: dict
         return quartz_optimize(qc, gate_set=opt_params['gate_set'],
                                ecc_file=opt_params['ecc_file'],
                                verbose=verbose)
-    if opt_method in (OptMethod.QISKIT_LV1, OptMethod.QISKIT_LV2):   # Router should optimize it.
+    if opt_method.value.startswith('qiskit:'):  # Router should optimize it.
         return qc
 
     raise ValueError(opt_method)

@@ -15,7 +15,7 @@ if __name__ == '__main__':
     db = shelve.open(f'./output/db/nam_circs', writeback=True)
 
     for path in Path('./data/nam_circs').glob("*.qasm"):
-        for hardware in ['star']:
+        for hardware in [ 'star']:
             qc = QuantumCircuit.from_qasm_file(path)
             db_key = '-'.join([path.name, hardware.lower()])
             if db_key in db:

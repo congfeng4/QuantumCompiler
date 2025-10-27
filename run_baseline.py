@@ -14,8 +14,8 @@ def run_baseline(
         opt_order: list,
         routing_method: list,
         layout_method: list,
-        gate_set: list,
         graph_model: list,
+        gate_set: list = None,
         save_file: Path = None,
         ecc_file=None,
         n_jobs=-1,
@@ -61,11 +61,10 @@ if __name__ == '__main__':
     run_baseline(
         circuit_paths,
         opt_method=[OptMethod.NONE, OptMethod.QISKIT_LV1,
-                    OptMethod.QISKIT_LV2, OptMethod.PASSES],
+                    OptMethod.QISKIT_LV2, OptMethod.PASSES, OptMethod.QISKIT_LV3],
         opt_order=SUPPORTED_OPT_ORDER,
         routing_method=SUPPORTED_ROUTING_METHOD,
         layout_method=SUPPORTED_LAYOUT_METHOD,
         graph_model=SUPPORTED_GRAPH_MODEL,
-        gate_set='h cx u'.split(),
         save_file=Path(f'./output/baseline/nam_circs-star.csv'),
     )
