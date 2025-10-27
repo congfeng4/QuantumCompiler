@@ -17,7 +17,7 @@ if __name__ == '__main__':
     for path in Path('./data/nam_circs').glob("*.qasm"):
         for hardware in ['star']:
             qc = QuantumCircuit.from_qasm_file(path)
-            db_key = '-'.join([path.name, hardware])
+            db_key = '-'.join([path.name, hardware.lower()])
             if db_key in db:
                 print('Skip', db_key)
                 continue

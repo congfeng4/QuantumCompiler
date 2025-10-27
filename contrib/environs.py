@@ -12,7 +12,7 @@ from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGOpNode, DAGCircuit
 from qiskit.transpiler import TransformationPass
 
-from contrib.baselines import transpile_circuit
+from contrib.baselines import OptMethod, transpile_circuit
 from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost, get_front_layer, get_weighted_ops, \
     get_total_ops, get_inverse_mapping
 from contrib.expert import ha_baseline
@@ -62,7 +62,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
             params = {}
 
         if max_len is None:
-            max_len = 4 * get_total_ops(input_circuit)
+            max_len = 2 * get_total_ops(input_circuit)
         self.max_len = max_len
 
         self.input_circuit = input_circuit
@@ -105,7 +105,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.input_circuit = input_circuit
         self.remaining_dag: Optional[DAGCircuit] = None
         self.resulting_circuit = None
-        self.metrics_baseline = ha_baseline(input_circuit, hardware, initial_mapping)
+        self.metrics_baseline = transpile_circuit(input_circuit, hardware, opt_method=OptMethod.QISKIT_LV2)
 
         self.action = ActionSpace(hardware)
         self.state = StateSpace(self.max_len)
@@ -340,8 +340,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         for key, value in self.action_stats.items():
             record['action/' + key] = value / total * 100
 
-        for key, value in self.metrics_baseline.items():
-            record['diff/' + key] = metrics[key] - value
+        for key, value in metrics.items():
+            record['diff/' + key] = value - self.metrics_baseline[key]
 
         for key, value in self.reward_stats.items():
             record['reward/' + key] = value
@@ -380,7 +380,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         masks = np.zeros(self.action.size, dtype=bool)
         # Since we apply transformations in the routed subscircuit, it needs to non-empty.
         self.swap_masks(masks)
-        self.bridge_masks(masks)
+        # self.bridge_masks(masks)
         self.transformation_masks(masks)
         # self.special_action_masks(masks)
         return masks.tolist()

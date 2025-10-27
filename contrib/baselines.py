@@ -1,6 +1,6 @@
 import subprocess
 from copy import deepcopy
-from typing import Union, List
+from typing import Type, Union, List
 import networkx as nx
 from pathlib import Path
 from qiskit import transpile
@@ -191,9 +191,9 @@ def quartz_optimize(qc: QuantumCircuit, gate_set, ecc_file, verbose=True) -> Qua
 
 
 def transpile_circuit(
-        circuit_path: Path,
-        gate_set: List[str],
+        circuit_path: Union[Path, str, QuantumCircuit],
         graph_model: Union[str, nx.Graph],
+        gate_set: List[str] = None,
         opt_params: dict = None,
         opt_method: OptMethod = OptMethod.PASSES,
         layout_method: LayoutMethod = LayoutMethod.SABRE,
@@ -207,11 +207,17 @@ def transpile_circuit(
         opt_params = {}
     opt_params.update(gate_set=gate_set)
 
-    circuit_path = Path(circuit_path)
-    assert circuit_path.is_file(), circuit_path
+    if isinstance(circuit_path, QuantumCircuit):
+        qc = circuit_path
+    elif isinstance(circuit_path, (Path, str)):
+        circuit_path = Path(circuit_path)
+        assert circuit_path.is_file(), circuit_path
+        qc = QuantumCircuit.from_qasm_file(str(circuit_path))
+    else:
+        raise TypeError(circuit_path)
 
     # Load the input circuit.
-    qc_input = qc = QuantumCircuit.from_qasm_file(str(circuit_path))
+    qc_input = qc
     num_qubits = qc_input.num_qubits
     if verify_circuit:
         if num_qubits > 10:
@@ -253,7 +259,7 @@ def transpile_circuit(
             raise ValueError
 
     result = dict(
-        circuit=circuit_path.stem,
+        circuit=circuit_path.stem if isinstance(circuit_path, Path) else 'unknown',
         opt_order=opt_order.value,
         opt_method=opt_method.value,
         layout_method=layout_method.value,

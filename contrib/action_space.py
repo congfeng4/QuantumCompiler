@@ -57,13 +57,13 @@ OPT_PASSES = [
     CommutativeCancellation(),
     CommutativeInverseCancellation(),
     InverseCancellation(),
-    # Optimize1qGates(),
-    # Optimize1qGatesSimpleCommutation(),
-    # RemoveIdentityEquivalent(),
-    # RemoveDiagonalGatesBeforeMeasure(),
-    # RemoveFinalReset(),
-    # ElidePermutations(),
-    # OptimizeSwapBeforeMeasure(),
+    Optimize1qGates(),
+    Optimize1qGatesSimpleCommutation(),
+    RemoveIdentityEquivalent(),
+    RemoveDiagonalGatesBeforeMeasure(),
+    RemoveFinalReset(),
+    ElidePermutations(),
+    OptimizeSwapBeforeMeasure(),
 ]
 
 
@@ -85,9 +85,9 @@ class ActionSpace:
         swap_set = set(hardware.edges)
         bridge_set = set(non_adj_common_pairs(hardware.to_undirected()))
         make_symmetric(bridge_set)
-        routing_actions = sorted(swap_set) + sorted(bridge_set)
+        routing_actions = sorted(swap_set) #+ sorted(bridge_set)
         check_symmetric(routing_actions)
-        assert len(routing_actions) == len(swap_set) + len(bridge_set)
+        assert len(routing_actions) == len(swap_set) #+ len(bridge_set)
         self.num_bridge = len(bridge_set)
         self.num_swap = len(swap_set)
 
