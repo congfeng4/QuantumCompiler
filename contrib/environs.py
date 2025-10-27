@@ -331,7 +331,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         assert self.is_routing_finished(), 'Routing is not finished!'
         self.resulting_circuit = dag_to_circuit(self.resulting_dag)
         self.final_mapping = self.current_mapping.copy()
-        
+
         record = {}
         metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
         for key, value in metrics.items():

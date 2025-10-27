@@ -10,12 +10,10 @@ import numpy as np
 from qiskit.circuit import Qubit
 from qiskit.transpiler import TransformationPass
 from qiskit.transpiler.passes import *
-
 from hamap import IBMQHardwareArchitecture
 from hamap.gates import TwoQubitGate, SwapTwoQubitGate, BridgeTwoQubitGate
 
 from contrib.common import SWAP_INDEX, BRIDGE_INDEX, non_adj_common_pairs
-from hamap.heuristics import sabre_heuristic
 from qiskit.transpiler.passes import OptimizeCliffords
 
 logger = logging.getLogger("action_space")
@@ -60,9 +58,9 @@ OPT_PASSES = [
     Optimize1qGates(),
     Optimize1qGatesSimpleCommutation(),
     RemoveIdentityEquivalent(),
-    RemoveDiagonalGatesBeforeMeasure(),
-    RemoveFinalReset(),
-    OptimizeSwapBeforeMeasure(),
+    # RemoveDiagonalGatesBeforeMeasure(),
+    # RemoveFinalReset(),
+    # OptimizeSwapBeforeMeasure(),
 ]
 
 
