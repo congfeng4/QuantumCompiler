@@ -12,11 +12,14 @@ import networkx as nx
 
 from qiskit.dagcircuit import DAGNode, DAGCircuit, DAGOpNode
 from qiskit.circuit.library import get_standard_gate_name_mapping
+from qiskit.transpiler import Layout
+
 from hamap.distance_matrix import get_distance_matrix_swap_number, get_distance_matrix_swap_number_and_error
 from hamap.gates import TwoQubitGate
 from hamap.hardware import IBMQHardwareArchitecture
 from hamap.heuristics import _gate_op_cost
 from hamap.layer import QuantumLayer, update_layer
+import shelve
 
 RESULT_DIR = Path(__file__).parent.parent / 'result'
 
@@ -107,8 +110,18 @@ def get_weighted_ops(ops_count: dict, one_qubit_gate_weight: float = None):
     return qubits_to_count[1] * one_qubit_gate_weight + qubits_to_count[2] * (1 - one_qubit_gate_weight)
 
 
-def convert_to_int_mapping(mapping: dict[Qubit, int]):
-    return {bit._index: int(idx) for bit, idx in mapping.items()}
+def convert_to_int_mapping(mapping: Union[dict[Qubit, int], Layout]):
+    if isinstance(mapping, Layout):
+        mapping = mapping.get_virtual_bits()
+
+    def to_int(q):
+        if isinstance(q, int):
+            return q
+        if isinstance(q, Qubit):
+            return q._index
+        raise TypeError(q)
+
+    return {to_int(bit): int(idx) for bit, idx in mapping.items()}
 
 
 def get_hardware_name(data_name: str):
@@ -165,6 +178,16 @@ def read_json(in_file: Union[Path, str]):
     if not isinstance(in_file, Path):
         in_file = Path(in_file)
     return json.loads(in_file.read_text(encoding='utf8'))
+
+
+def read_mapping(in_file: Union[Path, str]):
+    data = read_json(in_file)
+    return {int(k) : v for k, v in data.items()}
+
+
+def write_mapping(out_file: Union[Path, str], data):
+    data = convert_to_int_mapping(data)
+    write_json(out_file, data)
 
 
 def read_circuit(in_file: Union[Path, str]):

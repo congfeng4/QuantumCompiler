@@ -15,8 +15,9 @@ from qiskit.transpiler import PassManager
 from contrib.initial_mapping import InitialMappingStrategy
 from contrib.random_graphs import generate_graph_for_num_qubits, create_coupling_graph
 from contrib.action_space import OPT_PASSES
-from contrib.common import qknob_metrics, get_total_ops, get_cnot_num, get_gate_set, write_circuit
-from contrib.verify_circuit import verify_circuit_equivalent
+from contrib.common import qknob_metrics, get_total_ops, get_cnot_num, get_gate_set, write_circuit, \
+    convert_to_int_mapping, write_mapping, read_mapping
+from contrib.verify_circuit import check_equivalence_under_mapping
 from hamap import IBMQHardwareArchitecture
 
 SUPPORTED_GRAPH_MODEL = ('line', 'star', 'grid', 'ring')
@@ -59,7 +60,9 @@ class RoutingMethod(Enum):
 SUPPORTED_LAYOUT_METHOD = (LayoutMethod.SABRE, LayoutMethod.TRIVIAL)  # dense
 SUPPORTED_ROUTING_METHOD = (RoutingMethod.SABRE, RoutingMethod.HA, RoutingMethod.BASIC)  # lookahead
 SUPPORTED_OPT_ORDER = (OptOrder.AFTER_ROUTING, OptOrder.BEFORE_ROUTING)
-# SUPPORTED_OPT_METHOD = (OptMethod.QUARL, Op)
+SUPPORTED_OPT_METHOD = (OptMethod.NONE, OptMethod.PASSES,
+                        OptMethod.QISKIT_LV1, OptMethod.QISKIT_LV2, OptMethod.QISKIT_LV3)
+
 
 @dataclass
 class CircuitStats:
@@ -89,14 +92,13 @@ def route_circuit(qc: QuantumCircuit,
                   routing_method: RoutingMethod,
                   layout_method: LayoutMethod,
                   optimization_level):
-
     if routing_method == RoutingMethod.HA:
         from hamap.mapping import ha_mapping
         from contrib.initial_mapping import get_initial_mapping
 
         initial_mapping = get_initial_mapping(qc, coupling_map, layout_method.to_initial_mapping_strategy())
         qc_output, final_mapping = ha_mapping(qc, initial_mapping=initial_mapping, hardware=coupling_map)
-        return qc_output, final_mapping
+        return qc_output, convert_to_int_mapping(initial_mapping)
 
     if routing_method in (RoutingMethod.SABRE, RoutingMethod.BASIC):
         if isinstance(coupling_map, nx.Graph):
@@ -108,7 +110,7 @@ def route_circuit(qc: QuantumCircuit,
                               layout_method=layout_method.value,
                               routing_method=routing_method.value,
                               )
-        return qc_output, qc_output.layout.final_layout
+        return qc_output, qc_output.layout.initial_layout
 
     raise ValueError(routing_method)
 
@@ -227,7 +229,7 @@ def transpile_circuit(
 
     if isinstance(graph_model, str):
         coupling_map, graph_name = generate_graph_for_num_qubits(graph_model, num_qubits=num_qubits,
-                                                                  return_coupling_map=False)
+                                                                 return_coupling_map=False)
     elif isinstance(graph_model, IBMQHardwareArchitecture):
         coupling_map = graph_model
         graph_name = graph_model.name
@@ -244,20 +246,34 @@ def transpile_circuit(
         optimization_level = 0
 
     # Perform routing & layout.
-    qc_output, final_mapping = route_circuit(qc=qc,
-                                             coupling_map=coupling_map, routing_method=routing_method,
-                              layout_method=layout_method, optimization_level=optimization_level)
+    qc_output, initial_mapping = route_circuit(qc=qc,
+                                               coupling_map=coupling_map, routing_method=routing_method,
+                                               layout_method=layout_method, optimization_level=optimization_level)
 
     # After routing, do xfers.
     if opt_order == OptOrder.AFTER_ROUTING:
         qc_output = optimize_circuit(qc=qc_output,
-                                      opt_method=opt_method, opt_params=opt_params, verbose=verbose)
+                                     opt_method=opt_method, opt_params=opt_params, verbose=verbose)
 
     if verify_circuit:
-        if not verify_circuit_equivalent(qc_input, qc_output):
-            print(opt_method, routing_method, layout_method, circuit_path, graph_model)
+        if not check_equivalence_under_mapping(qc_input, qc_output, convert_to_int_mapping(qc_output.layout.initial_mapping)):
+            print(initial_mapping)
+            print(circuit_path)
+            print(convert_to_int_mapping(initial_mapping))
+
             write_circuit('./output.qasm', qc_output)
-            raise ValueError
+            write_circuit('./input.qasm', qc_input)
+            write_mapping('./initial_mapping.json', initial_mapping)
+
+            qc_in = QuantumCircuit.from_qasm_file('./input.qasm')
+            qc_out = QuantumCircuit.from_qasm_file(('./output.qasm'))
+            initial_mapping2 = read_mapping('./initial_mapping.json')
+
+            print(check_equivalence_under_mapping(qc_in, qc_out, (initial_mapping2)))
+            print(initial_mapping2)
+
+            raise ValueError('Verification failed', opt_method, routing_method, opt_order,
+                             layout_method, graph_model, layout_method)
 
     result = dict(
         circuit=circuit_path.stem if isinstance(circuit_path, Path) else 'unknown',

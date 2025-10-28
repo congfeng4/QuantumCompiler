@@ -34,7 +34,7 @@ from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from stable_baselines3.common.callbacks import BaseCallback
 
 from contrib.random_graphs import generate_graph_for_num_qubits
-from contrib.verify_circuit import verify_circuit_equivalent
+from contrib.verify_circuit import check_equivalence_under_mapping
 from hamap.initial_mapping import initial_mapping_from_sabre
 
 
@@ -108,7 +108,7 @@ class MetricEvalCallback(BaseCallback):
 
             if self.verify_circuit and initial_mapping is not None:
                 print('Begin to verify circuit...')
-                assert verify_circuit_equivalent(input_circuit, output_circuit)
+                assert check_equivalence_under_mapping(input_circuit, output_circuit, initial_mapping)
 
             for key, value in metrics.items():
                 self.logger.record(key, round(value, 2))

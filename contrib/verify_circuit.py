@@ -2,48 +2,28 @@ from typing import Union
 
 import networkx as nx
 import numpy as np
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, QuantumRegister
 from qiskit.circuit import Instruction, CircuitInstruction
 from qiskit.quantum_info import Statevector, Operator
-from qiskit.transpiler import CouplingMap, Layout
+from qiskit.transpiler import CouplingMap, Layout, PassManager
 from qiskit.circuit.library import Permutation
-from qiskit.transpiler.passes import ApplyLayout
+from qiskit.transpiler.passes import ApplyLayout, SetLayout
 
-from contrib.common import GATE_NAME_MAPPING, get_inverse_mapping
+from contrib.common import GATE_NAME_MAPPING, get_inverse_mapping, convert_to_int_mapping
 
 THRESHOLD = 1e-10
 
 
-def verify_circuit_equivalent(qc_origin: QuantumCircuit,
-                              qc_mapped: QuantumCircuit,
-                              final_mapping=None,
-                              threshold: float = THRESHOLD):
-
-    S_origin = Statevector.from_instruction(qc_origin)
-    S_mapped = Statevector.from_instruction(qc_mapped)
-
-    if final_mapping is None:
-        # Fast checking.
-        S_origin = np.sort(np.abs(S_origin.data))
-        S_mapped = np.sort(np.abs(S_mapped.data))
-        err = np.linalg.norm(S_origin - S_mapped)
-        if err < threshold:
-            print('OK')
-            return True
-        print("Error (Frobenius):", err)
-        return False
+def check_equivalence_under_mapping(qc_in, qc_out, initial_mapping):
+    if isinstance(initial_mapping, Layout):
+        initial_layout = initial_mapping
     else:
-        # Slow but accurate checking.
-        qc = qc_origin
-        final_layout = Layout(final_mapping) if not isinstance(final_mapping, Layout) else final_mapping
-        layout = final_layout
-        perm = [layout[qc.qubits[i]] for i in range(qc.num_qubits)]
-        perm_gate = Permutation(qc.num_qubits, perm)
-        S_origin = S_origin.evolve(Operator(perm_gate))
-        if S_origin.equiv(S_mapped):
-            print('OK')
-            return True
-        return False
+        vreg = QuantumRegister(len(initial_mapping), name='q')
+        initial_layout = Layout({vreg[v]: p for v, p in initial_mapping.items()})
+
+    pm = PassManager([SetLayout(initial_layout), ApplyLayout()])
+    qc_mapped = pm.run(qc_in)
+    return Statevector(qc_mapped).equiv(Statevector(qc_out))
 
 
 def verify_circuit_routed(qc: QuantumCircuit, graph: Union[CouplingMap, nx.Graph], initial_mapping):

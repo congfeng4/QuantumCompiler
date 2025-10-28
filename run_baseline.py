@@ -59,12 +59,13 @@ if __name__ == '__main__':
     circuit_paths = list(Path('./data/nam_circs').glob("*.qasm"))
 
     run_baseline(
-        circuit_paths,
-        opt_method=[OptMethod.NONE, OptMethod.QISKIT_LV1,
-                    OptMethod.QISKIT_LV2, OptMethod.PASSES, OptMethod.QISKIT_LV3],
+        # circuit_paths,
+        [Path('data/nam_circs/mod_mult_55.qasm')],
+        opt_method=SUPPORTED_OPT_METHOD,
         opt_order=SUPPORTED_OPT_ORDER,
         routing_method=SUPPORTED_ROUTING_METHOD,
         layout_method=SUPPORTED_LAYOUT_METHOD,
         graph_model=SUPPORTED_GRAPH_MODEL,
-        save_file=Path(f'./output/baseline/nam_circs-star.csv'),
+        save_file=Path(f'./output/baseline/nam_circs.csv'),
+        n_jobs=1,
     )
