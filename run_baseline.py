@@ -15,9 +15,9 @@ def run_baseline(
         layout_method: list,
         graph_model: list,
         save_file: Path = None,
-        ecc_file=None,
         n_jobs=-1,
-        verbose=True
+        opt_params=None,
+        verbose=True,
 ):
     rounds = dict_product(dict(
         circuit_path=circuit_paths,
@@ -28,9 +28,7 @@ def run_baseline(
     ))
 
     results = Parallel(n_jobs=n_jobs, verbose=999)(delayed(transpile_circuit)(
-        opt_params=dict(
-            ecc_file=ecc_file,
-        ),
+        opt_params=opt_params,
         **rnd,
     ) for rnd in rounds)
 
@@ -48,18 +46,18 @@ def run_baseline(
 
 
 if __name__ == '__main__':
-    data_list = '20Q_gate_Tokyo 20Q_depth_Tokyo 53Q_depth_Rochester 53Q_depth_Sycamore 53Q_gate_Rochester 53Q_gate_Sycamore'.split()
-    # for data in data_list:
-    data = '20Q_gate_Tokyo'
-    # dataset = CircuitDataset(data, sort=True)
     circuit_paths = list(Path('./data/nam_circs').glob("*.qasm"))
 
     run_baseline(
         circuit_paths,
-        opt_method=SUPPORTED_OPT_METHOD,
+        opt_method=[OptMethod.QUARTZ],
         routing_method=SUPPORTED_ROUTING_METHOD,
         layout_method=SUPPORTED_LAYOUT_METHOD,
         graph_model=SUPPORTED_GRAPH_MODEL,
-        save_file=Path(f'./output/baseline/nam_circs.csv'),
-        n_jobs=1,
+        save_file=Path(f'./output/baseline/nam_circs_qtz.csv'),
+        n_jobs=-1,
+        opt_params=dict(
+            ecc_file=Path('experiment/ecc_set/nam_325_ecc.json'),
+            quarl_dir=Path('/home/mscs/congfeng4/Quantum/Quarl-artifact-master'),
+        )
     )

@@ -119,14 +119,15 @@ def optimize_circuit(qc: QuantumCircuit, opt_method: OptMethod, opt_params: dict
         return qc
 
     if opt_method == OptMethod.QUARL:
-        return quarl_optimize(qc, gate_set=opt_params['gate_set'],
+        return quarl_optimize(qc,
                               ecc_file=opt_params['ecc_file'],
                               quarl_dir=opt_params['quarl_dir'],
                               verbose=verbose,
                               )
 
     if opt_method == OptMethod.QUARTZ:
-        return quartz_optimize(qc, gate_set=opt_params['gate_set'],
+        return quartz_optimize(qc,
+                               quarl_dir=opt_params['quarl_dir'],
                                ecc_file=opt_params['ecc_file'],
                                verbose=verbose)
 
@@ -139,15 +140,19 @@ def optimize_circuit(qc: QuantumCircuit, opt_method: OptMethod, opt_params: dict
 
 
 def quarl_optimize(qc: QuantumCircuit,
-                   gate_set,
                    ecc_file: Path,
                    quarl_dir: Path,
                    max_iterations=50,
                    verbose=True) -> QuantumCircuit:
-    assert ecc_file.exists(), ecc_file
+    ecc_file = Path(ecc_file)
+    if not ecc_file.is_absolute():
+        ecc_file = quarl_dir / ecc_file
+    assert ecc_file.is_file(), ecc_file
     assert quarl_dir.exists(), quarl_dir
 
     from qiskit.qasm2 import dumps
+
+    gate_set = set(get_gate_set(qc) + ['neg', 'x', 'add'])  # Assume we don't need to docompose our gates.
 
     gate_set_arg = '[' + ",".join(gate_set) + ']'
 
@@ -168,22 +173,26 @@ def quarl_optimize(qc: QuantumCircuit,
         if verbose:
             print(cmd)
 
-        subprocess.check_call(cmd, cwd=quarl_dir)
+        subprocess.check_call(cmd, cwd=quarl_dir / 'experiment/ppo-new')
         qc = QuantumCircuit.from_qasm_file(str(output_qasm_file))
 
     return qc
 
 
-def quartz_optimize(qc: QuantumCircuit, gate_set, ecc_file, verbose=True) -> QuantumCircuit:
+def quartz_optimize(qc: QuantumCircuit, quarl_dir: Path, ecc_file, verbose=True) -> QuantumCircuit:
     ecc_file = Path(ecc_file)
+    if not ecc_file.is_absolute():
+        ecc_file = quarl_dir / ecc_file
     assert ecc_file.is_file(), ecc_file
 
     from quartz import Graph, Context
     from qiskit.qasm2 import dumps
 
     input_qasm = dumps(qc)
-    context = Context(gate_set, ecc_file, verbose=verbose)
-    g = Graph.from_qasm_str(context, input_qasm, verbose=verbose)
+    gate_set = set(get_gate_set(qc) + ['neg', 'x', 'add'])  # Assume we don't need to docompose our gates.
+    print(f'{gate_set=}')
+    context = Context(list(gate_set), ecc_file, verbose=verbose)
+    g = Graph.from_qasm_str(context, input_qasm)
     g = g.greedy_optimize(ecc_file, verbose=verbose)
     qasm_str = g.to_qasm_str()
 
