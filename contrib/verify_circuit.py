@@ -1,48 +1,42 @@
 from pathlib import Path
-from typing import Union
 
-import networkx as nx
-import numpy as np
-from qiskit import QuantumCircuit, QuantumRegister, transpile
-from qiskit.circuit import Instruction, CircuitInstruction
-from qiskit.quantum_info import Statevector, Operator
-from qiskit.transpiler import CouplingMap, Layout, PassManager
-from qiskit.circuit.library import Permutation
-from qiskit.transpiler.passes import ApplyLayout, SetLayout
+from qiskit import QuantumCircuit
+from qiskit.circuit import CircuitInstruction
+from qiskit.quantum_info import Statevector
+from qiskit.transpiler import CouplingMap
 from qiskit import transpile
 
-from contrib.common import GATE_NAME_MAPPING, get_inverse_mapping, convert_to_int_mapping, read_mapping, read_json
+from contrib.common import read_mapping, read_json
+from contrib.initial_mapping import InitialMappingStrategy
 from contrib.random_graphs import closest_factors
-from qiskit.quantum_info.random import random_pauli
-from qiskit.primitives.backend_estimator_v2 import BackendEstimatorV2 as Estimator
+
+from hamap import IBMQHardwareArchitecture, apply_layout
 
 
+def check_equivalence(qc_in, qc_out, initial_mapping=None):
+    """
+    Check functional equivalence of input and output circuits.
+    """
+    if initial_mapping is not None:
+        qc_mapped = apply_layout(qc_in, initial_mapping)
+        return Statevector(qc_mapped).equiv(Statevector(qc_out))
 
-THRESHOLD = 1e-10
-
-
-def check_equivalence_under_mapping(qc_in, qc_out, initial_mapping):
     # 对于qiskit transpile出来的电路，不需要Apply Layout。
-    if isinstance(initial_mapping, Layout):
-        initial_layout = initial_mapping
+    return Statevector(qc_in).equiv(Statevector(qc_out))
+
+
+def check_routed(qc: QuantumCircuit, edges: list, initial_mapping=None):
+    """
+    Check all two-qubit gates in qc satisfy coupling map.
+    """
+    assert all(map(lambda e: isinstance(e, tuple) and len(e) == 2, edges))
+    if initial_mapping is None:
+        mapping = {qc.qubits[p]: p for p in range(qc.num_qubits)}
     else:
-        vreg = QuantumRegister(len(initial_mapping), name='q')
-        initial_layout = Layout({vreg[v]: p for v, p in initial_mapping.items()})
+        # 对应qiskit出来的电路，已经ApplyLayout了，不需要自己再次映射。
+        mapping = initial_mapping
 
-    pm = PassManager([SetLayout(initial_layout), ApplyLayout()])
-    qc_mapped = pm.run(qc_in)
-    return Statevector(qc_mapped).equiv(Statevector(qc_out))
-
-
-def verify_circuit_routed(qc: QuantumCircuit, graph: Union[CouplingMap, nx.Graph], initial_mapping):
-    inverse_mapping = get_inverse_mapping(initial_mapping)
-
-    def has_edge(u, v):
-        if isinstance(graph, CouplingMap):
-            return graph.distance(u, v) == 1
-        if isinstance(graph, nx.Graph):
-            return graph.has_edge(u, v)
-        raise TypeError(graph)
+    edges = set(edges)
 
     for inst in qc.data:  # type: CircuitInstruction
         qubits = inst.qubits
@@ -50,11 +44,10 @@ def verify_circuit_routed(qc: QuantumCircuit, graph: Union[CouplingMap, nx.Graph
             continue
         if len(qubits) == 2:
             u, v = qubits
-            if not has_edge(inverse_mapping[u], inverse_mapping[v]):
-                print('Error:', inst.operation.name, (u, v), 'not in edges')
+            pu, pv = mapping[u], mapping[v]
+            if (pu, pv) not in edges:
+                print('Error:', inst.operation.name, (u, v), (pu, pv), 'not in edges')
                 return False
-            if inst.operation.name == 'swap':
-                inverse_mapping[u], inverse_mapping[v] = inverse_mapping[v], inverse_mapping[u]
         else:
             print('Error: only 1 and 2 qubit ops are allowed', inst)
             return False
@@ -62,29 +55,41 @@ def verify_circuit_routed(qc: QuantumCircuit, graph: Union[CouplingMap, nx.Graph
     return True
 
 
-def check_output_ours(ours_dir: Path, qubits_threshold=10):
-    for subdir in Path(ours_dir).iterdir():
+def check_output_ours(output_dir: Path, qubits_threshold=10):
+    print('Checking ours on output_dir', output_dir)
+
+    for subdir in Path(output_dir).iterdir():
         qc_in = QuantumCircuit.from_qasm_file(subdir / 'input_circuit.qasm')
         qc_out = QuantumCircuit.from_qasm_file(subdir / 'output_circuit.qasm')
-        initial_mapping = read_mapping(subdir / 'initial_mapping.json')
-        # final_mapping = read_mapping(subdir / 'final_mapping.json')
+        try:
+            initial_mapping = read_mapping(subdir / 'initial_mapping.json')
+        except:
+            initial_mapping = None  # Applied layout
+
         if qc_in.num_qubits > qubits_threshold:
-            print('skip', subdir.name, qc_in.num_qubits)
             continue
-        ok = check_equivalence_under_mapping(qc_in, qc_out, initial_mapping)
-        # print(subdir.name, ok)
-        assert ok
+        ok = check_equivalence(qc_in, qc_out, initial_mapping)
+        if not ok:
+            print('Equiv failure', subdir.name)
+
+        try:
+            edges = read_json(subdir / 'edges.json')
+        except:
+            print('edges missing for', subdir.name)
+            continue
+
+        ok = check_routed(qc_out, edges, initial_mapping)
+        if not ok:
+            print('Routing failure', subdir.name)
 
 
 def check_qiskit_transpile(data_dir: Path, qubits_threshold=10):
-    ok_basic = set()
-    notok_basic = set()
+    print('Checking qiskit transpile in data', data_dir)
 
     for qc_path in Path(data_dir).glob('*.qasm'):
         qc_in = QuantumCircuit.from_qasm_file(qc_path)
         num_qubits = qc_in.num_qubits
         if num_qubits > qubits_threshold:
-            # print('skip', qc_path.name, num_qubits)
             continue
 
         rows, cols = closest_factors(num_qubits)
@@ -99,17 +104,52 @@ def check_qiskit_transpile(data_dir: Path, qubits_threshold=10):
                                            optimization_level=opt_level)
                         assert qc_out.num_qubits == qc_in.num_qubits
 
-                        ok = check_equivalence_under_mapping(qc_in, qc_out, qc_out.layout.initial_layout)
+                        ok = check_equivalence(qc_in, qc_out)
                         if not ok:
-                            print(qc_in.global_phase, qc_out.global_phase)
-                            notok_basic.update(qc_in.count_ops().keys())
-                            print(qc_path.name, routing_method, layout_method, opt_level, name)
-                        else:
-                            ok_basic.update(qc_in.count_ops().keys())
+                            print('Equiv failure', qc_path.name, routing_method, layout_method, opt_level, name)
 
-    print(ok_basic, notok_basic)
+                        edges = [cm.graph.get_edge_endpoints_by_index(eid) for eid in cm.graph.edge_indices()]
+                        ok = check_routed(qc_out, edges)
+                        if not ok:
+                            print('Routing failure', qc_path.name, layout_method, name)
+
+
+def check_ha_mapping(data_dir: Path, qubits_threshold=10):
+    print('Cheking ha-mapping in data', data_dir)
+
+    from hamap.mapping import ha_mapping
+    from contrib.initial_mapping import get_initial_mapping
+
+    for qc_path in Path(data_dir).glob('*.qasm'):
+        qc_in = QuantumCircuit.from_qasm_file(qc_path)
+        num_qubits = qc_in.num_qubits
+        if num_qubits > qubits_threshold:
+            continue
+
+        rows, cols = closest_factors(num_qubits)
+
+        for name, hardware in [
+            ('grid', IBMQHardwareArchitecture('grid', rows=rows, cols=cols)),
+            ('line', IBMQHardwareArchitecture('line', num_nodes=num_qubits)),
+            ('ring', IBMQHardwareArchitecture('ring', num_nodes=num_qubits)),
+            ('star', IBMQHardwareArchitecture('star', num_nodes=num_qubits)),
+        ]:
+            for layout_method in [InitialMappingStrategy.SABRE, InitialMappingStrategy.IDENTITY,
+                                  InitialMappingStrategy.RANDOM]:
+                initial_mapping = get_initial_mapping(qc_in, hardware, layout_method)
+
+                qc_out, _ = ha_mapping(qc_in, initial_mapping=initial_mapping, hardware=hardware)
+
+                ok = check_equivalence(qc_in, qc_out)
+                if not ok:
+                    print('Equiv failure', qc_path.name, layout_method, name)
+
+                ok = check_routed(qc_out, list(hardware.edges))
+                if not ok:
+                    print('Routing failure', qc_path.name, layout_method, name)
 
 
 if __name__ == '__main__':
+    check_ha_mapping(Path('../data/nam_circs'))
     check_qiskit_transpile(Path('../data/nam_circs'))
-    # check_output_ours('../output/ours')
+    check_output_ours('../output/ours')

@@ -23,7 +23,7 @@ from contrib.state_space import StateSpace
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
 from hamap.layer import QuantumLayer, update_layer
 from hamap.mapping import _adapt_quantum_circuit_and_mapping_arity, _create_empty_dagcircuit_from_existing
-from hamap import IBMQHardwareArchitecture
+from hamap import IBMQHardwareArchitecture, apply_layout
 
 import logging
 
@@ -330,7 +330,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
     def finalize_result(self):
         assert self.is_routing_finished(), 'Routing is not finished!'
         self.resulting_circuit = dag_to_circuit(self.resulting_dag)
-        self.final_mapping = self.current_mapping.copy()
+        self.resulting_circuit = apply_layout(self.resulting_circuit, self.initial_mapping)
 
         record = {}
         metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)

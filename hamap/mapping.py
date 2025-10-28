@@ -39,6 +39,10 @@ from qiskit.converters.circuit_to_dag import circuit_to_dag
 from qiskit.converters.dag_to_circuit import dag_to_circuit
 from qiskit.dagcircuit import DAGCircuit, DAGNode
 
+from qiskit import QuantumRegister
+from qiskit.transpiler import CouplingMap, Layout, PassManager
+from qiskit.transpiler.passes import ApplyLayout, SetLayout
+
 from hamap.distance_matrix import (
     get_distance_matrix_mixed,
     get_distance_matrix_swap_number,
@@ -53,6 +57,25 @@ from hamap.swap import get_all_swap_bridge_candidates, get_all_swap_candidates
 import logging
 
 logger = logging.getLogger("hamap.swap")
+
+
+def apply_layout(qc: QuantumCircuit, initial_mapping):
+    assert qc.num_qubits == len(initial_mapping)
+
+    vreg = QuantumRegister(len(initial_mapping), name='q')
+
+    def to_qubit(x):
+        if isinstance(x, int):
+            return vreg[x]
+        if isinstance(x, Qubit):
+            return x
+        else:
+            raise TypeError(x)
+
+    initial_layout = Layout({to_qubit(v): p for v, p in initial_mapping.items()})
+    pm = PassManager([SetLayout(initial_layout), ApplyLayout()])
+    qc_mapped = pm.run(qc)
+    return qc_mapped
 
 
 def _create_empty_dagcircuit_from_existing(dagcircuit: DAGCircuit) -> DAGCircuit:
@@ -220,6 +243,8 @@ def ha_mapping(
     # We are done here, we just need to return the results
     # resulting_dag_quantum_circuit.draw(scale=1, filename="qcirc.dot")
     resulting_circuit = dag_to_circuit(resulting_dag_quantum_circuit)
+    # XXX(FC) burn in the initial layout.
+    resulting_circuit = apply_layout(resulting_circuit, initial_mapping)
     return resulting_circuit, current_mapping
 
 

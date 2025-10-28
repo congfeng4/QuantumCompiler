@@ -17,7 +17,7 @@ from contrib.random_graphs import generate_graph_for_num_qubits, create_coupling
 from contrib.action_space import OPT_PASSES
 from contrib.common import qknob_metrics, get_total_ops, get_cnot_num, get_gate_set, write_circuit, \
     convert_to_int_mapping, write_mapping, read_mapping
-from contrib.verify_circuit import check_equivalence_under_mapping
+from contrib.verify_circuit import check_equivalence
 from hamap import IBMQHardwareArchitecture
 
 SUPPORTED_GRAPH_MODEL = ('line', 'star', 'grid', 'ring')
@@ -256,7 +256,7 @@ def transpile_circuit(
                                      opt_method=opt_method, opt_params=opt_params, verbose=verbose)
 
     if verify_circuit:
-        if not check_equivalence_under_mapping(qc_input, qc_output, convert_to_int_mapping(qc_output.layout.initial_mapping)):
+        if not check_equivalence(qc_input, qc_output, convert_to_int_mapping(qc_output.layout.initial_mapping)):
             print(initial_mapping)
             print(circuit_path)
             print(convert_to_int_mapping(initial_mapping))
@@ -269,7 +269,7 @@ def transpile_circuit(
             qc_out = QuantumCircuit.from_qasm_file(('./output.qasm'))
             initial_mapping2 = read_mapping('./initial_mapping.json')
 
-            print(check_equivalence_under_mapping(qc_in, qc_out, (initial_mapping2)))
+            print(check_equivalence(qc_in, qc_out, (initial_mapping2)))
             print(initial_mapping2)
 
             raise ValueError('Verification failed', opt_method, routing_method, opt_order,

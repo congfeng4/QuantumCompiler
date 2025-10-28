@@ -5,6 +5,7 @@ from enum import IntEnum, Enum
 from typing import Union
 import jsons
 import numpy as np
+
 from qiskit.circuit import Qubit, QuantumCircuit
 from qiskit.quantum_info import Operator
 from pathlib import Path
@@ -19,7 +20,7 @@ from hamap.gates import TwoQubitGate
 from hamap.hardware import IBMQHardwareArchitecture
 from hamap.heuristics import _gate_op_cost
 from hamap.layer import QuantumLayer, update_layer
-import shelve
+
 
 RESULT_DIR = Path(__file__).parent.parent / 'result'
 

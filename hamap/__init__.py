@@ -31,5 +31,5 @@
 # ======================================================================
 
 from .hardware import IBMQHardwareArchitecture
-from .mapping import ha_mapping, ha_mapping_paper_compliant
+from .mapping import ha_mapping, ha_mapping_paper_compliant, apply_layout
 from .mapping_to_str import mapping_to_str

@@ -34,7 +34,7 @@ from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from stable_baselines3.common.callbacks import BaseCallback
 
 from contrib.random_graphs import generate_graph_for_num_qubits
-from contrib.verify_circuit import check_equivalence_under_mapping
+from contrib.verify_circuit import check_equivalence
 from hamap.initial_mapping import initial_mapping_from_sabre
 
 
@@ -64,9 +64,9 @@ def evaluate_policy_for_metrics(model, eval_env, key_metric='metric/depth_ratio'
     output_circuit = eval_env.get_attr('resulting_circuit')[k]
     input_circuit = eval_env.get_attr('input_circuit')[k]
     initial_mapping = eval_env.get_attr('initial_mapping')[k]
-    final_mapping = eval_env.get_attr('final_mapping')[k]
+    hardware = eval_env.get_attr('hardware')[k]
     metrics = average_metrics(metrics_list)
-    return metrics, input_circuit, output_circuit, initial_mapping, final_mapping
+    return metrics, input_circuit, output_circuit, initial_mapping, hardware
 
 
 class MetricEvalCallback(BaseCallback):
@@ -90,7 +90,7 @@ class MetricEvalCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
-            metrics, input_circuit, output_circuit, initial_mapping, final_mapping = \
+            metrics, input_circuit, output_circuit, initial_mapping, hardware = \
                 evaluate_policy_for_metrics(self.model, self.eval_env)
             depth_ratio = metrics['metric/depth_ratio']
 
@@ -104,11 +104,11 @@ class MetricEvalCallback(BaseCallback):
                     clean_metrics = {key: value for key, value in metrics.items() if key.startswith('metric/')}
                     write_json(self.best_save_dir / 'metrics.json', clean_metrics)
                     write_json(self.best_save_dir / 'initial_mapping.json', convert_to_int_mapping(initial_mapping))
-                    write_json(self.best_save_dir / 'final_mapping.json', convert_to_int_mapping(final_mapping))
+                    write_json(self.best_save_dir / 'edges.json', list(hardware.edges))
 
             if self.verify_circuit and initial_mapping is not None:
                 print('Begin to verify circuit...')
-                assert check_equivalence_under_mapping(input_circuit, output_circuit, initial_mapping)
+                assert check_equivalence(input_circuit, output_circuit, initial_mapping)
 
             for key, value in metrics.items():
                 self.logger.record(key, round(value, 2))
