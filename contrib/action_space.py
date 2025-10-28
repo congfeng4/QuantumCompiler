@@ -56,11 +56,8 @@ OPT_PASSES = [
     CommutativeInverseCancellation(),
     InverseCancellation(),
     Optimize1qGates(),
-    Optimize1qGatesSimpleCommutation(),
+    Optimize1qGatesSimpleCommutation(run_to_completion=True),
     RemoveIdentityEquivalent(),
-    # RemoveDiagonalGatesBeforeMeasure(),
-    # RemoveFinalReset(),
-    # OptimizeSwapBeforeMeasure(),
 ]
 
 

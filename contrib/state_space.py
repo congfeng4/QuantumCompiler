@@ -60,9 +60,10 @@ class StateSpace:
                current_mapping: dict[Qubit, int] = None,
                distance_matrix: np.ndarray = None
                ):
-        routed_seq = self.encode_dag(resulting_dag, RoutedStatus.ROUTED)
-        unrouted_seq = self.encode_dag(remaining_dag, RoutedStatus.UNROUNTED,
+        routed_seq, max_level = self.encode_dag(resulting_dag, RoutedStatus.ROUTED)
+        unrouted_seq, _ = self.encode_dag(remaining_dag, RoutedStatus.UNROUNTED,
                                        current_mapping=current_mapping,
+                                       level_offset=max_level,
                                        distance_matrix=distance_matrix)
         ops = np.concatenate((routed_seq, unrouted_seq), axis=0)
         assert len(ops) <= self.max_len, f'Max len too small: {len(ops)} vs {self.max_len}'
@@ -107,7 +108,7 @@ class StateSpace:
                 # Two qubit ops needed to route.
                 gate_seq[i, OpRepPosition.POS_DISTANCE] = distance_matrix[qargs[0], qargs[1]]
 
-        return gate_seq
+        return gate_seq, max(gate_levels.values()) if gate_levels else 0
 
     def to_gym_space(self):
         # Use sequence instead of box since our length is hard to tell in advance.
