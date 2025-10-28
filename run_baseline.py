@@ -11,11 +11,9 @@ from contrib.baselines import *
 def run_baseline(
         circuit_paths: list,
         opt_method: list,
-        opt_order: list,
         routing_method: list,
         layout_method: list,
         graph_model: list,
-        gate_set: list = None,
         save_file: Path = None,
         ecc_file=None,
         n_jobs=-1,
@@ -25,7 +23,6 @@ def run_baseline(
         circuit_path=circuit_paths,
         opt_method=opt_method,
         routing_method=routing_method,
-        opt_order=opt_order,
         graph_model=graph_model,
         layout_method=layout_method,
     ))
@@ -34,11 +31,10 @@ def run_baseline(
         opt_params=dict(
             ecc_file=ecc_file,
         ),
-        gate_set=gate_set,
         **rnd,
     ) for rnd in rounds)
 
-    df = pd.DataFrame.from_records(results)
+    df = pd.DataFrame.from_records(filter(None, results))
 
     if save_file is None:
         save_file = f'./tranpile-result-{time.time()}.csv'
@@ -59,10 +55,8 @@ if __name__ == '__main__':
     circuit_paths = list(Path('./data/nam_circs').glob("*.qasm"))
 
     run_baseline(
-        # circuit_paths,
-        [Path('data/nam_circs/mod_mult_55.qasm')],
+        circuit_paths,
         opt_method=SUPPORTED_OPT_METHOD,
-        opt_order=SUPPORTED_OPT_ORDER,
         routing_method=SUPPORTED_ROUTING_METHOD,
         layout_method=SUPPORTED_LAYOUT_METHOD,
         graph_model=SUPPORTED_GRAPH_MODEL,

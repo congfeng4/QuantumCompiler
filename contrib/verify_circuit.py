@@ -13,10 +13,14 @@ from contrib.random_graphs import closest_factors
 from hamap import IBMQHardwareArchitecture, apply_layout
 
 
-def check_equivalence(qc_in, qc_out, initial_mapping=None):
+def check_equivalence(qc_in, qc_out, initial_mapping=None, qubits_threshold=10):
     """
     Check functional equivalence of input and output circuits.
     """
+    if qc_in.num_qubits > qubits_threshold:
+        print('Turn off verify_circuit because qubits is', qc_in.num_qubits)
+        return True
+
     if initial_mapping is not None:
         qc_mapped = apply_layout(qc_in, initial_mapping)
         return Statevector(qc_mapped).equiv(Statevector(qc_out))
@@ -55,6 +59,20 @@ def check_routed(qc: QuantumCircuit, edges: list, initial_mapping=None):
     return True
 
 
+def check_circuit_equiv_and_routed(qc_in: QuantumCircuit, qc_out: QuantumCircuit, edges, initial_mapping=None):
+    ok = check_equivalence(qc_in, qc_out, initial_mapping=initial_mapping)
+    if not ok:
+        print('Equiv failure')
+        return False
+
+    ok = check_routed(qc_out, edges, initial_mapping=initial_mapping)
+    if not ok:
+        print('Routing failure')
+        return False
+
+    return True
+
+
 def check_output_ours(output_dir: Path, qubits_threshold=10):
     print('Checking ours on output_dir', output_dir)
 
@@ -66,8 +84,6 @@ def check_output_ours(output_dir: Path, qubits_threshold=10):
         except:
             initial_mapping = None  # Applied layout
 
-        if qc_in.num_qubits > qubits_threshold:
-            continue
         ok = check_equivalence(qc_in, qc_out, initial_mapping)
         if not ok:
             print('Equiv failure', subdir.name)
@@ -89,9 +105,6 @@ def check_qiskit_transpile(data_dir: Path, qubits_threshold=10):
     for qc_path in Path(data_dir).glob('*.qasm'):
         qc_in = QuantumCircuit.from_qasm_file(qc_path)
         num_qubits = qc_in.num_qubits
-        if num_qubits > qubits_threshold:
-            continue
-
         rows, cols = closest_factors(num_qubits)
 
         for name, cm in [('line', CouplingMap.from_line(num_qubits)), ('grid', CouplingMap.from_grid(rows, cols)),

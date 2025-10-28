@@ -20,7 +20,7 @@ import torch.cuda
 from stable_baselines3.common.env_util import make_vec_env
 
 from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, read_json, write_circuit, write_json, get_cnot_num, \
-    Qubit, Unit, get_circuit_depth, read_circuit, qknob_metrics, convert_to_int_mapping
+    Qubit, Unit, get_circuit_depth, read_circuit, qknob_metrics, convert_to_int_mapping, write_mapping
 
 from sb3_contrib.ppo_mask import MaskablePPO
 from stable_baselines3.common.callbacks import StopTrainingOnNoModelImprovement
@@ -34,7 +34,7 @@ from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from stable_baselines3.common.callbacks import BaseCallback
 
 from contrib.random_graphs import generate_graph_for_num_qubits
-from contrib.verify_circuit import check_equivalence
+from contrib.verify_circuit import check_equivalence, check_circuit_equiv_and_routed
 from hamap.initial_mapping import initial_mapping_from_sabre
 
 
@@ -103,12 +103,12 @@ class MetricEvalCallback(BaseCallback):
                     write_circuit(self.best_save_dir / 'input_circuit.qasm', input_circuit)
                     clean_metrics = {key: value for key, value in metrics.items() if key.startswith('metric/')}
                     write_json(self.best_save_dir / 'metrics.json', clean_metrics)
-                    write_json(self.best_save_dir / 'initial_mapping.json', convert_to_int_mapping(initial_mapping))
+                    write_mapping(self.best_save_dir / 'initial_mapping.json', initial_mapping)
                     write_json(self.best_save_dir / 'edges.json', list(hardware.edges))
 
-            if self.verify_circuit and initial_mapping is not None:
+            if self.verify_circuit:
                 print('Begin to verify circuit...')
-                assert check_equivalence(input_circuit, output_circuit, initial_mapping)
+                assert check_circuit_equiv_and_routed(input_circuit, output_circuit, list(hardware.edges))
 
             for key, value in metrics.items():
                 self.logger.record(key, round(value, 2))
