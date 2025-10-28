@@ -63,7 +63,7 @@ class StateSpace:
         routed_seq, max_level = self.encode_dag(resulting_dag, RoutedStatus.ROUTED)
         unrouted_seq, _ = self.encode_dag(remaining_dag, RoutedStatus.UNROUNTED,
                                        current_mapping=current_mapping,
-                                       level_offset=max_level,
+                                    #    level_offset=max_level,
                                        distance_matrix=distance_matrix)
         ops = np.concatenate((routed_seq, unrouted_seq), axis=0)
         assert len(ops) <= self.max_len, f'Max len too small: {len(ops)} vs {self.max_len}'

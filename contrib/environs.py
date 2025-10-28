@@ -70,14 +70,13 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.verbose = verbose
         self.initial_mapping_orig = initial_mapping.copy()
         self.distance_matrix = get_distance_matrix(self.hardware)
+        self.action = ActionSpace(hardware)
+        self.state = StateSpace(self.max_len)
 
         # Hyperparameters
 
         # Discount factor for future rewards.
         self.gamma = params.get('gamma', 0.99)
-
-        # After the whole circuit is routed, perform some extra transformations.
-        self.trans_after_routing_limit = params.get('trans_after_routing_limit', 5)
 
         # Encourage the agent to use fewer steps.
         self.step_penalty = params.get('step_penalty', 1)
@@ -92,11 +91,14 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         # Max number of consecutive invalid actions.
         self.invalid_action_limit = params.get('invalid_action_limit', 100)
 
-        # Relative weight to two-qubit gates' reduction.
-        self.one_qubit_gate_weight = params.get('one_qubit_gate_weight', 0.2)
+        # After the whole circuit is routed, perform some extra transformations.
+        self.trans_after_routing_limit = params.get('trans_after_routing_limit', 100)
 
         # Before the whole circuit is routed, perform some swaps to adjust the mapping.
-        self.swaps_before_routing_limit = params.get('swaps_before_routing_limit', 5)
+        self.swaps_before_routing_limit = params.get('swaps_before_routing_limit', 100)
+
+        # Relative weight to two-qubit gates' reduction.
+        self.one_qubit_gate_weight = params.get('one_qubit_gate_weight', 0.2)
 
         # When the agent uses the special actions correctly, give it a reward:
         self.reward_for_special_action = params.get('reward_for_special_action', 1)
@@ -107,8 +109,6 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.resulting_circuit = None
         self.metrics_baseline = transpile_circuit(input_circuit, hardware, opt_method=OptMethod.QISKIT_LV2)
 
-        self.action = ActionSpace(hardware)
-        self.state = StateSpace(self.max_len)
         self.action_space = self.action.to_gym_space()
         self.observation_space = self.state.to_gym_space()
 
@@ -381,9 +381,10 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         masks = np.zeros(self.action.size, dtype=bool)
         # Since we apply transformations in the routed subscircuit, it needs to non-empty.
         self.swap_masks(masks)
+        # Comment out these line will disable the action completely.
         # self.bridge_masks(masks)
         self.transformation_masks(masks)
-        # self.special_action_masks(masks)
+        self.special_action_masks(masks)
         return masks.tolist()
 
     def special_action_masks(self, masks):

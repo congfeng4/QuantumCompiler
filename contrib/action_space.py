@@ -52,11 +52,15 @@ def make_symmetric(pairs: set[tuple[int, int]]):
 
 
 OPT_PASSES = [
+    # Cancellation
     CommutativeCancellation(),
     CommutativeInverseCancellation(),
     InverseCancellation(),
+    # Optimize
     Optimize1qGates(),
-    Optimize1qGatesSimpleCommutation(run_to_completion=True),
+    Optimize1qGatesDecomposition(),
+    Optimize1qGatesSimpleCommutation(),
+    # Remove
     RemoveIdentityEquivalent(),
 ]
 
