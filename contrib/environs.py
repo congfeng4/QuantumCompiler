@@ -92,10 +92,10 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.invalid_action_limit = params.get('invalid_action_limit', 100)
 
         # After the whole circuit is routed, perform some extra transformations.
-        self.trans_after_routing_limit = params.get('trans_after_routing_limit', 100)
+        self.trans_after_routing_limit = params.get('trans_after_routing_limit', 10)
 
         # Before the whole circuit is routed, perform some swaps to adjust the mapping.
-        self.swaps_before_routing_limit = params.get('swaps_before_routing_limit', 100)
+        self.swaps_before_routing_limit = params.get('swaps_before_routing_limit', 10)
 
         # Relative weight to two-qubit gates' reduction.
         self.one_qubit_gate_weight = params.get('one_qubit_gate_weight', 0.2)
