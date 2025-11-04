@@ -8,6 +8,12 @@ from dataclasses import dataclass
 import sys
 from enum import Enum
 import tempfile
+import time
+from joblib import Parallel, delayed
+import pandas as pd
+from pathlib import Path
+
+from contrib.common import dict_product
 
 from qiskit.transpiler import CouplingMap
 
@@ -22,6 +28,12 @@ from contrib.initial_mapping import get_initial_mapping
 
 SUPPORTED_GRAPH_MODEL = ('line', 'star', 'grid', 'ring')
 SUPPORTED_OPT_LEVEL = tuple(range(3))
+
+
+class OptOrder(Enum):
+    BEFORE_ROUTING = 'before'
+    AFTER_ROUTING = 'after'
+    BOTH = 'both'
 
 
 class OptMethod(Enum):
@@ -233,6 +245,7 @@ def get_graph_and_name(graph_model: str, num_qubits: int):
 def transpile_circuit(
         circuit_path: Union[Path, str, QuantumCircuit],
         graph_model: Union[str, nx.Graph],
+        opt_order: OptOrder,
         opt_method: OptMethod = OptMethod.QISKIT_LV2,
         layout_method: LayoutMethod = LayoutMethod.SABRE,
         routing_method: RoutingMethod = RoutingMethod.SABRE,
@@ -251,13 +264,18 @@ def transpile_circuit(
 
     coupling_map, edges, graph_name = get_graph_and_name(graph_model, num_qubits)
 
+    if opt_order in (OptOrder.BOTH, OptOrder.BEFORE_ROUTING):
+        qc = optimize_circuit(qc=qc, opt_method=opt_method, opt_params=opt_params, verbose=verbose)
+
     # Perform routing & layout.
     qc = route_circuit(qc=qc,
                        coupling_map=coupling_map, routing_method=routing_method,
                        layout_method=layout_method)
 
     # After routing, do xfers.
-    qc = optimize_circuit(qc=qc, opt_method=opt_method, opt_params=opt_params, verbose=verbose)
+    if opt_order in (OptOrder.BOTH, OptOrder.AFTER_ROUTING):
+        qc = optimize_circuit(qc=qc, opt_method=opt_method, opt_params=opt_params, verbose=verbose)
+
     qc_output = qc
 
     if verify_circuit:
@@ -269,8 +287,48 @@ def transpile_circuit(
         opt_method=opt_method.value,
         layout_method=layout_method.value,
         routing_method=routing_method.value,
+        opt_order=opt_order.value,
         graph_name=graph_name,
         **qknob_metrics(qc_input, qc_output),
     )
 
     return result
+
+
+def run_baseline(
+        circuit_paths: list,
+        opt_method: list,
+        routing_method: list,
+        layout_method: list,
+        graph_model: list,
+        opt_order: list,
+        save_file: Path = None,
+        n_jobs=-1,
+        opt_params=None,
+        verbose=True,
+):
+    rounds = dict_product(dict(
+        circuit_path=circuit_paths,
+        opt_method=opt_method,
+        routing_method=routing_method,
+        graph_model=graph_model,
+        layout_method=layout_method,
+        opt_order=opt_order,
+    ))
+
+    results = Parallel(n_jobs=n_jobs, verbose=999)(delayed(transpile_circuit)(
+        opt_params=opt_params,
+        **rnd,
+    ) for rnd in rounds)
+
+    df = pd.DataFrame.from_records(filter(None, results))
+
+    if save_file is None:
+        save_file = f'./tranpile-result-{time.time()}.csv'
+
+    save_file = Path(save_file)
+    save_dir = save_file.parent
+    save_dir.mkdir(parents=True, exist_ok=True)
+    df.to_csv(save_file, index=False)
+    if verbose:
+        print(f"Done")
