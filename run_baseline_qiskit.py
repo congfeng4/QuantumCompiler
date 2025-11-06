@@ -6,7 +6,7 @@ if __name__ == '__main__':
 
     run_baseline(
         circuit_paths,
-        opt_method=[OptMethod.QISKIT_LV3, OptMethod.QISKIT_LV2],
+        opt_method=[OptMethod.NONE, OptMethod.QISKIT_LV1, OptMethod.QISKIT_LV2, OptMethod.QISKIT_LV3],
         routing_method=[RoutingMethod.SABRE],
         layout_method=[LayoutMethod.SABRE],
         opt_order=[OptOrder.BOTH, OptOrder.BEFORE_ROUTING,

@@ -10,6 +10,7 @@ import numpy as np
 from qiskit.circuit import Qubit
 from qiskit.transpiler import TransformationPass
 from qiskit.transpiler.passes import *
+from qiskit.transpiler.passmanager import PassManager
 from hamap import IBMQHardwareArchitecture
 from hamap.gates import TwoQubitGate, SwapTwoQubitGate, BridgeTwoQubitGate
 
@@ -17,6 +18,20 @@ from contrib.common import SWAP_INDEX, BRIDGE_INDEX, non_adj_common_pairs
 from qiskit.transpiler.passes import OptimizeCliffords
 
 logger = logging.getLogger("action_space")
+
+
+class MyOptimizeCliffords(TransformationPass):
+
+    def __init__(self):
+        super().__init__()
+        self.collect = CollectCliffords()
+        self.optimize = OptimizeCliffords()
+
+    def run(self, dag):
+        self.collect.run()
+
+    def name(self):
+        return 'OptimizeCliffords'
 
 
 def find_middle(best_swap_qubits: BridgeTwoQubitGate, hardware, initial_mapping, inverse_mapping) -> Optional[Qubit]:
@@ -70,6 +85,8 @@ class ActionSpace:
             Optimize1qGates(basis=basic_gates),
             Optimize1qGatesDecomposition(basis=basic_gates),
             Optimize1qGatesSimpleCommutation(basis=basic_gates),
+            # TemplateOptimization(), # 这个非常慢
+            # MyOptimizeCliffords(),
             # Remove
             RemoveIdentityEquivalent(),
         ]
@@ -124,7 +141,7 @@ class ActionSpace:
         action = self.index_to_action[policy]
         if isinstance(action, str):  # special
             return action
-        if isinstance(action, tuple) and isinstance(action[1], TransformationPass):  # transform
+        if isinstance(action, tuple) and isinstance(action[1], (TransformationPass, PassManager)):  # transform
             return action
         left, right = action
         swap_class = SWAP_INDEX if (left, right) in hardware.edges else BRIDGE_INDEX

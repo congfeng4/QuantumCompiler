@@ -1,4 +1,5 @@
 from collections import defaultdict
+import time
 from typing import Any, Optional, SupportsFloat, Tuple, Union
 
 import gymnasium as gym
@@ -11,6 +12,7 @@ from qiskit.circuit import Qubit
 from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGOpNode, DAGCircuit
 from qiskit.transpiler import TransformationPass
+from qiskit.transpiler.passmanager import PassManager
 
 from contrib.baselines import BASIC_GATES, OptMethod, transpile_circuit
 from contrib.common import get_gate_set, qknob_metrics, readable_float_dict, get_circuit_cost, get_front_layer, get_weighted_ops, \
@@ -140,6 +142,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         # Debug statistics.
         self.action_stats = defaultdict(int)
         self.reward_stats = defaultdict(float)
+        self.action_time = defaultdict(float)
 
         return self._get_obs(), {}
 
@@ -154,7 +157,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
     def apply_transform_action(self, action: Tuple[int, TransformationPass]):
         assert isinstance(action[0], int), action[0]
-        assert isinstance(action[1], TransformationPass), action[1]
+        assert isinstance(action[1], (TransformationPass, PassManager)), action[1]
         phase, opt_pass = action
 
         if self.is_routing_finished():
@@ -268,11 +271,14 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                                     inverse_mapping=self.inverse_mapping,
                                     hardware=self.hardware)
         try:
+            action_begin = time.time_ns()
             reward, action_name = self.apply_action(action)
+            action_end = time.time_ns()
         except ValueError as e:
             return self.invalid_action(why=str(e))
         self.invalid_actions = 0  # Clear the counter since we get a valid action.
         self.action_stats[action_name] += 1
+        self.action_time[action_name] += action_end - action_begin
 
         if self.is_done:
             # Routing is finished and agent just reaches transformation limit or outputs 'finish' action.
@@ -347,6 +353,9 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
 
         for key, value in self.reward_stats.items():
             record['reward/' + key] = value
+
+        for key, value in self.action_time.items():
+            record['time/' + key] = value
 
         self.metrics = record
 

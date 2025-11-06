@@ -25,7 +25,7 @@ if __name__ == '__main__':
                         layout_method=LayoutMethod.SABRE,
                         hardware_name=hardware,
                         output_dir=output_dir,
-                        n_envs=8,
+                        n_envs=16,
                         total_timesteps=100,  # 100K.
                     )
                 except KeyboardInterrupt:

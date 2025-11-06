@@ -15,7 +15,7 @@ if __name__ == '__main__':
                         choices=SUPPORTED_GRAPH_MODEL + ('tokyo', 'sycamore', 'rochester'))
     parser.add_argument('--layout', '-i', type=InitialMappingStrategy, default=InitialMappingStrategy.SABRE)
     parser.add_argument('--output', '-o', type=Path, help='output dir', default=Path('./output/test'))
-    parser.add_argument('--n_envs', '-n', type=int, default=8, help='number of envs')
+    parser.add_argument('--n_envs', '-n', type=int, default=6, help='number of envs')
     parser.add_argument('--total_timesteps', '-t', type=int, default=100, help='number of K total timesteps')
 
     args = parser.parse_args()
