@@ -67,9 +67,9 @@ class ActionSpace:
             CommutativeInverseCancellation(),
             InverseCancellation(),
             # Optimize
-            # Optimize1qGates(),
-            # Optimize1qGatesDecomposition(basis=basic_gates),
-            # Optimize1qGatesSimpleCommutation(), # NoneType' object has no attribute 'global_phase'
+            Optimize1qGates(basis=basic_gates),
+            Optimize1qGatesDecomposition(basis=basic_gates),
+            Optimize1qGatesSimpleCommutation(basis=basic_gates),
             # Remove
             RemoveIdentityEquivalent(),
         ]

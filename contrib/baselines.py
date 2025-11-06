@@ -68,7 +68,7 @@ SUPPORTED_LAYOUT_METHOD = (LayoutMethod.SABRE, LayoutMethod.TRIVIAL)  # dense
 SUPPORTED_ROUTING_METHOD = (RoutingMethod.SABRE, RoutingMethod.HA, RoutingMethod.BASIC)  # lookahead
 SUPPORTED_OPT_METHOD = (OptMethod.NONE,
                         OptMethod.QISKIT_LV1, OptMethod.QISKIT_LV2, OptMethod.QISKIT_LV3)
-BASIC_GATES = ['h', 'cx', 'swap', 'u']
+BASIC_GATES = ['h', 'cx', 'swap', 'u', 'rz', 'ry', 'rx']
 
 
 @dataclass

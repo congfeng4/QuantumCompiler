@@ -167,6 +167,9 @@ class SwapTwoQubitGate(TwoQubitGate):
               trans_mapping: ty.Dict[Qubit, int]
               ):
         dag_circuit.apply_operation_back(SwapGate(), [self.left, self.right])
+        # dag_circuit.apply_operation_back(CXGate(), [self.left, self.right])
+        # dag_circuit.apply_operation_back(CXGate(), [self.right, self.left])
+        # dag_circuit.apply_operation_back(CXGate(), [self.left, self.right])
         return True
 
     def implements_operation(self,
