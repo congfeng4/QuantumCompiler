@@ -251,8 +251,8 @@ def get_graph_and_name(graph_model: str, num_qubits: int):
 def transpile_circuit(
         circuit_path: Union[Path, str, QuantumCircuit],
         graph_model: Union[str, nx.Graph],
-        opt_order: OptOrder,
-        opt_method: OptMethod = OptMethod.QISKIT_LV2,
+        opt_order: OptOrder = OptOrder.BOTH,
+        opt_method: OptMethod = OptMethod.QISKIT_LV3,
         layout_method: LayoutMethod = LayoutMethod.SABRE,
         routing_method: RoutingMethod = RoutingMethod.SABRE,
         opt_params: dict = None,

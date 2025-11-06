@@ -2,7 +2,7 @@ from qiskit import QuantumCircuit
 from pathlib import Path
 import shelve
 from contrib.baselines import SUPPORTED_GRAPH_MODEL, LayoutMethod
-from contrib.maskable_ppo import run_as_subprocess
+from contrib.maskable_ppo import load_circuits, run_as_subprocess
 
 
 if __name__ == '__main__':
@@ -10,9 +10,11 @@ if __name__ == '__main__':
     db = shelve.open(f'./output/db/nam_circs', writeback=True)
 
     for hardware in [ 'star', 'line', 'grid', 'ring' ]:
-        for i in range(5):
-            for path in Path('./data/nam_circs').glob("*.qasm"):
+        for i in range(1):
+            for path in load_circuits('./data/nam_circs'):
+
                 qc = QuantumCircuit.from_qasm_file(path)
+
                 db_key = '-'.join([path.name, hardware.lower(), str(i)])
                 if db_key in db:
                     print('Skip', db_key)
@@ -26,6 +28,8 @@ if __name__ == '__main__':
                         layout_method=LayoutMethod.SABRE,
                         hardware_name=hardware,
                         output_dir=output_dir,
+                        n_envs=8,
+                        total_timesteps=100,  # 100K.
                     )
                 except KeyboardInterrupt:
                     raise

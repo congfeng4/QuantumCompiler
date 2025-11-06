@@ -13,7 +13,7 @@ from qiskit.dagcircuit import DAGOpNode, DAGCircuit
 from qiskit.transpiler import TransformationPass
 
 from contrib.baselines import OptMethod, transpile_circuit
-from contrib.common import qknob_metrics, readable_float_dict, get_circuit_cost, get_front_layer, get_weighted_ops, \
+from contrib.common import get_gate_set, qknob_metrics, readable_float_dict, get_circuit_cost, get_front_layer, get_weighted_ops, \
     get_total_ops, get_inverse_mapping
 from contrib.expert import ha_baseline
 from contrib.common import get_cnot_num, get_distance_matrix
@@ -70,7 +70,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.verbose = verbose
         self.initial_mapping_orig = initial_mapping.copy()
         self.distance_matrix = get_distance_matrix(self.hardware)
-        self.action = ActionSpace(hardware)
+        self.basic_gates = get_gate_set(input_circuit)
+        self.action = ActionSpace(hardware, basic_gates=self.basic_gates)
         self.state = StateSpace(self.max_len)
 
         # Hyperparameters
@@ -107,7 +108,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.input_circuit = input_circuit
         self.remaining_dag: Optional[DAGCircuit] = None
         self.resulting_circuit = None
-        self.metrics_baseline = transpile_circuit(input_circuit, hardware, opt_method=OptMethod.QISKIT_LV2)
+        self.metrics_baseline = transpile_circuit(input_circuit, hardware)#, opt_method=OptMethod.QISKIT_LV3)
 
         self.action_space = self.action.to_gym_space()
         self.observation_space = self.state.to_gym_space()
@@ -382,7 +383,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         # Since we apply transformations in the routed subscircuit, it needs to non-empty.
         self.swap_masks(masks)
         # Comment out these line will disable the action completely.
-        # self.bridge_masks(masks)
+        self.bridge_masks(masks)
         self.transformation_masks(masks)
         self.special_action_masks(masks)
         return masks.tolist()
@@ -396,13 +397,13 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
     def transformation_masks(self, masks):
         # To transform something, you need to have something :)
         allow_transform_routed = self.resulting_dag.size() > 0
-        # allow_transform_unrouted = self.remaining_dag.size() > 0
+        allow_transform_unrouted = self.remaining_dag.size() > 0
         # if self.is_routing_finished():
         #     allow_transform_routed &= self.trans_after_routing < self.trans_after_routing_limit
 
         for opt in self.action.trans:
             masks[self.action.action_to_index[ActionSpace.TRANS_ROUTED, opt]] = allow_transform_routed
-            # masks[self.action.action_to_index[ActionSpace.TRANS_UNROUTED, opt]] = allow_transform_unrouted
+            masks[self.action.action_to_index[ActionSpace.TRANS_UNROUTED, opt]] = allow_transform_unrouted
 
     def bridge_masks(self, masks):
         if not self.is_routing_started or self.is_routing_finished():

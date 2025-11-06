@@ -3,6 +3,7 @@
 至少需要用MaskablePPO，并且把Action Mask定义好。
 ☀️🌛🎉🖼🏊🏻🏓✈️🚗
 """
+from operator import itemgetter
 import numpy as np
 import datetime
 from collections import defaultdict
@@ -19,7 +20,7 @@ import gymnasium
 import torch.cuda
 from stable_baselines3.common.env_util import make_vec_env
 
-from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, read_json, write_circuit, write_json, get_cnot_num, \
+from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, get_total_ops, read_json, write_circuit, write_json, get_cnot_num, \
     Qubit, Unit, get_circuit_depth, read_circuit, qknob_metrics, convert_to_int_mapping, write_mapping
 
 from sb3_contrib.ppo_mask import MaskablePPO
@@ -204,7 +205,7 @@ def run_maskable_ppo(
         # Boolean flags.
         save_model: bool = False,
         verbose=False,
-        verify_circuit=False,
+        verify_circuit=True,
 
         # Other flags.
         ppo_params=None,
@@ -452,9 +453,11 @@ class CircuitDataset:
         plt.show()
 
 
-def run_as_subprocess(circuit_path: Path, layout_method, hardware_name: str, output_dir: Path):
+def run_as_subprocess(circuit_path: Path, layout_method, hardware_name: str, output_dir: Path,
+                      n_envs: int, total_timesteps: int):
     assert isinstance(circuit_path, Path)
     assert isinstance(hardware_name, str)
+    print('n_envs', n_envs)
 
     import subprocess, sys
 
@@ -462,6 +465,8 @@ def run_as_subprocess(circuit_path: Path, layout_method, hardware_name: str, out
            f'--path {circuit_path} '
            f'--layout {layout_method.value} '
            f'--output {output_dir} '
+           f'--n_envs {n_envs} '
+           f'--total_timesteps {total_timesteps} '
            f'--hardware {hardware_name}').split()
 
     try:
@@ -472,3 +477,12 @@ def run_as_subprocess(circuit_path: Path, layout_method, hardware_name: str, out
 
     metrics = read_json(output_dir / 'metrics.json')
     return metrics
+
+
+def load_circuits(dir: Path, sort=True):
+    circs = list(Path(dir).glob("*.qasm"))
+    if not sort:
+        return circs
+    circs_with_ops = [(qc, get_total_ops(read_circuit(qc))) for qc in circs]
+    circs_with_ops.sort(key=itemgetter(1))
+    return list(map(itemgetter(0), circs_with_ops))

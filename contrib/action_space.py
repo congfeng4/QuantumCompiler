@@ -67,28 +67,28 @@ class ActionSpace:
             CommutativeInverseCancellation(),
             InverseCancellation(),
             # Optimize
-            Optimize1qGates(basis=basic_gates),
-            Optimize1qGatesDecomposition(basis=basic_gates),
-            Optimize1qGatesSimpleCommutation(basis=basic_gates),
+            # Optimize1qGates(),
+            # Optimize1qGatesDecomposition(basis=basic_gates),
+            # Optimize1qGatesSimpleCommutation(), # NoneType' object has no attribute 'global_phase'
             # Remove
             RemoveIdentityEquivalent(),
         ]
 
         self.num_qubits = hardware.qubit_number
         swap_set = set(hardware.edges)
-        bridge_set = set(non_adj_common_pairs(hardware.to_undirected))
+        bridge_set = set(non_adj_common_pairs(hardware.to_undirected()))
         make_symmetric(bridge_set)
-        routing_actions = sorted(swap_set) #+ sorted(bridge_set)
+        routing_actions = sorted(swap_set) + sorted(bridge_set)
         check_symmetric(routing_actions)
-        assert len(routing_actions) == len(swap_set) #+ len(bridge_set)
+        assert len(routing_actions) == len(swap_set) + len(bridge_set)
         self.num_bridge = len(bridge_set)
         self.num_swap = len(swap_set)
 
         def make_trans_action():
-            return [(num, opt) for opt in self.trans for num in [self.TRANS_ROUTED]]
+            return [(num, opt) for opt in self.trans for num in [self.TRANS_ROUTED, self.TRANS_UNROUTED]]
 
         # [SpecialActions, RoutingActions, TransActions]
-        self.index_to_action = [self.ACTION_START, self.ACTION_FINISH] + routing_actions + make_trans_action
+        self.index_to_action = [self.ACTION_START, self.ACTION_FINISH] + routing_actions + make_trans_action()
 
         self.action_to_index = {act: i for i, act in enumerate(self.index_to_action)}
 
