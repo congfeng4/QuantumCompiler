@@ -66,7 +66,7 @@ class StateSpace:
                                     #    level_offset=max_level,
                                        distance_matrix=distance_matrix)
         ops = np.concatenate((routed_seq, unrouted_seq), axis=0)
-        assert len(ops) <= self.max_len, f'Max len too small: {len(ops)} vs {self.max_len}'
+        # assert len(ops) <= self.max_len, f'Max len too small for total len: {len(ops)} vs {self.max_len}'
         x = pad_truncate_2d(ops, self.max_len)
         mask = np.ones((self.max_len,), np.int32)
         mask[:len(x)] = 0

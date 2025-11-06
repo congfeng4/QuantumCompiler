@@ -13,6 +13,7 @@ if __name__ == '__main__':
     parser.add_argument('--hardware', '-w', type=str)
     parser.add_argument('--layout', '-i', type=InitialMappingStrategy)
     parser.add_argument('--output', '-o', type=Path, help='output dir')
+    parser.add_argument('--n_envs', '-n', type=int, default=8, help='number of envs')
 
     args = parser.parse_args()
 
@@ -21,7 +22,7 @@ if __name__ == '__main__':
         feature_dim=args.feature_dim,
         hardware=args.hardware,
         circuit_path=args.path,
-        num_envs=4,
+        num_envs=args.n_envs,
         n_eval_episodes=4,
         max_no_improvement_evals=4,
         output_dir=args.output,
