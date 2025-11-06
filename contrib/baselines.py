@@ -26,6 +26,7 @@ from hamap import IBMQHardwareArchitecture
 from hamap.mapping import ha_mapping
 from contrib.initial_mapping import get_initial_mapping
 
+
 SUPPORTED_GRAPH_MODEL = ('line', 'star', 'grid', 'ring')
 SUPPORTED_OPT_LEVEL = tuple(range(3))
 
@@ -67,6 +68,7 @@ SUPPORTED_LAYOUT_METHOD = (LayoutMethod.SABRE, LayoutMethod.TRIVIAL)  # dense
 SUPPORTED_ROUTING_METHOD = (RoutingMethod.SABRE, RoutingMethod.HA, RoutingMethod.BASIC)  # lookahead
 SUPPORTED_OPT_METHOD = (OptMethod.NONE,
                         OptMethod.QISKIT_LV1, OptMethod.QISKIT_LV2, OptMethod.QISKIT_LV3)
+BASIC_GATES = ['h', 'cx', 'swap', 'u']
 
 
 @dataclass
@@ -267,7 +269,7 @@ def transpile_circuit(
     qc, qc_name = get_circuit_and_name(circuit_path)
     qc_input = qc
     num_qubits = qc_input.num_qubits
-    basic_gates = get_gate_set(qc_input)
+    basic_gates = BASIC_GATES.copy() #get_gate_set(qc_input)
     coupling_map, edges, graph_name = get_graph_and_name(graph_model, num_qubits)
 
     if opt_order in (OptOrder.BOTH, OptOrder.BEFORE_ROUTING):
@@ -287,7 +289,7 @@ def transpile_circuit(
     qc_output = qc
 
     if verify_circuit:
-        if not check_circuits_correctness(qc_input, qc_output, edges):
+        if not check_circuits_correctness(qc_input, qc_output, edges, basic_gates):
             return None
 
     result = dict(

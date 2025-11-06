@@ -59,21 +59,21 @@ def check_routed(qc: QuantumCircuit, edges: list, initial_mapping=None):
     return True
 
 
-def check_basic_gates(qc_in: QuantumCircuit, qc_out: QuantumCircuit):
+def check_basic_gates(basic_gates, qc_out: QuantumCircuit):
     """
     Assume that the input circuit's basic gates are compatible with the hardware.
     Check the output circuit does not include unsupported gates.
     """
-    basic_gates_in = set(get_gate_set(qc_in)) | {'cx', 'swap'} # For swap and bridge.
     basic_gates_out = set(get_gate_set(qc_out))
-    if basic_gates_out.issubset(basic_gates_in):
+    if basic_gates_out.issubset(basic_gates):
         return True
 
-    print('basic_gates_in', basic_gates_in, 'basic_gates_out', basic_gates_out)
+    print('basic_gates', basic_gates, 'basic_gates_out', basic_gates_out)
     return False
 
 
-def check_circuits_correctness(qc_in: QuantumCircuit, qc_out: QuantumCircuit, edges, initial_mapping=None):
+def check_circuits_correctness(qc_in: QuantumCircuit, qc_out: QuantumCircuit, edges, basic_gates,
+                               initial_mapping=None):
     """
     Check the output circuit is correct in terms of the input circuit.
     1. Output is equivalent to input.
@@ -90,7 +90,7 @@ def check_circuits_correctness(qc_in: QuantumCircuit, qc_out: QuantumCircuit, ed
         print('Routing failure')
         return False
 
-    ok = check_basic_gates(qc_in, qc_out)
+    ok = check_basic_gates(basic_gates, qc_out)
     if not ok:
         print('Basic gates failure')
         return False

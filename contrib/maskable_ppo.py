@@ -20,6 +20,7 @@ import gymnasium
 import torch.cuda
 from stable_baselines3.common.env_util import make_vec_env
 
+from contrib.baselines import BASIC_GATES
 from contrib.common import QuantumCircuit, IBMQHardwareArchitecture, get_total_ops, read_json, write_circuit, write_json, get_cnot_num, \
     Qubit, Unit, get_circuit_depth, read_circuit, qknob_metrics, convert_to_int_mapping, write_mapping
 
@@ -35,8 +36,7 @@ from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from stable_baselines3.common.callbacks import BaseCallback
 
 from contrib.random_graphs import generate_graph_for_num_qubits
-from contrib.verify_circuit import check_equivalence, check_circuits_correctness
-from hamap.initial_mapping import initial_mapping_from_sabre
+from contrib.verify_circuit import check_circuits_correctness
 
 
 def average_metrics(metrics_list):
@@ -84,6 +84,7 @@ class MetricEvalCallback(BaseCallback):
         self.best_depth_ratio = None
         self.best_save_dir = None
         self.verify_circuit = verify_circuit
+        self.basic_gates = BASIC_GATES.copy()
 
         if best_save_dir is not None:
             self.best_save_dir = Path(best_save_dir)
@@ -109,7 +110,8 @@ class MetricEvalCallback(BaseCallback):
 
             if self.verify_circuit:
                 print('Begin to verify circuit...')
-                assert check_circuits_correctness(input_circuit, output_circuit, list(hardware.edges))
+                assert check_circuits_correctness(input_circuit, output_circuit, list(hardware.edges),
+                                                  self.basic_gates)
 
             for key, value in metrics.items():
                 self.logger.record(key, round(value, 2))

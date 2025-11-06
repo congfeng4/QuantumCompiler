@@ -12,7 +12,7 @@ from qiskit.converters import circuit_to_dag, dag_to_circuit
 from qiskit.dagcircuit import DAGOpNode, DAGCircuit
 from qiskit.transpiler import TransformationPass
 
-from contrib.baselines import OptMethod, transpile_circuit
+from contrib.baselines import BASIC_GATES, OptMethod, transpile_circuit
 from contrib.common import get_gate_set, qknob_metrics, readable_float_dict, get_circuit_cost, get_front_layer, get_weighted_ops, \
     get_total_ops, get_inverse_mapping
 from contrib.expert import ha_baseline
@@ -70,7 +70,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.verbose = verbose
         self.initial_mapping_orig = initial_mapping.copy()
         self.distance_matrix = get_distance_matrix(self.hardware)
-        self.basic_gates = get_gate_set(input_circuit)
+        self.basic_gates = BASIC_GATES.copy() #get_gate_set(input_circuit)
         self.action = ActionSpace(hardware, basic_gates=self.basic_gates)
         self.state = StateSpace(self.max_len)
 
