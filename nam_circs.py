@@ -7,15 +7,12 @@ from contrib.maskable_ppo import load_circuits, run_as_subprocess
 
 if __name__ == '__main__':
 
-    db = shelve.open(f'./output/db/nam_circs', writeback=True)
-
-    for hardware in [ 'star', 'line', 'grid', 'ring' ]:
-        for i in range(1):
-            for path in load_circuits('./data/nam_circs'):
+    with shelve.open(f'./output/db/nam_circs', writeback=True) as db:
+        for path in load_circuits('./data/nam_circs'):
+            for hardware in [ 'star', 'line', 'grid', 'ring' ]:
 
                 qc = QuantumCircuit.from_qasm_file(path)
-
-                db_key = '-'.join([path.name, hardware.lower(), str(i)])
+                db_key = '-'.join([path.name, hardware.lower()])
                 if db_key in db:
                     print('Skip', db_key)
                     continue
@@ -38,5 +35,3 @@ if __name__ == '__main__':
                 else:
                     if isinstance(metrics, dict):
                         db[db_key] = metrics
-
-    db.close()
