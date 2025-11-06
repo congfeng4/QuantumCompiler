@@ -6,7 +6,7 @@ from qiskit.quantum_info import Statevector
 from qiskit.transpiler import CouplingMap
 from qiskit import transpile
 
-from contrib.common import read_mapping, read_json
+from contrib.common import read_mapping, read_json, get_gate_set
 from contrib.initial_mapping import InitialMappingStrategy
 from contrib.random_graphs import closest_factors
 
@@ -59,7 +59,27 @@ def check_routed(qc: QuantumCircuit, edges: list, initial_mapping=None):
     return True
 
 
-def check_circuit_equiv_and_routed(qc_in: QuantumCircuit, qc_out: QuantumCircuit, edges, initial_mapping=None):
+def check_basic_gates(qc_in: QuantumCircuit, qc_out: QuantumCircuit):
+    """
+    Assume that the input circuit's basic gates are compatible with the hardware.
+    Check the output circuit does not include unsupported gates.
+    """
+    basic_gates_in = set(get_gate_set(qc_in)) | {'cx', 'swap'} # For swap and bridge.
+    basic_gates_out = set(get_gate_set(qc_out))
+    if basic_gates_out.issubset(basic_gates_in):
+        return True
+
+    print('basic_gates_in', basic_gates_in, 'basic_gates_out', basic_gates_out)
+    return False
+
+
+def check_circuits_correctness(qc_in: QuantumCircuit, qc_out: QuantumCircuit, edges, initial_mapping=None):
+    """
+    Check the output circuit is correct in terms of the input circuit.
+    1. Output is equivalent to input.
+    2. Output is routed in terms of edges.
+    3. Output does not use non-basic gates in terms of input.
+    """
     ok = check_equivalence(qc_in, qc_out, initial_mapping=initial_mapping)
     if not ok:
         print('Equiv failure')
@@ -68,6 +88,11 @@ def check_circuit_equiv_and_routed(qc_in: QuantumCircuit, qc_out: QuantumCircuit
     ok = check_routed(qc_out, edges, initial_mapping=initial_mapping)
     if not ok:
         print('Routing failure')
+        return False
+
+    ok = check_basic_gates(qc_in, qc_out)
+    if not ok:
+        print('Basic gates failure')
         return False
 
     return True
@@ -84,7 +109,7 @@ def check_output_ours(output_dir: Path, qubits_threshold=10):
         except:
             initial_mapping = None  # Applied layout
 
-        ok = check_equivalence(qc_in, qc_out, initial_mapping)
+        ok = check_equivalence(qc_in, qc_out, initial_mapping, qubits_threshold)
         if not ok:
             print('Equiv failure', subdir.name)
 
@@ -117,7 +142,7 @@ def check_qiskit_transpile(data_dir: Path, qubits_threshold=10):
                                            optimization_level=opt_level)
                         assert qc_out.num_qubits == qc_in.num_qubits
 
-                        ok = check_equivalence(qc_in, qc_out)
+                        ok = check_equivalence(qc_in, qc_out, qubits_threshold=qubits_threshold)
                         if not ok:
                             print('Equiv failure', qc_path.name, routing_method, layout_method, opt_level, name)
 
@@ -136,8 +161,6 @@ def check_ha_mapping(data_dir: Path, qubits_threshold=10):
     for qc_path in Path(data_dir).glob('*.qasm'):
         qc_in = QuantumCircuit.from_qasm_file(qc_path)
         num_qubits = qc_in.num_qubits
-        if num_qubits > qubits_threshold:
-            continue
 
         rows, cols = closest_factors(num_qubits)
 
@@ -153,7 +176,7 @@ def check_ha_mapping(data_dir: Path, qubits_threshold=10):
 
                 qc_out, _ = ha_mapping(qc_in, initial_mapping=initial_mapping, hardware=hardware)
 
-                ok = check_equivalence(qc_in, qc_out)
+                ok = check_equivalence(qc_in, qc_out, qubits_threshold=qubits_threshold)
                 if not ok:
                     print('Equiv failure', qc_path.name, layout_method, name)
 
@@ -163,6 +186,6 @@ def check_ha_mapping(data_dir: Path, qubits_threshold=10):
 
 
 if __name__ == '__main__':
-    check_ha_mapping(Path('../data/nam_circs'))
+    # check_ha_mapping(Path('../data/nam_circs'))
     check_qiskit_transpile(Path('../data/nam_circs'))
-    check_output_ours('../output/ours')
+    # check_output_ours('../output/ours')

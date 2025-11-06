@@ -21,7 +21,7 @@ from contrib.initial_mapping import InitialMappingStrategy
 from contrib.random_graphs import generate_graph_for_num_qubits, create_coupling_graph
 from contrib.common import qknob_metrics, get_total_ops, get_cnot_num, get_gate_set, write_circuit, \
     convert_to_int_mapping, write_mapping, read_mapping
-from contrib.verify_circuit import check_equivalence, check_circuit_equiv_and_routed
+from contrib.verify_circuit import check_equivalence, check_circuits_correctness
 from hamap import IBMQHardwareArchitecture
 from hamap.mapping import ha_mapping
 from contrib.initial_mapping import get_initial_mapping
@@ -279,7 +279,7 @@ def transpile_circuit(
     qc_output = qc
 
     if verify_circuit:
-        if not check_circuit_equiv_and_routed(qc_input, qc_output, edges):
+        if not check_circuits_correctness(qc_input, qc_output, edges):
             return None
 
     result = dict(

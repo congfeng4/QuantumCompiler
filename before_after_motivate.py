@@ -6,10 +6,46 @@ if __name__ == '__main__':
 
     run_baseline(
         circuit_paths,
-        opt_method=[OptMethod.QISKIT_LV2],
-        routing_method=[RoutingMethod.SABRE],
-        layout_method=[RoutingMethod.SABRE],
+        opt_method=[OptMethod.QISKIT_LV2, OptMethod.QISKIT_LV3],
+        routing_method=SUPPORTED_ROUTING_METHOD,
+        layout_method=SUPPORTED_LAYOUT_METHOD,
         opt_order=[OptOrder.BOTH, OptOrder.BEFORE_ROUTING, OptOrder.AFTER_ROUTING],
         graph_model=SUPPORTED_GRAPH_MODEL,
-        save_file=Path(f'./output/baseline/before_after.csv'),
+        save_file=Path(f'./output/baseline/nam_circs_before_after.csv'),
+    )
+
+    circuit_paths = list(Path('./data/20Q_gate_Tokyo/circuits').glob("*.qasm"))
+
+    run_baseline(
+        circuit_paths,
+        opt_method=[OptMethod.QISKIT_LV2, OptMethod.QISKIT_LV3],
+        routing_method=SUPPORTED_ROUTING_METHOD,
+        layout_method=SUPPORTED_LAYOUT_METHOD,
+        opt_order=[OptOrder.BOTH, OptOrder.BEFORE_ROUTING, OptOrder.AFTER_ROUTING],
+        graph_model=['tokyo'],
+        save_file=Path(f'./output/baseline/tokyo_before_after.csv'),
+    )
+
+    circuit_paths = list(Path('./data/53Q_gate_Rochester/circuits').glob("*.qasm"))
+
+    run_baseline(
+        circuit_paths,
+        opt_method=[OptMethod.QISKIT_LV2, OptMethod.QISKIT_LV3],
+        routing_method=SUPPORTED_ROUTING_METHOD,
+        layout_method=SUPPORTED_LAYOUT_METHOD,
+        opt_order=[OptOrder.BOTH, OptOrder.BEFORE_ROUTING, OptOrder.AFTER_ROUTING],
+        graph_model=['rochester'],
+        save_file=Path(f'./output/baseline/rochester_before_after.csv'),
+    )
+
+    circuit_paths = list(Path('./data/53Q_depth_Sycamore/circuits').glob("*.qasm"))
+
+    run_baseline(
+        circuit_paths,
+        opt_method=[OptMethod.QISKIT_LV2, OptMethod.QISKIT_LV3],
+        routing_method=SUPPORTED_ROUTING_METHOD,
+        layout_method=SUPPORTED_LAYOUT_METHOD,
+        opt_order=[OptOrder.BOTH, OptOrder.BEFORE_ROUTING, OptOrder.AFTER_ROUTING],
+        graph_model=['sycamore'],
+        save_file=Path(f'./output/baseline/sycamore_before_after.csv'),
     )
