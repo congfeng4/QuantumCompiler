@@ -110,23 +110,24 @@ def get_circuit_and_name(circuit_path: Union[QuantumCircuit, str, Path]):
 def route_circuit(qc: QuantumCircuit,
                   coupling_map,
                   routing_method: RoutingMethod,
-                  layout_method: LayoutMethod):
+                  layout_method: LayoutMethod,
+                  basic_gates):
 
     if routing_method == RoutingMethod.HA:
         initial_mapping = get_initial_mapping(qc, coupling_map, layout_method.to_initial_mapping_strategy())
-        qc_output, final_mapping = ha_mapping(qc, initial_mapping=initial_mapping, hardware=coupling_map)
+        qc_output, _ = ha_mapping(qc, initial_mapping=initial_mapping, hardware=coupling_map)
         return qc_output
 
     if routing_method in (RoutingMethod.SABRE, RoutingMethod.BASIC):
         if isinstance(coupling_map, nx.Graph):
             coupling_map = create_coupling_graph(coupling_map)
-        qc = qiskit_routing(qc, coupling_map, routing_method, layout_method)
+        qc = qiskit_routing(qc, coupling_map, routing_method, layout_method, basic_gates)
         return qc
 
     raise ValueError(routing_method)
 
 
-def optimize_circuit(qc: QuantumCircuit, opt_method: OptMethod, opt_params: dict = None, verbose=False):
+def optimize_circuit(qc: QuantumCircuit, opt_method: OptMethod, basic_gates, opt_params: dict = None, verbose=False):
     if opt_method == OptMethod.NONE:
         return qc
 
@@ -135,18 +136,20 @@ def optimize_circuit(qc: QuantumCircuit, opt_method: OptMethod, opt_params: dict
                               ecc_file=opt_params['ecc_file'],
                               quarl_dir=opt_params['quarl_dir'],
                               verbose=verbose,
+                              basic_gates=basic_gates,
                               )
 
     if opt_method == OptMethod.QUARTZ:
         return quartz_optimize(qc,
                                quarl_dir=opt_params['quarl_dir'],
                                ecc_file=opt_params['ecc_file'],
+                               basic_gates=basic_gates,
                                verbose=verbose)
 
     if opt_method.value.startswith('qiskit:'):  # Router should optimize it.
         optimization_level = int(opt_method.value.split(':')[-1])
         assert optimization_level > 0, optimization_level
-        return qiskit_optimize(qc, optimization_level)
+        return qiskit_optimize(qc, optimization_level, basic_gates)
 
     raise ValueError(opt_method)
 
@@ -154,6 +157,7 @@ def optimize_circuit(qc: QuantumCircuit, opt_method: OptMethod, opt_params: dict
 def quarl_optimize(qc: QuantumCircuit,
                    ecc_file: Path,
                    quarl_dir: Path,
+                   basic_gates,
                    max_iterations=50,
                    verbose=True) -> QuantumCircuit:
     ecc_file = Path(ecc_file)
@@ -164,7 +168,7 @@ def quarl_optimize(qc: QuantumCircuit,
 
     from qiskit.qasm2 import dumps
 
-    gate_set = set(get_gate_set(qc) + ['neg', 'x', 'add'])  # Assume we don't need to docompose our gates.
+    gate_set = set(basic_gates + ['neg', 'x', 'add'])  # Assume we don't need to docompose our gates.
 
     gate_set_arg = '[' + ",".join(gate_set) + ']'
 
@@ -191,7 +195,7 @@ def quarl_optimize(qc: QuantumCircuit,
     return qc
 
 
-def quartz_optimize(qc: QuantumCircuit, quarl_dir: Path, ecc_file, verbose=True) -> QuantumCircuit:
+def quartz_optimize(qc: QuantumCircuit, quarl_dir: Path, ecc_file, basic_gates, verbose=True) -> QuantumCircuit:
     ecc_file = Path(ecc_file)
     if not ecc_file.is_absolute():
         ecc_file = quarl_dir / ecc_file
@@ -201,7 +205,7 @@ def quartz_optimize(qc: QuantumCircuit, quarl_dir: Path, ecc_file, verbose=True)
     from qiskit.qasm2 import dumps
 
     input_qasm = dumps(qc)
-    gate_set = set(get_gate_set(qc) + ['neg', 'x', 'add'])  # Assume we don't need to docompose our gates.
+    gate_set = set(basic_gates + ['neg', 'x', 'add'])  # Assume we don't need to docompose our gates.
     print(f'{gate_set=}')
     context = Context(list(gate_set), ecc_file, verbose=verbose)
     g = Graph.from_qasm_str(context, input_qasm)
@@ -217,20 +221,22 @@ def ha_routing(qc: QuantumCircuit, hardware: IBMQHardwareArchitecture, layout_me
     return qc
 
 
-def qiskit_routing(qc: QuantumCircuit, cm: CouplingMap, routing_method: RoutingMethod, layout_method: LayoutMethod):
+def qiskit_routing(qc: QuantumCircuit, cm: CouplingMap, routing_method: RoutingMethod, layout_method: LayoutMethod,
+                   basic_gates):
     assert routing_method != RoutingMethod.HA
     # Layout and Routing with qiskit.
     return transpile(
         qc,
         coupling_map=cm,
+        basis_gates=basic_gates,
         optimization_level=0,
         layout_method=layout_method.value,
         routing_method=str(routing_method.value),
     )
 
 
-def qiskit_optimize(qc: QuantumCircuit, level: int):
-    pm = generate_preset_pass_manager(optimization_level=level).optimization
+def qiskit_optimize(qc: QuantumCircuit, level: int, basic_gates):
+    pm = generate_preset_pass_manager(optimization_level=level, basis_gates=basic_gates).optimization
     return pm.run(qc)
 
 
@@ -261,20 +267,22 @@ def transpile_circuit(
     qc, qc_name = get_circuit_and_name(circuit_path)
     qc_input = qc
     num_qubits = qc_input.num_qubits
-
+    basic_gates = get_gate_set(qc_input)
     coupling_map, edges, graph_name = get_graph_and_name(graph_model, num_qubits)
 
     if opt_order in (OptOrder.BOTH, OptOrder.BEFORE_ROUTING):
-        qc = optimize_circuit(qc=qc, opt_method=opt_method, opt_params=opt_params, verbose=verbose)
+        qc = optimize_circuit(qc=qc, opt_method=opt_method, opt_params=opt_params, basic_gates=basic_gates,
+                               verbose=verbose)
 
     # Perform routing & layout.
     qc = route_circuit(qc=qc,
                        coupling_map=coupling_map, routing_method=routing_method,
-                       layout_method=layout_method)
+                       layout_method=layout_method, basic_gates=basic_gates)
 
     # After routing, do xfers.
     if opt_order in (OptOrder.BOTH, OptOrder.AFTER_ROUTING):
-        qc = optimize_circuit(qc=qc, opt_method=opt_method, opt_params=opt_params, verbose=verbose)
+        qc = optimize_circuit(qc=qc, opt_method=opt_method, opt_params=opt_params, basic_gates=basic_gates,
+                               verbose=verbose)
 
     qc_output = qc
 
@@ -315,6 +323,11 @@ def run_baseline(
         layout_method=layout_method,
         opt_order=opt_order,
     ))
+
+    if n_jobs == 1:
+        for rnd in rounds:
+            transpile_circuit(opt_params=opt_params, **rnd)
+        return
 
     results = Parallel(n_jobs=n_jobs, verbose=999)(delayed(transpile_circuit)(
         opt_params=opt_params,

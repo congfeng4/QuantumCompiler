@@ -51,20 +51,6 @@ def make_symmetric(pairs: set[tuple[int, int]]):
         pairs.add((b, a))
 
 
-OPT_PASSES = [
-    # Cancellation
-    CommutativeCancellation(),
-    CommutativeInverseCancellation(),
-    InverseCancellation(),
-    # Optimize
-    Optimize1qGates(),
-    Optimize1qGatesDecomposition(),
-    Optimize1qGatesSimpleCommutation(),
-    # Remove
-    RemoveIdentityEquivalent(),
-]
-
-
 class ActionSpace:
     ACTION_FINISH = '<finish>'
     ACTION_START = '<start>'
@@ -74,14 +60,23 @@ class ActionSpace:
 
     index_to_action: List[Union[Tuple[int, int], Tuple[int, TransformationPass], str]]
 
-    def __init__(self, hardware: IBMQHardwareArchitecture, transformations: List[TransformationPass] = None):
-        if transformations is None:
-            transformations = OPT_PASSES
-        self.trans = transformations
+    def __init__(self, hardware: IBMQHardwareArchitecture, basic_gates):
+        self.trans = [
+            # Cancellation
+            CommutativeCancellation(basis_gates=basic_gates),
+            CommutativeInverseCancellation(),
+            InverseCancellation(),
+            # Optimize
+            Optimize1qGates(basis=basic_gates),
+            Optimize1qGatesDecomposition(basis=basic_gates),
+            Optimize1qGatesSimpleCommutation(basis=basic_gates),
+            # Remove
+            RemoveIdentityEquivalent(),
+        ]
 
         self.num_qubits = hardware.qubit_number
         swap_set = set(hardware.edges)
-        bridge_set = set(non_adj_common_pairs(hardware.to_undirected()))
+        bridge_set = set(non_adj_common_pairs(hardware.to_undirected))
         make_symmetric(bridge_set)
         routing_actions = sorted(swap_set) #+ sorted(bridge_set)
         check_symmetric(routing_actions)
@@ -93,7 +88,7 @@ class ActionSpace:
             return [(num, opt) for opt in self.trans for num in [self.TRANS_ROUTED]]
 
         # [SpecialActions, RoutingActions, TransActions]
-        self.index_to_action = [self.ACTION_START, self.ACTION_FINISH] + routing_actions + make_trans_action()
+        self.index_to_action = [self.ACTION_START, self.ACTION_FINISH] + routing_actions + make_trans_action
 
         self.action_to_index = {act: i for i, act in enumerate(self.index_to_action)}
 
