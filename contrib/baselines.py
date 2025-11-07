@@ -258,6 +258,7 @@ def transpile_circuit(
         layout_method: LayoutMethod = LayoutMethod.SABRE,
         routing_method: RoutingMethod = RoutingMethod.SABRE,
         opt_params: dict = None,
+        basic_gates: list = None,
         verbose=True,
         verify_circuit=True,
 ):
@@ -269,7 +270,8 @@ def transpile_circuit(
     qc, qc_name = get_circuit_and_name(circuit_path)
     qc_input = qc
     num_qubits = qc_input.num_qubits
-    basic_gates = BASIC_GATES.copy() #get_gate_set(qc_input)
+    if basic_gates is None:
+        basic_gates = get_gate_set(qc_input)
     coupling_map, edges, graph_name = get_graph_and_name(graph_model, num_qubits)
 
     if opt_order in (OptOrder.BOTH, OptOrder.BEFORE_ROUTING):
@@ -289,8 +291,7 @@ def transpile_circuit(
     qc_output = qc
 
     if verify_circuit:
-        if not check_circuits_correctness(qc_input, qc_output, edges, basic_gates):
-            return None
+        assert check_circuits_correctness(qc_input, qc_output, edges, basic_gates)
 
     result = dict(
         circuit=qc_name,
@@ -313,6 +314,7 @@ def run_baseline(
         graph_model: list,
         opt_order: list,
         save_file: Path = None,
+        basic_gates: list = None,
         n_jobs=-1,
         opt_params=None,
         verbose=True,
@@ -333,6 +335,7 @@ def run_baseline(
 
     results = Parallel(n_jobs=n_jobs, verbose=999)(delayed(transpile_circuit)(
         opt_params=opt_params,
+        basic_gates=basic_gates,
         **rnd,
     ) for rnd in rounds)
 

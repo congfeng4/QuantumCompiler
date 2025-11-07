@@ -84,7 +84,7 @@ class ActionSpace:
             # Optimize
             Optimize1qGates(basis=basic_gates),
             Optimize1qGatesDecomposition(basis=basic_gates),
-            Optimize1qGatesSimpleCommutation(basis=basic_gates),
+            # Optimize1qGatesSimpleCommutation(basis=basic_gates),
             # TemplateOptimization(), # 这个非常慢
             # MyOptimizeCliffords(),
             # Remove

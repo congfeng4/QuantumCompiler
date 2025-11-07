@@ -55,6 +55,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
                  input_circuit: QuantumCircuit,
                  hardware: IBMQHardwareArchitecture,
                  initial_mapping: dict[Qubit, int],
+                 basic_gates: list[str] = None,
                  verbose=False,
                  max_len=None,
                  params=None):
@@ -72,7 +73,9 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.verbose = verbose
         self.initial_mapping_orig = initial_mapping.copy()
         self.distance_matrix = get_distance_matrix(self.hardware)
-        self.basic_gates = BASIC_GATES.copy() #get_gate_set(input_circuit)
+        if basic_gates is None:
+            basic_gates = get_gate_set(input_circuit)
+        self.basic_gates = basic_gates #BASIC_GATES.copy() #get_gate_set(input_circuit)
         self.action = ActionSpace(hardware, basic_gates=self.basic_gates)
         self.state = StateSpace(self.max_len)
 
@@ -110,7 +113,7 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.input_circuit = input_circuit
         self.remaining_dag: Optional[DAGCircuit] = None
         self.resulting_circuit = None
-        self.metrics_baseline = transpile_circuit(input_circuit, hardware)#, opt_method=OptMethod.QISKIT_LV3)
+        self.metrics_baseline = transpile_circuit(input_circuit, hardware, basic_gates=self.basic_gates)#, opt_method=OptMethod.QISKIT_LV3)
 
         self.action_space = self.action.to_gym_space()
         self.observation_space = self.state.to_gym_space()

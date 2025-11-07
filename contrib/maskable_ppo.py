@@ -127,6 +127,7 @@ def create_vec_env_from_circuits(
         num_envs: int = 1,
         use_subproc: bool = False,
         verbose=False,
+        basic_gates=None,
         params=None,
 ):
     assert num_envs >= 1
@@ -137,6 +138,7 @@ def create_vec_env_from_circuits(
             hardware=hardware,
             initial_mapping=init,
             verbose=verbose,
+            basic_gates=basic_gates,
             params=params,
         )
 
@@ -208,6 +210,7 @@ def run_maskable_ppo(
         save_model: bool = False,
         verbose=False,
         verify_circuit=True,
+        basic_gates=None,
 
         # Other flags.
         ppo_params=None,
@@ -236,11 +239,6 @@ def run_maskable_ppo(
     else:
         raise TypeError(circuit_path)
 
-    if qc.num_qubits > 10:
-        if verify_circuit:
-            print('Turn off verify_circuit because num_qubits is', qc.num_qubits)
-        verify_circuit = False
-
     if isinstance(hardware, IBMQHardwareArchitecture):
         hardware = hardware
         hardware_name = hardware.name
@@ -264,6 +262,7 @@ def run_maskable_ppo(
         num_envs=num_envs,
         use_subproc=use_subproc,
         verbose=verbose,
+        basic_gates=basic_gates,
         params=env_params,
     )
 
@@ -274,6 +273,7 @@ def run_maskable_ppo(
         init=init,
         num_envs=n_eval_episodes,
         use_subproc=use_subproc,
+        basic_gates=basic_gates,
         params=env_params,
     )
 
@@ -456,7 +456,7 @@ class CircuitDataset:
 
 
 def run_as_subprocess(circuit_path: Path, layout_method, hardware_name: str, output_dir: Path,
-                      n_envs: int, total_timesteps: int):
+                      n_envs: int, total_timesteps: int, basic_gates=None):
     assert isinstance(circuit_path, Path)
     assert isinstance(hardware_name, str)
     print('n_envs', n_envs)
@@ -470,6 +470,8 @@ def run_as_subprocess(circuit_path: Path, layout_method, hardware_name: str, out
            f'--n_envs {n_envs} '
            f'--total_timesteps {total_timesteps} '
            f'--hardware {hardware_name}').split()
+    if basic_gates is not None:
+        cmd += ['--basic_gates', ",".join(basic_gates) ]
 
     try:
         subprocess.check_call(cmd, cwd=Path.cwd().absolute())
