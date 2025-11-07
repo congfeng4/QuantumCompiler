@@ -78,17 +78,17 @@ class ActionSpace:
     def __init__(self, hardware: IBMQHardwareArchitecture, basic_gates):
         self.trans = [
             # Cancellation
-            CommutativeCancellation(basis_gates=basic_gates),
-            CommutativeInverseCancellation(),
-            InverseCancellation(),
+            # CommutativeCancellation(basis_gates=basic_gates),
+            # CommutativeInverseCancellation(),
+            # InverseCancellation(),
             # Optimize
-            Optimize1qGates(basis=basic_gates),
-            Optimize1qGatesDecomposition(basis=basic_gates),
+            # Optimize1qGates(basis=basic_gates),
+            # Optimize1qGatesDecomposition(basis=basic_gates),
             # Optimize1qGatesSimpleCommutation(basis=basic_gates),
             # TemplateOptimization(), # 这个非常慢
             # MyOptimizeCliffords(),
             # Remove
-            RemoveIdentityEquivalent(),
+            # RemoveIdentityEquivalent(),
         ]
 
         self.num_qubits = hardware.qubit_number

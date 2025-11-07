@@ -9,7 +9,7 @@ from argparse import ArgumentParser
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--path', '-p', help='circuit path', type=Path,
-                        default=Path('./data/nam_circs/mod_red_21.qasm'))
+                        default=Path('./data/nam_circs/hwb6.qasm'))
     parser.add_argument('--feature_dim', '-f', default=64, type=int)
     parser.add_argument('--hardware', '-w', type=str, default='star',
                         choices=SUPPORTED_GRAPH_MODEL + ('tokyo', 'sycamore', 'rochester'))

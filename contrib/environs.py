@@ -16,7 +16,7 @@ from qiskit.transpiler.passmanager import PassManager
 
 from contrib.baselines import BASIC_GATES, OptMethod, transpile_circuit
 from contrib.common import get_basic_gates, get_gate_set, qknob_metrics, readable_float_dict, get_circuit_cost, get_front_layer, get_weighted_ops, \
-    get_total_ops, get_inverse_mapping
+    get_total_ops, get_inverse_mapping, write_circuit, write_mapping
 from contrib.expert import ha_baseline
 from contrib.common import get_cnot_num, get_distance_matrix
 from contrib.action_space import ActionSpace
@@ -345,8 +345,13 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.resulting_circuit = apply_layout(self.resulting_circuit, self.initial_mapping)
 
         if self.verbose: print('Begin to verify circuit...')
-        assert check_circuits_correctness(self.input_circuit, self.resulting_circuit, list(self.hardware.edges),
-                                              self.basic_gates)
+        if not check_circuits_correctness(self.input_circuit, self.resulting_circuit, list(self.hardware.edges),
+                                              self.basic_gates):
+            write_circuit('./input.qasm', self.input_circuit)
+            write_circuit('./output.qasm', self.resulting_circuit)
+            write_mapping('./initial_mapping.json', self.initial_mapping)
+            raise ValueError('The resulting circuit is not equivalent to the input circuit!')
+
         record = {}
         metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
         for key, value in metrics.items():
