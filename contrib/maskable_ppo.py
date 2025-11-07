@@ -36,7 +36,6 @@ from sb3_contrib.common.maskable.evaluation import evaluate_policy
 from stable_baselines3.common.callbacks import BaseCallback
 
 from contrib.random_graphs import generate_graph_for_num_qubits
-from contrib.verify_circuit import check_circuits_correctness
 
 
 def average_metrics(metrics_list):
@@ -74,7 +73,6 @@ class MetricEvalCallback(BaseCallback):
     model: MaskablePPO
 
     def __init__(self, eval_env, eval_freq,
-                 verify_circuit=False,
                  best_save_dir=None):
         # deterministic=True，早期评估非常慢，几乎卡死。
         super().__init__()
@@ -83,8 +81,6 @@ class MetricEvalCallback(BaseCallback):
         # Monitor depth_ratio, more important than ops_ratio.
         self.best_depth_ratio = None
         self.best_save_dir = None
-        self.verify_circuit = verify_circuit
-        self.basic_gates = BASIC_GATES.copy()
 
         if best_save_dir is not None:
             self.best_save_dir = Path(best_save_dir)
@@ -107,11 +103,6 @@ class MetricEvalCallback(BaseCallback):
                     write_json(self.best_save_dir / 'metrics.json', clean_metrics)
                     write_mapping(self.best_save_dir / 'initial_mapping.json', initial_mapping)
                     write_json(self.best_save_dir / 'edges.json', list(hardware.edges))
-
-            if self.verify_circuit:
-                print('Begin to verify circuit...')
-                assert check_circuits_correctness(input_circuit, output_circuit, list(hardware.edges),
-                                                  self.basic_gates)
 
             for key, value in metrics.items():
                 self.logger.record(key, round(value, 2))
@@ -209,7 +200,6 @@ def run_maskable_ppo(
         # Boolean flags.
         save_model: bool = False,
         verbose=False,
-        verify_circuit=True,
         basic_gates=None,
 
         # Other flags.
@@ -292,7 +282,6 @@ def run_maskable_ppo(
         model_params=model_params,
         ppo_params=ppo_params,
         env_params=env_params,
-        verify_circuit=verify_circuit,
     )
     pprint(config)
 
@@ -308,7 +297,6 @@ def run_maskable_ppo(
     metrics_callback = MetricEvalCallback(
         eval_env=eval_env,
         eval_freq=eval_freq // num_envs,
-        verify_circuit=verify_circuit,
         best_save_dir=output_dir,
     )
 

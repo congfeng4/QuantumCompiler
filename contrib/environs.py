@@ -15,12 +15,13 @@ from qiskit.transpiler import TransformationPass
 from qiskit.transpiler.passmanager import PassManager
 
 from contrib.baselines import BASIC_GATES, OptMethod, transpile_circuit
-from contrib.common import get_gate_set, qknob_metrics, readable_float_dict, get_circuit_cost, get_front_layer, get_weighted_ops, \
+from contrib.common import get_basic_gates, get_gate_set, qknob_metrics, readable_float_dict, get_circuit_cost, get_front_layer, get_weighted_ops, \
     get_total_ops, get_inverse_mapping
 from contrib.expert import ha_baseline
 from contrib.common import get_cnot_num, get_distance_matrix
 from contrib.action_space import ActionSpace
 from contrib.state_space import StateSpace
+from contrib.verify_circuit import check_circuits_correctness
 
 from hamap.gates import SwapTwoQubitGate, BridgeTwoQubitGate, TwoQubitGate
 from hamap.layer import QuantumLayer, update_layer
@@ -74,7 +75,8 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.initial_mapping_orig = initial_mapping.copy()
         self.distance_matrix = get_distance_matrix(self.hardware)
         if basic_gates is None:
-            basic_gates = get_gate_set(input_circuit)
+            basic_gates = get_basic_gates(input_circuit)
+            print('Getting basic gates from input circuit', basic_gates)
         self.basic_gates = basic_gates #BASIC_GATES.copy() #get_gate_set(input_circuit)
         self.action = ActionSpace(hardware, basic_gates=self.basic_gates)
         self.state = StateSpace(self.max_len)
@@ -342,6 +344,9 @@ class CircuitEnvWithInitialMapping(BaseCircuitEnv):
         self.resulting_circuit = dag_to_circuit(self.resulting_dag)
         self.resulting_circuit = apply_layout(self.resulting_circuit, self.initial_mapping)
 
+        if self.verbose: print('Begin to verify circuit...')
+        assert check_circuits_correctness(self.input_circuit, self.resulting_circuit, list(self.hardware.edges),
+                                              self.basic_gates)
         record = {}
         metrics = qknob_metrics(self.input_circuit, self.resulting_circuit)
         for key, value in metrics.items():

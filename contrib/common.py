@@ -98,6 +98,13 @@ def get_gate_set(qc: QuantumCircuit):
     return list(qc.count_ops().keys())
 
 
+def get_basic_gates(qc: QuantumCircuit):
+    res = get_gate_set(qc)
+    if 'swap' not in res:
+        res.append('swap')
+    return res
+
+
 def get_weighted_ops(ops_count: dict, one_qubit_gate_weight: float = None):
     if one_qubit_gate_weight is None:
         return sum(ops_count.values())

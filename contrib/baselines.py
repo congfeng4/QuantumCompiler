@@ -13,7 +13,7 @@ from joblib import Parallel, delayed
 import pandas as pd
 from pathlib import Path
 
-from contrib.common import dict_product
+from contrib.common import dict_product, get_basic_gates
 
 from qiskit.transpiler import CouplingMap
 
@@ -271,7 +271,7 @@ def transpile_circuit(
     qc_input = qc
     num_qubits = qc_input.num_qubits
     if basic_gates is None:
-        basic_gates = get_gate_set(qc_input)
+        basic_gates = get_basic_gates(qc_input)
     coupling_map, edges, graph_name = get_graph_and_name(graph_model, num_qubits)
 
     if opt_order in (OptOrder.BOTH, OptOrder.BEFORE_ROUTING):

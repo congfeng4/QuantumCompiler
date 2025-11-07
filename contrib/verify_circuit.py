@@ -18,7 +18,7 @@ def check_equivalence(qc_in, qc_out, initial_mapping=None, qubits_threshold=10):
     Check functional equivalence of input and output circuits.
     """
     if qc_in.num_qubits > qubits_threshold:
-        print('Turn off verify_circuit because qubits is', qc_in.num_qubits)
+        # print('Turn off verify_circuit because qubits is', qc_in.num_qubits)
         return True
 
     if initial_mapping is not None:
@@ -73,14 +73,14 @@ def check_basic_gates(basic_gates, qc_out: QuantumCircuit):
 
 
 def check_circuits_correctness(qc_in: QuantumCircuit, qc_out: QuantumCircuit, edges, basic_gates,
-                               initial_mapping=None):
+                               initial_mapping=None, qubits_threshold=10):
     """
     Check the output circuit is correct in terms of the input circuit.
     1. Output is equivalent to input.
     2. Output is routed in terms of edges.
     3. Output does not use non-basic gates in terms of input.
     """
-    ok = check_equivalence(qc_in, qc_out, initial_mapping=initial_mapping)
+    ok = check_equivalence(qc_in, qc_out, initial_mapping=initial_mapping, qubits_threshold=qubits_threshold)
     if not ok:
         print('Equiv failure')
         return False
