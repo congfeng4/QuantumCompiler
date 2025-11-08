@@ -11,6 +11,6 @@ if __name__ == '__main__':
         layout_method=[LayoutMethod.SABRE],
         opt_order=[OptOrder.BOTH, OptOrder.BEFORE_ROUTING,
                    OptOrder.AFTER_ROUTING],
-        graph_model=['ring', 'star'],
+        graph_model=['ring', 'star', 'line', 'grid'],
         save_file=Path(f'./output/baseline/qiskit_name_circs.csv'),
     )

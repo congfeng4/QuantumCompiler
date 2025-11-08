@@ -9,7 +9,7 @@ if __name__ == '__main__':
 
     with shelve.open(f'./output/db/nam_circs', writeback=True) as db:
         for path in load_circuits('./data/nam_circs'):
-            for hardware in [ 'star' ]:
+            for hardware in [ 'grid' ]:
 
                 qc = QuantumCircuit.from_qasm_file(path)
                 db_key = '-'.join([path.name, hardware.lower()])
@@ -25,8 +25,8 @@ if __name__ == '__main__':
                         layout_method=LayoutMethod.SABRE,
                         hardware_name=hardware,
                         output_dir=output_dir,
-                        n_envs=16,
-                        total_timesteps=50,  # 100K.
+                        n_envs=6,
+                        total_timesteps=100,
                     )
                 except KeyboardInterrupt:
                     raise
